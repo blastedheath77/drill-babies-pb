@@ -16,7 +16,8 @@ export function usePlayers() {
   return useQuery({
     queryKey: playerKeys.lists(),
     queryFn: getPlayers,
-    staleTime: 5 * 60 * 1000, // Players list stays fresh for 5 minutes
+    staleTime: 30 * 1000, // Players list stays fresh for 30 seconds
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 }
 

@@ -35,6 +35,7 @@ import {
   getPlayersWithGameCount, 
   getAllGamesWithPlayerNames 
 } from '@/lib/admin-actions';
+import { useInvalidatePlayers } from '@/hooks/use-players';
 import type { Player, Game } from '@/lib/types';
 
 type PlayerWithGameCount = Player & { gameCount: number };
@@ -50,6 +51,7 @@ export function AdminDashboard() {
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true);
   const [isLoadingGames, setIsLoadingGames] = useState(true);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { invalidateAll } = useInvalidatePlayers();
   
   // New player form
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -98,6 +100,10 @@ export function AdminDashboard() {
       setAlert({ type: 'success', message: `Player "${newPlayerName}" created successfully!` });
       setNewPlayerName('');
       setNewPlayerEmail('');
+      
+      // Invalidate React Query cache to refresh player lists immediately
+      invalidateAll();
+      
       loadPlayers(); // Refresh the list
     } else {
       setAlert({ type: 'error', message: result.error || 'Failed to create player' });
@@ -114,6 +120,10 @@ export function AdminDashboard() {
           ? `Player "${playerName}" and all their games deleted successfully!`
           : `Player "${playerName}" deleted successfully!`;
         setAlert({ type: 'success', message });
+        
+        // Invalidate React Query cache to refresh player lists immediately
+        invalidateAll();
+        
         await loadPlayers(); // Refresh the list
         await loadGames(); // Also refresh games if we deleted games
       } else {

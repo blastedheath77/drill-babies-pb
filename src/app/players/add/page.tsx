@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useInvalidatePlayers } from '@/hooks/use-players';
 import { addPlayer } from './actions';
 
 const addPlayerSchema = z.object({
@@ -28,6 +29,7 @@ const addPlayerSchema = z.object({
 export default function AddPlayerPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const { invalidateAll } = useInvalidatePlayers();
 
   const form = useForm<z.infer<typeof addPlayerSchema>>({
     resolver: zodResolver(addPlayerSchema),
@@ -39,6 +41,10 @@ export default function AddPlayerPage() {
   async function onSubmit(values: z.infer<typeof addPlayerSchema>) {
     try {
       await addPlayer(values);
+      
+      // Invalidate React Query cache to refresh player lists immediately
+      invalidateAll();
+      
       toast({
         title: 'Player Added!',
         description: `${values.name} has been added to the club.`,
