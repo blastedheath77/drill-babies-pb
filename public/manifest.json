@@ -1,0 +1,114 @@
+{
+  "name": "Pickleball Stats Tracker",
+  "short_name": "PBStats",
+  "description": "Track scores and statistics for your pickleball club",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E5F0FF",
+  "theme_color": "#4287f5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "utilities", "productivity"],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-1.png",
+      "sizes": "640x1136",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshots/desktop-1.png", 
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Log New Game",
+      "short_name": "Log Game",
+      "description": "Quickly log a new game result",
+      "url": "/log-game",
+      "icons": [
+        {
+          "src": "/icons/shortcut-log-game.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "View Rankings",
+      "short_name": "Rankings", 
+      "description": "Check current player rankings",
+      "url": "/players",
+      "icons": [
+        {
+          "src": "/icons/shortcut-rankings.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Tournament Brackets",
+      "short_name": "Tournaments",
+      "description": "View active tournaments",
+      "url": "/tournaments", 
+      "icons": [
+        {
+          "src": "/icons/shortcut-tournaments.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

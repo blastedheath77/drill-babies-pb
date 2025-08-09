@@ -1,0 +1,666 @@
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  writeBatch,
+  query,
+  orderBy,
+  limit,
+  where,
+  addDoc,
+  serverTimestamp,
+  Timestamp,
+  documentId,
+} from 'firebase/firestore';
+import { db } from './firebase';
+import type {
+  Player,
+  Game,
+  Partnership,
+  HeadToHead,
+  RatingHistoryPoint,
+  Tournament,
+  TournamentMatch,
+  TournamentStanding,
+} from './types';
+import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './constants';
+import { handleDatabaseError, logError } from './errors';
+import { logger } from './logger';
+
+// Seed data if the database is empty
+async function seedDatabase() {
+  const playersCollection = collection(db, 'players');
+  const gamesCollection = collection(db, 'games');
+
+  const playersSnapshot = await getDocs(query(playersCollection, limit(1)));
+
+  if (playersSnapshot.empty) {
+    logger.info('Seeding database with initial players and games');
+    const batch = writeBatch(db);
+
+    // Seed Players with DUPR-style ratings (2.0-8.0)
+    const initialPlayers = [
+      {
+        id: '1',
+        name: 'Alice Johnson',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 4.8, // Advanced player
+        wins: 15,
+        losses: 5,
+        pointsFor: 330,
+        pointsAgainst: 250,
+      },
+      {
+        id: '2',
+        name: 'Bob Williams',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 4.2, // Strong intermediate
+        wins: 12,
+        losses: 8,
+        pointsFor: 310,
+        pointsAgainst: 280,
+      },
+      {
+        id: '3',
+        name: 'Charlie Brown',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 3.1, // Beginner/intermediate
+        wins: 8,
+        losses: 12,
+        pointsFor: 280,
+        pointsAgainst: 310,
+      },
+      {
+        id: '4',
+        name: 'Diana Miller',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 5.2, // Expert player
+        wins: 18,
+        losses: 2,
+        pointsFor: 350,
+        pointsAgainst: 220,
+      },
+      {
+        id: '5',
+        name: 'Ethan Davis',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 2.8, // Beginner
+        wins: 5,
+        losses: 15,
+        pointsFor: 250,
+        pointsAgainst: 330,
+      },
+      {
+        id: '6',
+        name: 'Fiona Garcia',
+        avatar: DEFAULT_AVATAR_URL,
+        rating: 3.7, // Solid intermediate
+        wins: 10,
+        losses: 10,
+        pointsFor: 300,
+        pointsAgainst: 300,
+      },
+    ];
+    initialPlayers.forEach((player) => {
+      const docRef = doc(db, 'players', player.id);
+      batch.set(docRef, player);
+    });
+
+    // To make it easier to query, we'll add some games
+    const games = [
+      {
+        type: 'Doubles',
+        team1: { playerIds: ['1', '2'], score: 11 },
+        team2: { playerIds: ['3', '4'], score: 7 },
+      },
+      {
+        type: 'Singles',
+        team1: { playerIds: ['4'], score: 11 },
+        team2: { playerIds: ['1'], score: 9 },
+      },
+      {
+        type: 'Doubles',
+        team1: { playerIds: ['1', '2'], score: 11 },
+        team2: { playerIds: ['5', '6'], score: 5 },
+      },
+      {
+        type: 'Singles',
+        team1: { playerIds: ['6'], score: 11 },
+        team2: { playerIds: ['3'], score: 3 },
+      },
+      {
+        type: 'Singles',
+        team1: { playerIds: ['2'], score: 11 },
+        team2: { playerIds: ['5'], score: 4 },
+      },
+    ];
+
+    games.forEach((game) => {
+      const gameRef = doc(collection(db, 'games'));
+      const allPlayerIds = [...game.team1.playerIds, ...game.team2.playerIds];
+      batch.set(gameRef, {
+        ...game,
+        date: serverTimestamp(),
+        playerIds: allPlayerIds,
+      });
+    });
+
+    await batch.commit();
+    console.log('Database seeded successfully!');
+  }
+}
+
+// Call seedDatabase on startup. It will only run if the database is empty.
+seedDatabase().catch(console.error);
+
+export async function getPlayers(): Promise<Player[]> {
+  try {
+    const playersCollection = collection(db, 'players');
+    const q = query(playersCollection, orderBy('rating', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Player);
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayers');
+    return [];
+  }
+}
+
+export async function getPlayerById(id: string): Promise<Player | undefined> {
+  try {
+    const playerDoc = await getDoc(doc(db, 'players', id));
+    if (playerDoc.exists()) {
+      return { id: playerDoc.id, ...playerDoc.data() } as Player;
+    }
+    return undefined;
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayerById');
+    return undefined;
+  }
+}
+
+async function fetchPlayersByIds(playerIds: string[]): Promise<Map<string, Player>> {
+  const playerMap = new Map<string, Player>();
+  if (playerIds.length === 0) {
+    return playerMap;
+  }
+
+  const playerBatches: string[][] = [];
+  // Firestore 'in' query supports a maximum of FIRESTORE_BATCH_LIMIT elements
+  for (let i = 0; i < playerIds.length; i += FIRESTORE_BATCH_LIMIT) {
+    playerBatches.push(playerIds.slice(i, i + FIRESTORE_BATCH_LIMIT));
+  }
+
+  await Promise.all(
+    playerBatches.map(async (batch) => {
+      const playersSnapshot = await getDocs(
+        query(collection(db, 'players'), where(documentId(), 'in', batch))
+      );
+      playersSnapshot.forEach((doc) => {
+        playerMap.set(doc.id, { id: doc.id, ...doc.data() } as Player);
+      });
+    })
+  );
+
+  return playerMap;
+}
+
+export async function getTotalGamesCount(): Promise<number> {
+  try {
+    const gamesCollection = collection(db, 'games');
+    const snapshot = await getDocs(gamesCollection);
+    return snapshot.size;
+  } catch (error) {
+    console.error('Error fetching total games count: ', error);
+    return 0;
+  }
+}
+
+export async function getRecentGames(count: number = 5): Promise<Game[]> {
+  try {
+    const gamesCollection = collection(db, 'games');
+    const q = query(gamesCollection, orderBy('date', 'desc'), limit(count));
+    const snapshot = await getDocs(q);
+
+    const allPlayerIds = new Set<string>();
+    const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+
+    gameDocsData.forEach((gameData) => {
+      if (gameData.playerIds) {
+        gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+      }
+    });
+
+    const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
+
+    const games = gameDocsData.map((gameData) => {
+      const team1Players = gameData.team1.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+      const team2Players = gameData.team2.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+
+      return {
+        ...gameData,
+        date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        team1: { ...gameData.team1, players: team1Players },
+        team2: { ...gameData.team2, players: team2Players },
+      } as Game;
+    });
+
+    return games;
+  } catch (error) {
+    console.error('Error fetching recent games: ', error);
+    return [];
+  }
+}
+
+export async function getGamesForPlayer(playerId: string): Promise<Game[]> {
+  try {
+    const gamesCollection = collection(db, 'games');
+    const q = query(
+      gamesCollection,
+      where('playerIds', 'array-contains', playerId),
+      orderBy('date', 'desc')
+    );
+    const gamesSnapshot = await getDocs(q);
+
+    const allPlayerIds = new Set<string>([playerId]);
+    const gameDocsData = gamesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+
+    gameDocsData.forEach((gameData) => {
+      gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+    });
+
+    const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
+
+    const games = gameDocsData.map((gameData) => {
+      const team1Players = gameData.team1.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+      const team2Players = gameData.team2.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+
+      return {
+        ...gameData,
+        date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        team1: { ...gameData.team1, players: team1Players },
+        team2: { ...gameData.team2, players: team2Players },
+      } as Game;
+    });
+
+    return games;
+  } catch (error) {
+    console.error(`Error fetching games for player ${playerId}:`, error);
+    return [];
+  }
+}
+
+export function getHeadToHeadStats(
+  playerId: string,
+  opponentId: string,
+  allGames: Game[]
+): HeadToHead | null {
+  let wins = 0;
+  let losses = 0;
+  let pointsDifference = 0;
+
+  const h2hGames = allGames.filter((game) => game.playerIds.includes(opponentId));
+  let gamesPlayed = 0;
+
+  h2hGames.forEach((game) => {
+    // Check if they are partners (on same team)
+    const playersOnTeam1 =
+      game.team1.playerIds.includes(playerId) && game.team1.playerIds.includes(opponentId);
+    const playersOnTeam2 =
+      game.team2.playerIds.includes(playerId) && game.team2.playerIds.includes(opponentId);
+
+    // Skip games where they are partners
+    if (playersOnTeam1 || playersOnTeam2) return;
+
+    // Determine which team each player is on
+    const playerIsOnTeam1 = game.team1.playerIds.includes(playerId);
+    const opponentIsOnTeam1 = game.team1.playerIds.includes(opponentId);
+
+    // They must be on opposite teams for a head-to-head matchup
+    if (playerIsOnTeam1 === opponentIsOnTeam1) return;
+
+    const playerTeam = playerIsOnTeam1 ? game.team1 : game.team2;
+    const opponentTeam = opponentIsOnTeam1 ? game.team1 : game.team2;
+
+    gamesPlayed++;
+    if (playerTeam.score > opponentTeam.score) {
+      wins++;
+    } else {
+      losses++;
+    }
+    pointsDifference += playerTeam.score - opponentTeam.score;
+  });
+
+  return {
+    opponentId,
+    gamesPlayed,
+    wins,
+    losses,
+    pointsDifference,
+  };
+}
+
+export function getPartnershipStats(playerId: string, allGames: Game[]): Partnership[] {
+  const partnerships: {
+    [partnerId: string]: { gamesPlayed: number; wins: number; losses: number; partner: Player };
+  } = {};
+
+  const doublesGames = allGames.filter((game) => game.type === 'Doubles');
+
+  for (const game of doublesGames) {
+    const playerTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
+    const partnerId = playerTeam.playerIds.find((id: string) => id !== playerId);
+
+    if (partnerId) {
+      if (!partnerships[partnerId]) {
+        const partnerInfo = playerTeam.players.find((p) => p.id === partnerId);
+        if (!partnerInfo) continue;
+        partnerships[partnerId] = { gamesPlayed: 0, wins: 0, losses: 0, partner: partnerInfo };
+      }
+
+      partnerships[partnerId].gamesPlayed++;
+      const opponentTeam = game.team1.playerIds.includes(playerId) ? game.team2 : game.team1;
+
+      if (playerTeam.score > opponentTeam.score) {
+        partnerships[partnerId].wins++;
+      } else {
+        partnerships[partnerId].losses++;
+      }
+    }
+  }
+
+  return Object.values(partnerships).sort((a, b) => b.gamesPlayed - a.gamesPlayed);
+}
+
+export function getBiggestRivals(
+  playerId: string,
+  allPlayers: Player[],
+  allGames: Game[]
+): Array<HeadToHead & { opponent: Player }> {
+  const rivals: Array<HeadToHead & { opponent: Player }> = [];
+
+  // Calculate head-to-head stats against each opponent
+  allPlayers.forEach((opponent) => {
+    const stats = getHeadToHeadStats(playerId, opponent.id, allGames);
+    if (stats && stats.gamesPlayed >= 2) {
+      // Only include opponents with at least 2 games
+      const winRate = stats.wins / stats.gamesPlayed;
+      rivals.push({
+        ...stats,
+        opponent,
+        winRate,
+      } as any);
+    }
+  });
+
+  // Sort by worst win rate (lowest win rate = biggest rival)
+  return rivals.sort((a: any, b: any) => a.winRate - b.winRate).slice(0, 5); // Return top 5 biggest rivals
+}
+
+export async function getPlayerRatingHistory(
+  playerId: string,
+  days: number = 30
+): Promise<RatingHistoryPoint[]> {
+  try {
+    // Get current player rating to use as starting point
+    const player = await getPlayerById(playerId);
+    if (!player) return [];
+
+    // Calculate date cutoff
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    // Get ALL games for this player (using existing index)
+    const games = await getGamesForPlayer(playerId);
+
+    const ratingHistory: RatingHistoryPoint[] = [];
+
+    // Filter games by date and extract rating history
+    const recentGames = games.filter((game) => {
+      const gameDate = new Date(game.date);
+      return gameDate >= cutoffDate;
+    });
+
+    // Sort by date ascending
+    recentGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (recentGames.length === 0) {
+      // No recent games, show current rating
+      ratingHistory.push({
+        date: new Date().toISOString(),
+        rating: player.rating,
+        gameId: 'current',
+        opponent: 'Current Rating',
+      });
+      return ratingHistory;
+    }
+
+    // Process games to build rating history
+    recentGames.forEach((game) => {
+      // Check if this game has rating changes recorded
+      const gameData = game as any;
+      const ratingChanges = gameData.ratingChanges;
+
+      if (ratingChanges && ratingChanges[playerId]) {
+        // Get opponent names for context
+        const opponentIds = game.playerIds.filter((id: string) => id !== playerId);
+        const opponentPlayers = [
+          ...game.team1.players.filter((p) => p.id !== playerId),
+          ...game.team2.players.filter((p) => p.id !== playerId),
+        ];
+        const opponentName =
+          opponentPlayers.length > 0
+            ? `vs ${opponentPlayers.map((p) => p.name).join(' & ')}`
+            : 'Unknown opponent';
+
+        ratingHistory.push({
+          date: game.date,
+          rating: ratingChanges[playerId].after,
+          gameId: game.id,
+          opponent: opponentName,
+        });
+      }
+    });
+
+    // If we have rating history from games with ratingChanges, add starting point
+    if (ratingHistory.length > 0) {
+      const firstGame = recentGames[0] as any;
+      const firstRatingChange = firstGame.ratingChanges?.[playerId];
+
+      if (firstRatingChange) {
+        ratingHistory.unshift({
+          date: firstGame.date,
+          rating: firstRatingChange.before,
+          gameId: `${firstGame.id}-before`,
+          opponent: 'Starting Rating',
+        });
+      }
+    }
+
+    // If no games have rating changes yet (old games), create a simple current rating point
+    if (ratingHistory.length === 0) {
+      ratingHistory.push({
+        date: new Date().toISOString(),
+        rating: player.rating,
+        gameId: 'current',
+        opponent: 'Current Rating',
+      });
+    }
+
+    return ratingHistory;
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayerRatingHistory');
+    return [];
+  }
+}
+
+// Tournament-related functions
+export async function getTournaments(): Promise<Tournament[]> {
+  try {
+    const tournamentsSnapshot = await getDocs(
+      query(collection(db, 'tournaments'), orderBy('createdDate', 'desc'))
+    );
+    return tournamentsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Tournament[];
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournaments');
+    return [];
+  }
+}
+
+export async function getTournamentById(tournamentId: string): Promise<Tournament | null> {
+  try {
+    const tournamentDoc = await getDoc(doc(db, 'tournaments', tournamentId));
+    if (tournamentDoc.exists()) {
+      return { id: tournamentDoc.id, ...tournamentDoc.data() } as Tournament;
+    }
+    return null;
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentById');
+    return null;
+  }
+}
+
+export async function getTournamentsByStatus(status: Tournament['status']): Promise<Tournament[]> {
+  try {
+    // Get all tournaments and filter in memory (simpler for initial development)
+    const tournamentsSnapshot = await getDocs(collection(db, 'tournaments'));
+
+    if (tournamentsSnapshot.empty) {
+      return [];
+    }
+
+    const allTournaments = tournamentsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Tournament[];
+
+    // Filter by status and sort by creation date (newest first)
+    return allTournaments
+      .filter((tournament) => tournament.status === status)
+      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  } catch (error) {
+    console.warn(`Error getting tournaments by status ${status}:`, error);
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentsByStatus');
+    return [];
+  }
+}
+
+export async function getTournamentMatches(tournamentId: string): Promise<TournamentMatch[]> {
+  try {
+    // Get all matches for tournament and sort in memory (simpler for development)
+    const matchesSnapshot = await getDocs(
+      query(collection(db, 'tournamentMatches'), where('tournamentId', '==', tournamentId))
+    );
+
+    const allMatches = matchesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as TournamentMatch[];
+
+    // Sort by round, then by match number
+    return allMatches.sort((a, b) => {
+      if (a.round !== b.round) {
+        return a.round - b.round;
+      }
+      return a.matchNumber - b.matchNumber;
+    });
+  } catch (error) {
+    console.warn(`Error getting tournament matches for ${tournamentId}:`, error);
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentMatches');
+    return [];
+  }
+}
+
+export async function getTournamentMatchById(matchId: string): Promise<TournamentMatch | null> {
+  try {
+    const matchDoc = await getDoc(doc(db, 'tournamentMatches', matchId));
+    if (!matchDoc.exists()) {
+      return null;
+    }
+    return { id: matchDoc.id, ...matchDoc.data() } as TournamentMatch;
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentMatchById');
+    return null;
+  }
+}
+
+export async function getTournamentStandings(tournamentId: string): Promise<TournamentStanding[]> {
+  try {
+    const tournament = await getTournamentById(tournamentId);
+    if (!tournament) return [];
+
+    const standings: TournamentStanding[] = [];
+
+    // Get all tournament games
+    const tournamentGames = await getDocs(
+      query(collection(db, 'games'), where('tournamentId', '==', tournamentId))
+    );
+
+    // Calculate standings for each registered player
+    for (const playerId of tournament.playerIds) {
+      const player = await getPlayerById(playerId);
+      if (!player) continue;
+
+      let gamesPlayed = 0;
+      let wins = 0;
+      let losses = 0;
+      let pointsFor = 0;
+      let pointsAgainst = 0;
+
+      tournamentGames.forEach((gameDoc) => {
+        const game = { id: gameDoc.id, ...gameDoc.data() } as Game;
+
+        // Check if this player participated in this game
+        if (game.playerIds.includes(playerId)) {
+          gamesPlayed++;
+
+          const playerTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
+          const opponentTeam = game.team1.playerIds.includes(playerId) ? game.team2 : game.team1;
+
+          pointsFor += playerTeam.score;
+          pointsAgainst += opponentTeam.score;
+
+          if (playerTeam.score > opponentTeam.score) {
+            wins++;
+          } else {
+            losses++;
+          }
+        }
+      });
+
+      standings.push({
+        playerId,
+        player,
+        gamesPlayed,
+        wins,
+        losses,
+        pointsFor,
+        pointsAgainst,
+        pointsDifference: pointsFor - pointsAgainst,
+        winPercentage: gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0,
+      });
+    }
+
+    // Sort by win percentage, then by points difference
+    return standings.sort((a, b) => {
+      if (b.winPercentage !== a.winPercentage) {
+        return b.winPercentage - a.winPercentage;
+      }
+      return b.pointsDifference - a.pointsDifference;
+    });
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentStandings');
+    return [];
+  }
+}
