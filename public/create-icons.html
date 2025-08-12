@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create PB Icons</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .icon-preview { display: inline-block; margin: 10px; text-align: center; }
+        .download-btn { background: #4287f5; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>PB Stats Icon Generator</h1>
+    <p>Creating icons based on your uploaded PB design...</p>
+    
+    <div id="icons-container"></div>
+    
+    <button class="download-btn" onclick="downloadAll()">Download All Icons</button>
+    <button class="download-btn" onclick="createFavicon()">Create Favicon</button>
+    
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        const iconsContainer = document.getElementById('icons-container');
+        const canvases = {};
+        
+        function createPBIcon(size) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Create the PB icon based on your uploaded design
+            
+            // Background - rounded rectangle with green gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, size);
+            gradient.addColorStop(0, '#7CB342');  // Lighter green
+            gradient.addColorStop(1, '#4A7A2C');  // Darker green
+            
+            ctx.fillStyle = gradient;
+            const radius = size * 0.2; // 20% radius for rounded corners
+            
+            // Draw rounded rectangle
+            ctx.beginPath();
+            ctx.moveTo(radius, 0);
+            ctx.arcTo(size, 0, size, size, radius);
+            ctx.arcTo(size, size, 0, size, radius);
+            ctx.arcTo(0, size, 0, 0, radius);
+            ctx.arcTo(0, 0, size, 0, radius);
+            ctx.closePath();
+            ctx.fill();
+            
+            // White letters "PB"
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.32}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Draw P
+            ctx.fillText('P', size * 0.32, size * 0.5);
+            
+            // Draw B  
+            ctx.fillText('B', size * 0.68, size * 0.5);
+            
+            // Pickleball circles on the letters
+            // Ball on P
+            ctx.fillStyle = '#FFD54F'; // Yellow
+            ctx.beginPath();
+            ctx.arc(size * 0.42, size * 0.35, size * 0.08, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Dark green ring
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = size * 0.01;
+            ctx.stroke();
+            
+            // Holes on P ball
+            ctx.fillStyle = '#2E7D32';
+            for(let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI) / 3;
+                const x = size * 0.42 + Math.cos(angle) * size * 0.04;
+                const y = size * 0.35 + Math.sin(angle) * size * 0.04;
+                ctx.beginPath();
+                ctx.arc(x, y, size * 0.01, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Ball on B (top)
+            ctx.fillStyle = '#FFD54F';
+            ctx.beginPath();
+            ctx.arc(size * 0.75, size * 0.3, size * 0.06, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = size * 0.008;
+            ctx.stroke();
+            
+            // Holes on B ball (top)
+            ctx.fillStyle = '#2E7D32';
+            for(let i = 0; i < 4; i++) {
+                const angle = (i * Math.PI) / 2;
+                const x = size * 0.75 + Math.cos(angle) * size * 0.03;
+                const y = size * 0.3 + Math.sin(angle) * size * 0.03;
+                ctx.beginPath();
+                ctx.arc(x, y, size * 0.008, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Ball on B (bottom)
+            ctx.fillStyle = '#FFD54F';
+            ctx.beginPath();
+            ctx.arc(size * 0.75, size * 0.65, size * 0.06, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = size * 0.008;
+            ctx.stroke();
+            
+            // Holes on B ball (bottom)
+            ctx.fillStyle = '#2E7D32';
+            for(let i = 0; i < 4; i++) {
+                const angle = (i * Math.PI) / 2;
+                const x = size * 0.75 + Math.cos(angle) * size * 0.03;
+                const y = size * 0.65 + Math.sin(angle) * size * 0.03;
+                ctx.beginPath();
+                ctx.arc(x, y, size * 0.008, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            return canvas;
+        }
+        
+        function createIconPreview(size) {
+            const canvas = createPBIcon(size);
+            canvases[size] = canvas;
+            
+            const container = document.createElement('div');
+            container.className = 'icon-preview';
+            
+            const label = document.createElement('div');
+            label.textContent = `${size}x${size}`;
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'Download';
+            downloadBtn.className = 'download-btn';
+            downloadBtn.onclick = () => downloadIcon(size);
+            
+            container.appendChild(label);
+            container.appendChild(canvas);
+            container.appendChild(downloadBtn);
+            
+            return container;
+        }
+        
+        function downloadIcon(size) {
+            const canvas = canvases[size];
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        function downloadAll() {
+            sizes.forEach((size, index) => {
+                setTimeout(() => downloadIcon(size), index * 100);
+            });
+        }
+        
+        function createFavicon() {
+            const canvas = createPBIcon(32);
+            const link = document.createElement('a');
+            link.download = 'favicon-32x32.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Generate all previews
+        sizes.forEach(size => {
+            const preview = createIconPreview(size);
+            iconsContainer.appendChild(preview);
+        });
+        
+        // Auto-download instructions
+        setTimeout(() => {
+            alert('Icons generated! Click "Download All Icons" to get all sizes, or download individual sizes. Then move them to your /public/icons/ folder.');
+        }, 1000);
+    </script>
+</body>
+</html>

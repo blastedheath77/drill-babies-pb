@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Pickleball Icons</title>
+</head>
+<body>
+    <canvas id="canvas" width="512" height="512"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Create pickleball-themed icon
+        function createIcon(size) {
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Background circle
+            ctx.fillStyle = '#4287f5';
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // White paddle shape
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.ellipse(size/2, size*0.35, size*0.15, size*0.25, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Handle
+            ctx.fillRect(size*0.45, size*0.55, size*0.1, size*0.3);
+            
+            // Ball (holes)
+            ctx.fillStyle = '#4287f5';
+            for(let i = 0; i < 6; i++) {
+                const angle = (i * Math.PI) / 3;
+                const x = size/2 + Math.cos(angle) * size*0.08;
+                const y = size*0.35 + Math.sin(angle) * size*0.08;
+                ctx.beginPath();
+                ctx.arc(x, y, size*0.02, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Generate all sizes
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+        sizes.forEach((size, index) => {
+            setTimeout(() => createIcon(size), index * 100);
+        });
+    </script>
+</body>
+</html>

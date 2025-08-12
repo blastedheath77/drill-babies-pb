@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   title: 'Pickleball Stats Tracker',
   description: 'Track scores and stats for your pickleball club',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
