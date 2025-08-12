@@ -44,6 +44,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         localStorage.removeItem('pbstats-user');
       }
+    } else {
+      // Temporary: Default to admin user for testing
+      const defaultAdmin = MOCK_USERS[0]; // Admin user
+      setUser(defaultAdmin);
+      localStorage.setItem('pbstats-user', JSON.stringify(defaultAdmin));
     }
     setIsLoading(false);
   }, []);

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -32,6 +32,7 @@ export const specialNavItems: NavItem[] = [
 // Admin-only items
 export const adminNavItems: NavItem[] = [
   { title: 'Admin Dashboard', href: '/admin/dashboard', icon: Shield, category: 'admin', adminOnly: true },
+  { title: 'Database Management', href: '/admin/database', icon: Database, category: 'admin', adminOnly: true },
 ];
 
 // Legacy export for backwards compatibility

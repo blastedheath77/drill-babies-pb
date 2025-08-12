@@ -31,7 +31,12 @@ import { useEffect } from 'react';
 function AppSidebarContent() {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, isLoading } = useAuth();
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const handleNavClick = () => {
     if (isMobile) {
@@ -97,7 +102,7 @@ function AppSidebarContent() {
         </div>
 
         {/* Admin Section (only for admin users) */}
-        {isAdmin() && (
+        {!isLoading && isClient && isAdmin() && (
           <div className="px-2 mb-4">
             <SidebarSeparator className="mb-4" />
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">

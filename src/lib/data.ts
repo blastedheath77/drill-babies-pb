@@ -28,138 +28,19 @@ import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './con
 import { handleDatabaseError, logError } from './errors';
 import { logger } from './logger';
 
-// Seed data if the database is empty
-async function seedDatabase() {
-  const playersCollection = collection(db, 'players');
-  const gamesCollection = collection(db, 'games');
-
-  const playersSnapshot = await getDocs(query(playersCollection, limit(1)));
-
-  if (playersSnapshot.empty) {
-    logger.info('Seeding database with initial players and games');
-    const batch = writeBatch(db);
-
-    // Seed Players with DUPR-style ratings (2.0-8.0)
-    const initialPlayers = [
-      {
-        id: '1',
-        name: 'Alice Johnson',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 4.8, // Advanced player
-        wins: 15,
-        losses: 5,
-        pointsFor: 330,
-        pointsAgainst: 250,
-      },
-      {
-        id: '2',
-        name: 'Bob Williams',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 4.2, // Strong intermediate
-        wins: 12,
-        losses: 8,
-        pointsFor: 310,
-        pointsAgainst: 280,
-      },
-      {
-        id: '3',
-        name: 'Charlie Brown',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 3.1, // Beginner/intermediate
-        wins: 8,
-        losses: 12,
-        pointsFor: 280,
-        pointsAgainst: 310,
-      },
-      {
-        id: '4',
-        name: 'Diana Miller',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 5.2, // Expert player
-        wins: 18,
-        losses: 2,
-        pointsFor: 350,
-        pointsAgainst: 220,
-      },
-      {
-        id: '5',
-        name: 'Ethan Davis',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 2.8, // Beginner
-        wins: 5,
-        losses: 15,
-        pointsFor: 250,
-        pointsAgainst: 330,
-      },
-      {
-        id: '6',
-        name: 'Fiona Garcia',
-        avatar: DEFAULT_AVATAR_URL,
-        rating: 3.7, // Solid intermediate
-        wins: 10,
-        losses: 10,
-        pointsFor: 300,
-        pointsAgainst: 300,
-      },
-    ];
-    initialPlayers.forEach((player) => {
-      const docRef = doc(db, 'players', player.id);
-      batch.set(docRef, player);
-    });
-
-    // To make it easier to query, we'll add some games
-    const games = [
-      {
-        type: 'Doubles',
-        team1: { playerIds: ['1', '2'], score: 11 },
-        team2: { playerIds: ['3', '4'], score: 7 },
-      },
-      {
-        type: 'Singles',
-        team1: { playerIds: ['4'], score: 11 },
-        team2: { playerIds: ['1'], score: 9 },
-      },
-      {
-        type: 'Doubles',
-        team1: { playerIds: ['1', '2'], score: 11 },
-        team2: { playerIds: ['5', '6'], score: 5 },
-      },
-      {
-        type: 'Singles',
-        team1: { playerIds: ['6'], score: 11 },
-        team2: { playerIds: ['3'], score: 3 },
-      },
-      {
-        type: 'Singles',
-        team1: { playerIds: ['2'], score: 11 },
-        team2: { playerIds: ['5'], score: 4 },
-      },
-    ];
-
-    games.forEach((game) => {
-      const gameRef = doc(collection(db, 'games'));
-      const allPlayerIds = [...game.team1.playerIds, ...game.team2.playerIds];
-      batch.set(gameRef, {
-        ...game,
-        date: serverTimestamp(),
-        playerIds: allPlayerIds,
-      });
-    });
-
-    await batch.commit();
-    console.log('Database seeded successfully!');
-  }
-}
-
-// Call seedDatabase on startup. It will only run if the database is empty.
-seedDatabase().catch(console.error);
-
 export async function getPlayers(): Promise<Player[]> {
   try {
     const playersCollection = collection(db, 'players');
     const q = query(playersCollection, orderBy('rating', 'desc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Player);
+    
+    // Clean data to remove Firestore-specific objects that cause hydration issues
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      // Remove problematic fields like createdAt that have toJSON methods
+      const { createdAt, nameLower, ...cleanData } = data;
+      return { id: doc.id, ...cleanData } as Player;
+    });
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayers');
     return [];
@@ -170,7 +51,10 @@ export async function getPlayerById(id: string): Promise<Player | undefined> {
   try {
     const playerDoc = await getDoc(doc(db, 'players', id));
     if (playerDoc.exists()) {
-      return { id: playerDoc.id, ...playerDoc.data() } as Player;
+      const data = playerDoc.data();
+      // Remove problematic fields that cause hydration issues
+      const { createdAt, nameLower, ...cleanData } = data;
+      return { id: playerDoc.id, ...cleanData } as Player;
     }
     return undefined;
   } catch (error) {
@@ -197,7 +81,10 @@ async function fetchPlayersByIds(playerIds: string[]): Promise<Map<string, Playe
         query(collection(db, 'players'), where(documentId(), 'in', batch))
       );
       playersSnapshot.forEach((doc) => {
-        playerMap.set(doc.id, { id: doc.id, ...doc.data() } as Player);
+        const data = doc.data();
+        // Remove problematic fields that cause hydration issues
+        const { createdAt, nameLower, ...cleanData } = data;
+        playerMap.set(doc.id, { id: doc.id, ...cleanData } as Player);
       });
     })
   );

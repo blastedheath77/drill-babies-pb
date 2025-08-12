@@ -29,7 +29,7 @@ const addPlayerSchema = z.object({
 export default function AddPlayerPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { invalidateAll } = useInvalidatePlayers();
+  const { invalidateAll, refetchAll } = useInvalidatePlayers();
 
   const form = useForm<z.infer<typeof addPlayerSchema>>({
     resolver: zodResolver(addPlayerSchema),
@@ -42,13 +42,14 @@ export default function AddPlayerPage() {
     try {
       await addPlayer(values);
       
-      // Invalidate React Query cache to refresh player lists immediately
-      invalidateAll();
+      // Force fresh data fetch before navigation
+      await refetchAll();
       
       toast({
         title: 'Player Added!',
         description: `${values.name} has been added to the club.`,
       });
+      
       router.push('/players');
     } catch (error) {
       toast({

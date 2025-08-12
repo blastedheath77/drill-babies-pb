@@ -16,8 +16,9 @@ export function usePlayers() {
   return useQuery({
     queryKey: playerKeys.lists(),
     queryFn: getPlayers,
-    staleTime: 30 * 1000, // Players list stays fresh for 30 seconds
+    staleTime: 10 * 1000, // Players list stays fresh for 10 seconds (shorter for consistency)
     refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Always refetch when component mounts
   });
 }
 
@@ -53,6 +54,9 @@ export function useInvalidatePlayers() {
     invalidateList: () => queryClient.invalidateQueries({ queryKey: playerKeys.lists() }),
     invalidatePlayer: (playerId: string) =>
       queryClient.invalidateQueries({ queryKey: playerKeys.detail(playerId) }),
+    // Add refetch methods that return promises
+    refetchAll: () => queryClient.refetchQueries({ queryKey: playerKeys.all }),
+    refetchList: () => queryClient.refetchQueries({ queryKey: playerKeys.lists() }),
   };
 }
 
