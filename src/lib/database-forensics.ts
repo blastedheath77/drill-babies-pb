@@ -6,6 +6,9 @@ import {
   query,
   orderBy,
   limit,
+  deleteDoc,
+  doc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { logger } from './logger';
@@ -165,7 +168,9 @@ export async function nuclearDatabaseReset(): Promise<{ success: boolean; messag
       const snapshot = await getDocs(collectionRef);
       
       if (!snapshot.empty) {
-        const deletePromises = snapshot.docs.map(doc => doc.ref.delete());
+        const deletePromises = snapshot.docs.map(docSnapshot => 
+          deleteDoc(doc(db, collectionName, docSnapshot.id))
+        );
         await Promise.all(deletePromises);
         totalDeleted += snapshot.size;
         logger.info(`Deleted ${snapshot.size} documents from ${collectionName}`);
@@ -218,11 +223,11 @@ export async function cleanupOrphanedReferences(): Promise<{ success: boolean; m
       if (validPlayerIds_filtered.length !== currentPlayerIds.length) {
         if (validPlayerIds_filtered.length === 0) {
           // Delete games with no valid players
-          await gameDoc.ref.delete();
+          await deleteDoc(doc(db, 'games', gameDoc.id));
           cleanedCount++;
         } else {
           // Update game with only valid player IDs
-          await gameDoc.ref.update({
+          await updateDoc(doc(db, 'games', gameDoc.id), {
             playerIds: validPlayerIds_filtered,
             // Also update team player IDs
             'team1.playerIds': game.team1?.playerIds?.filter((id: string) => validPlayerIds.has(id)) || [],

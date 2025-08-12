@@ -21,7 +21,7 @@ import { mainNavItems, actionNavItems, specialNavItems, adminNavItems } from '@/
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Button } from '../ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, LogIn } from 'lucide-react';
 import { Header } from './header';
 import { useAuth } from '@/contexts/auth-context';
 import { AuthWrapper } from '@/components/auth-wrapper';
@@ -33,6 +33,7 @@ function AppSidebarContent() {
   const { setOpenMobile, isMobile } = useSidebar();
   const { user, isAdmin, logout, isLoading } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
+  const router = useRouter();
 
   React.useEffect(() => {
     setIsClient(true);
@@ -152,32 +153,54 @@ function AppSidebarContent() {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
-        <div className="flex items-center justify-between p-2 group-data-[collapsible=icon]:justify-center">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <Avatar className="h-8 w-8">
-              <AvatarImage
-                src={user?.avatar || 'https://placehold.co/100x100.png'}
-                alt={user?.name || 'User'}
-              />
-              <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-            </Avatar>
-            <div className="text-sm">
-              <p className="font-semibold">{user?.name || 'User'}</p>
-              <p className="text-xs text-muted-foreground">
-                {user?.role === 'admin' ? 'Administrator' : 'Player'}
-              </p>
+        {!isLoading && isClient ? (
+          user ? (
+            <div className="flex items-center justify-between p-2 group-data-[collapsible=icon]:justify-center">
+              <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={user?.avatar || 'https://placehold.co/100x100.png'}
+                    alt={user?.name || 'User'}
+                  />
+                  <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                </Avatar>
+                <div className="text-sm">
+                  <p className="font-semibold">{user?.name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                  </p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={logout}
+                title="Sign Out"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
+          ) : (
+            <div className="p-2">
+              <Button 
+                variant="default" 
+                className="w-full"
+                onClick={() => {
+                  handleNavClick();
+                  router.push('/login');
+                }}
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Sign In
+              </Button>
+            </div>
+          )
+        ) : (
+          <div className="p-2">
+            <div className="h-10 bg-muted animate-pulse rounded" />
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8"
-            onClick={logout}
-            title="Sign Out"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
+        )}
       </SidebarFooter>
     </>
   );

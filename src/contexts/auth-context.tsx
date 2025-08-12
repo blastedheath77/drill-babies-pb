@@ -38,14 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check for stored auth on mount
     const storedUser = localStorage.getItem('pbstats-user');
+    const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
+    
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (error) {
         localStorage.removeItem('pbstats-user');
       }
-    } else {
-      // Temporary: Default to admin user for testing
+    } else if (!hasLoggedOut) {
+      // Only default to admin if user hasn't explicitly logged out
       const defaultAdmin = MOCK_USERS[0]; // Admin user
       setUser(defaultAdmin);
       localStorage.setItem('pbstats-user', JSON.stringify(defaultAdmin));
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userData) {
         setUser(userData);
         localStorage.setItem('pbstats-user', JSON.stringify(userData));
+        localStorage.removeItem('pbstats-logged-out'); // Clear logout flag
         setIsLoading(false);
         return { success: true };
       }
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('pbstats-user');
+    localStorage.setItem('pbstats-logged-out', 'true'); // Set logout flag
   };
 
   const isAdmin = () => user?.role === 'admin';
