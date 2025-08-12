@@ -1,15 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getRecentGames, getGamesForPlayer, getTotalGamesCount } from '@/lib/data';
+import { getRecentGames, getGamesForPlayer, getTotalGamesCount, getAllGames, getPlayers } from '@/lib/data';
 import type { Game } from '@/lib/types';
 
 // Query keys for games
 export const gameKeys = {
   all: ['games'] as const,
   lists: () => [...gameKeys.all, 'list'] as const,
+  allGames: () => [...gameKeys.lists(), 'all'] as const,
   recent: (count?: number) => [...gameKeys.lists(), 'recent', count] as const,
   player: (playerId: string) => [...gameKeys.lists(), 'player', playerId] as const,
   count: () => [...gameKeys.all, 'count'] as const,
 };
+
+// Hook to get all games with caching
+export function useAllGames() {
+  return useQuery({
+    queryKey: gameKeys.allGames(),
+    queryFn: getAllGames,
+    staleTime: 5 * 60 * 1000, // All games stay fresh for 5 minutes
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+  });
+}
 
 // Hook to get recent games with caching
 export function useRecentGames(count: number = 5) {
@@ -45,10 +57,14 @@ export function useInvalidateGames() {
 
   return {
     invalidateAll: () => queryClient.invalidateQueries({ queryKey: gameKeys.all }),
+    invalidateAllGames: () => queryClient.invalidateQueries({ queryKey: gameKeys.allGames() }),
     invalidateRecent: () => queryClient.invalidateQueries({ queryKey: gameKeys.recent() }),
     invalidatePlayerGames: (playerId: string) =>
       queryClient.invalidateQueries({ queryKey: gameKeys.player(playerId) }),
     invalidateCount: () => queryClient.invalidateQueries({ queryKey: gameKeys.count() }),
+    // Add refetch methods that return promises
+    refetchAll: () => queryClient.refetchQueries({ queryKey: gameKeys.all }),
+    refetchAllGames: () => queryClient.refetchQueries({ queryKey: gameKeys.allGames() }),
   };
 }
 
@@ -72,5 +88,26 @@ export function useOptimisticGameAdd() {
     newGame.playerIds.forEach((playerId) => {
       queryClient.invalidateQueries({ queryKey: gameKeys.player(playerId) });
     });
+  };
+}
+
+// Helper hook for partnership calculations
+export function usePartnershipsData() {
+  const allGamesQuery = useAllGames();
+  const playersQuery = useQuery({
+    queryKey: ['players'],
+    queryFn: getPlayers,
+    staleTime: 10 * 1000,
+  });
+
+  return {
+    games: allGamesQuery.data || [],
+    players: playersQuery.data || [],
+    isLoading: allGamesQuery.isLoading || playersQuery.isLoading,
+    error: allGamesQuery.error || playersQuery.error,
+    refetch: () => {
+      allGamesQuery.refetch();
+      playersQuery.refetch();
+    },
   };
 }

@@ -35,16 +35,55 @@ import {
 } from 'lucide-react';
 import type { Player, Game } from '@/lib/types';
 import { getHeadToHeadStats } from '@/lib/data';
+import { usePartnershipsData } from '@/hooks/use-games';
+import { Loader2, AlertCircle } from 'lucide-react';
 
-interface HeadToHeadClientProps {
-  players: Player[];
-  games: Game[];
-}
-
-export function HeadToHeadClient({ players, games }: HeadToHeadClientProps) {
+export function HeadToHeadClient() {
+  const { games, players, isLoading, error } = usePartnershipsData();
   const [player1Id, setPlayer1Id] = React.useState<string>('');
   const [player2Id, setPlayer2Id] = React.useState<string>('');
   const [comparisonMode, setComparisonMode] = React.useState<'head-to-head' | 'overall'>('head-to-head');
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Head-to-Head Analysis"
+          description="Compare players and analyze direct matchups with comprehensive statistics."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin mr-2" />
+            <span>Loading head-to-head data...</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Head-to-Head Analysis"
+          description="Compare players and analyze direct matchups with comprehensive statistics."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <AlertCircle className="h-8 w-8 text-destructive mr-2" />
+            <div>
+              <p className="font-medium">Failed to load head-to-head data</p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : 'Unknown error occurred'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const player1 = players.find(p => p.id === player1Id);
   const player2 = players.find(p => p.id === player2Id);

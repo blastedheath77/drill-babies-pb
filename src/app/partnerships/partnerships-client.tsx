@@ -17,6 +17,9 @@ import { StatCard } from '@/components/stat-card';
 import { Users, Swords, Trophy, TrendingUp } from 'lucide-react';
 import type { Player, Partnership } from '@/lib/types';
 import Link from 'next/link';
+import { usePartnershipsData } from '@/hooks/use-games';
+import { getPartnershipStats } from '@/lib/data';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 interface PartnershipData {
   player: Player;
@@ -25,11 +28,80 @@ interface PartnershipData {
   averageWinRate: number;
 }
 
-interface PartnershipsClientProps {
-  allPartnerships: PartnershipData[];
-}
+export function PartnershipsClient() {
+  const { games, players, isLoading, error } = usePartnershipsData();
 
-export function PartnershipsClient({ allPartnerships }: PartnershipsClientProps) {
+  // Calculate all partnerships from fresh data
+  const allPartnerships = React.useMemo((): PartnershipData[] => {
+    if (!games.length || !players.length) return [];
+
+    return players.map((player) => {
+      const partnerships = getPartnershipStats(player.id, games);
+      return {
+        player,
+        partnerships: partnerships.filter(p => p.partner), // Filter out partnerships with missing partners
+        totalGames: partnerships.reduce((sum, p) => sum + p.gamesPlayed, 0),
+        averageWinRate: partnerships.length > 0 
+          ? partnerships.reduce((sum, p) => sum + (p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0), 0) / partnerships.length * 100
+          : 0
+      };
+    }).filter(p => p.partnerships.length > 0);
+  }, [games, players]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Partnership Analysis"
+          description="Comprehensive analysis of doubles partnerships across all players."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin mr-2" />
+            <span>Loading partnership data...</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Partnership Analysis"
+          description="Comprehensive analysis of doubles partnerships across all players."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <AlertCircle className="h-8 w-8 text-destructive mr-2" />
+            <div>
+              <p className="font-medium">Failed to load partnership data</p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : 'Unknown error occurred'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (allPartnerships.length === 0) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Partnership Analysis"
+          description="Comprehensive analysis of doubles partnerships across all players."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <p className="text-muted-foreground">No partnership data available. Play some doubles games to see partnerships!</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   // Calculate global partnership statistics
   const globalStats = React.useMemo(() => {
     const totalPartnerships = allPartnerships.reduce((sum, p) => sum + p.partnerships.length, 0);

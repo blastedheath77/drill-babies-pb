@@ -143,6 +143,54 @@ export async function getRecentGames(count: number = 5): Promise<Game[]> {
   }
 }
 
+export async function getAllGames(): Promise<Game[]> {
+  try {
+    const gamesCollection = collection(db, 'games');
+    const q = query(gamesCollection, orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+
+    const allPlayerIds = new Set<string>();
+    const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+
+    gameDocsData.forEach((gameData) => {
+      if (gameData.playerIds) {
+        gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+      }
+    });
+
+    const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
+
+    const games = gameDocsData.map((gameData) => {
+      // Handle missing players gracefully
+      const team1Players = gameData.team1.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+      const team2Players = gameData.team2.playerIds
+        .map((id: string) => playerMap.get(id))
+        .filter(Boolean) as Player[];
+
+      // Skip games where players are missing (corrupted data)
+      if (team1Players.length !== gameData.team1.playerIds.length || 
+          team2Players.length !== gameData.team2.playerIds.length) {
+        console.warn(`Game ${gameData.id} has missing players, skipping from calculations`);
+        return null;
+      }
+
+      return {
+        ...gameData,
+        date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        team1: { ...gameData.team1, players: team1Players },
+        team2: { ...gameData.team2, players: team2Players },
+      } as Game;
+    }).filter(Boolean) as Game[];
+
+    return games;
+  } catch (error) {
+    console.error('Error fetching all games: ', error);
+    return [];
+  }
+}
+
 export async function getGamesForPlayer(playerId: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
