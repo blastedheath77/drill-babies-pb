@@ -36,7 +36,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
   const games = await getGamesForPlayer(player.id);
   const ratingHistory = await getPlayerRatingHistory(player.id, 30);
 
-  const partnerships = getPartnershipStats(player.id, games);
+  const partnerships = getPartnershipStats(player.id, games, allPlayers.concat(player));
   const firstOpponent = allPlayers[0];
   const headToHead = firstOpponent ? getHeadToHeadStats(player.id, firstOpponent.id, games) : null;
 

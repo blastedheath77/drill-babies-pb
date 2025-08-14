@@ -36,7 +36,7 @@ export function PartnershipsClient() {
     if (!games.length || !players.length) return [];
 
     return players.map((player) => {
-      const partnerships = getPartnershipStats(player.id, games);
+      const partnerships = getPartnershipStats(player.id, games, players);
       return {
         player,
         partnerships: partnerships.filter(p => p.partner), // Filter out partnerships with missing partners
@@ -47,6 +47,41 @@ export function PartnershipsClient() {
       };
     }).filter(p => p.partnerships.length > 0);
   }, [games, players]);
+
+  // Calculate global partnership statistics - moved here to ensure hooks are always called
+  const globalStats = React.useMemo(() => {
+    const totalPartnerships = allPartnerships.reduce((sum, p) => sum + p.partnerships.length, 0);
+    const totalGames = allPartnerships.reduce((sum, p) => sum + p.totalGames, 0);
+    const avgWinRate = allPartnerships.length > 0 
+      ? allPartnerships.reduce((sum, p) => sum + p.averageWinRate, 0) / allPartnerships.length 
+      : 0;
+
+    // Find best overall partnerships (by win rate with minimum 5 games)
+    const allPairings: Array<Partnership & { playerName: string }> = [];
+    allPartnerships.forEach(playerData => {
+      playerData.partnerships.forEach(partnership => {
+        if (partnership.gamesPlayed >= 5) {
+          allPairings.push({
+            ...partnership,
+            playerName: playerData.player.name
+          });
+        }
+      });
+    });
+
+    const bestPartnerships = allPairings
+      .sort((a, b) => {
+        const aWinRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
+        const bWinRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
+        if (Math.abs(bWinRate - aWinRate) < 0.05) {
+          return b.gamesPlayed - a.gamesPlayed;
+        }
+        return bWinRate - aWinRate;
+      })
+      .slice(0, 10);
+
+    return { totalPartnerships, totalGames, avgWinRate, bestPartnerships };
+  }, [allPartnerships]);
 
   if (isLoading) {
     return (
@@ -102,40 +137,6 @@ export function PartnershipsClient() {
       </div>
     );
   }
-  // Calculate global partnership statistics
-  const globalStats = React.useMemo(() => {
-    const totalPartnerships = allPartnerships.reduce((sum, p) => sum + p.partnerships.length, 0);
-    const totalGames = allPartnerships.reduce((sum, p) => sum + p.totalGames, 0);
-    const avgWinRate = allPartnerships.length > 0 
-      ? allPartnerships.reduce((sum, p) => sum + p.averageWinRate, 0) / allPartnerships.length 
-      : 0;
-
-    // Find best overall partnerships (by win rate with minimum 5 games)
-    const allPairings: Array<Partnership & { playerName: string }> = [];
-    allPartnerships.forEach(playerData => {
-      playerData.partnerships.forEach(partnership => {
-        if (partnership.gamesPlayed >= 5) {
-          allPairings.push({
-            ...partnership,
-            playerName: playerData.player.name
-          });
-        }
-      });
-    });
-
-    const bestPartnerships = allPairings
-      .sort((a, b) => {
-        const aWinRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
-        const bWinRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
-        if (Math.abs(bWinRate - aWinRate) < 0.05) {
-          return b.gamesPlayed - a.gamesPlayed;
-        }
-        return bWinRate - aWinRate;
-      })
-      .slice(0, 10);
-
-    return { totalPartnerships, totalGames, avgWinRate, bestPartnerships };
-  }, [allPartnerships]);
 
   return (
     <div className="space-y-8">

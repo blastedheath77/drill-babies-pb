@@ -161,20 +161,44 @@ export async function getAllGames(): Promise<Game[]> {
     const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
 
     const games = gameDocsData.map((gameData) => {
-      // Handle missing players gracefully
+      // Handle missing players gracefully by creating placeholder objects
       const team1Players = gameData.team1.playerIds
-        .map((id: string) => playerMap.get(id))
-        .filter(Boolean) as Player[];
+        .map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
+      
       const team2Players = gameData.team2.playerIds
-        .map((id: string) => playerMap.get(id))
-        .filter(Boolean) as Player[];
-
-      // Skip games where players are missing (corrupted data)
-      if (team1Players.length !== gameData.team1.playerIds.length || 
-          team2Players.length !== gameData.team2.playerIds.length) {
-        console.warn(`Game ${gameData.id} has missing players, skipping from calculations`);
-        return null;
-      }
+        .map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
 
       return {
         ...gameData,
@@ -182,7 +206,7 @@ export async function getAllGames(): Promise<Game[]> {
         team1: { ...gameData.team1, players: team1Players },
         team2: { ...gameData.team2, players: team2Players },
       } as Game;
-    }).filter(Boolean) as Game[];
+    });
 
     return games;
   } catch (error) {
@@ -212,11 +236,42 @@ export async function getGamesForPlayer(playerId: string): Promise<Game[]> {
 
     const games = gameDocsData.map((gameData) => {
       const team1Players = gameData.team1.playerIds
-        .map((id: string) => playerMap.get(id))
-        .filter(Boolean) as Player[];
+        .map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
+      
       const team2Players = gameData.team2.playerIds
-        .map((id: string) => playerMap.get(id))
-        .filter(Boolean) as Player[];
+        .map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
 
       return {
         ...gameData,
@@ -283,7 +338,7 @@ export function getHeadToHeadStats(
   };
 }
 
-export function getPartnershipStats(playerId: string, allGames: Game[]): Partnership[] {
+export function getPartnershipStats(playerId: string, allGames: Game[], allPlayers?: Player[]): Partnership[] {
   const partnerships: {
     [partnerId: string]: { gamesPlayed: number; wins: number; losses: number; partner: Player };
   } = {};
@@ -296,8 +351,20 @@ export function getPartnershipStats(playerId: string, allGames: Game[]): Partner
 
     if (partnerId) {
       if (!partnerships[partnerId]) {
-        const partnerInfo = playerTeam.players.find((p) => p.id === partnerId);
-        if (!partnerInfo) continue;
+        // First try to get partner info from the game data
+        let partnerInfo = playerTeam.players?.find((p) => p.id === partnerId);
+        
+        // If not found in game data, try to find in the provided players list
+        if (!partnerInfo && allPlayers) {
+          partnerInfo = allPlayers.find((p) => p.id === partnerId);
+        }
+        
+        // If still not found, skip this partnership
+        if (!partnerInfo) {
+          console.warn(`Partner ${partnerId} not found in game or players data for game ${game.id}`);
+          continue;
+        }
+        
         partnerships[partnerId] = { gamesPlayed: 0, wins: 0, losses: 0, partner: partnerInfo };
       }
 
