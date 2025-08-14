@@ -1,7 +1,7 @@
 'use client';
 
-import { PartnershipsClient } from './partnerships-client';
+import { PartnershipsClientV2 } from './partnerships-client-v2';
 
 export default function PartnershipsPage() {
-  return <PartnershipsClient />;
+  return <PartnershipsClientV2 />;
 }
