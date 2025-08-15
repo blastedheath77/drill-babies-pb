@@ -44,53 +44,9 @@ export function HeadToHeadClient() {
   const [player2Id, setPlayer2Id] = React.useState<string>('');
   const [comparisonMode, setComparisonMode] = React.useState<'head-to-head' | 'overall'>('head-to-head');
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <PageHeader
-          title="Head-to-Head Analysis"
-          description="Compare players and analyze direct matchups with comprehensive statistics."
-        />
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin mr-2" />
-            <span>Loading head-to-head data...</span>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="space-y-8">
-        <PageHeader
-          title="Head-to-Head Analysis"
-          description="Compare players and analyze direct matchups with comprehensive statistics."
-        />
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <AlertCircle className="h-8 w-8 text-destructive mr-2" />
-            <div>
-              <p className="font-medium">Failed to load head-to-head data</p>
-              <p className="text-sm text-muted-foreground">
-                {error instanceof Error ? error.message : 'Unknown error occurred'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const player1 = players.find(p => p.id === player1Id);
-  const player2 = players.find(p => p.id === player2Id);
-
-  // Calculate head-to-head stats
+  // Calculate head-to-head stats - moved before early returns to prevent hook order issues
   const h2hStats = React.useMemo(() => {
-    if (!player1Id || !player2Id || player1Id === player2Id) return null;
+    if (!player1Id || !player2Id || player1Id === player2Id || !games) return null;
     
     const stats1 = getHeadToHeadStats(player1Id, player2Id, games);
     const stats2 = getHeadToHeadStats(player2Id, player1Id, games);
@@ -101,9 +57,9 @@ export function HeadToHeadClient() {
     };
   }, [player1Id, player2Id, games]);
 
-  // Calculate detailed matchup analysis
+  // Calculate detailed matchup analysis - moved before early returns to prevent hook order issues
   const matchupAnalysis = React.useMemo(() => {
-    if (!player1Id || !player2Id || !h2hStats) return null;
+    if (!player1Id || !player2Id || !h2hStats || !games) return null;
 
     const h2hGames = games.filter(game => 
       game.playerIds.includes(player1Id) && 
@@ -147,6 +103,50 @@ export function HeadToHeadClient() {
         }, 0) / h2hGames.length : 0
     };
   }, [player1Id, player2Id, games, h2hStats]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Head-to-Head Analysis"
+          description="Compare players and analyze direct matchups with comprehensive statistics."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin mr-2" />
+            <span>Loading head-to-head data...</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Head-to-Head Analysis"
+          description="Compare players and analyze direct matchups with comprehensive statistics."
+        />
+        <Card>
+          <CardContent className="flex items-center justify-center h-32">
+            <AlertCircle className="h-8 w-8 text-destructive mr-2" />
+            <div>
+              <p className="font-medium">Failed to load head-to-head data</p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : 'Unknown error occurred'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const player1 = players.find(p => p.id === player1Id);
+  const player2 = players.find(p => p.id === player2Id);
 
   const handleSwapPlayers = () => {
     const temp = player1Id;

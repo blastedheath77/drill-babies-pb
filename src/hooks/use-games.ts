@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getRecentGames, getGamesForPlayer, getTotalGamesCount, getAllGames, getPlayers } from '@/lib/data';
-import type { Game } from '@/lib/types';
+import { getRecentGames, getGamesForPlayer, getTotalGamesCount, getAllGames, getPlayers, getTournamentsByStatus, getTournaments } from '@/lib/data';
+import type { Game, Tournament } from '@/lib/types';
 
 // Query keys for games
 export const gameKeys = {
@@ -109,5 +109,48 @@ export function usePartnershipsData() {
       allGamesQuery.refetch();
       playersQuery.refetch();
     },
+  };
+}
+
+// Query keys for tournaments
+export const tournamentKeys = {
+  all: ['tournaments'] as const,
+  lists: () => [...tournamentKeys.all, 'list'] as const,
+  allTournaments: () => [...tournamentKeys.lists(), 'all'] as const,
+  status: (status: Tournament['status']) => [...tournamentKeys.lists(), 'status', status] as const,
+};
+
+// Hook to get all tournaments with caching
+export function useAllTournaments() {
+  return useQuery({
+    queryKey: tournamentKeys.allTournaments(),
+    queryFn: getTournaments,
+    staleTime: 2 * 60 * 1000, // Tournaments stay fresh for 2 minutes
+    refetchOnWindowFocus: true,
+  });
+}
+
+// Hook to get tournaments by status
+export function useTournamentsByStatus(status: Tournament['status']) {
+  return useQuery({
+    queryKey: tournamentKeys.status(status),
+    queryFn: () => getTournamentsByStatus(status),
+    staleTime: 1 * 60 * 1000, // Status-specific tournaments stay fresh for 1 minute
+    refetchOnWindowFocus: true,
+  });
+}
+
+// Hook to invalidate tournament-related queries after mutations
+export function useInvalidateTournaments() {
+  const queryClient = useQueryClient();
+
+  return {
+    invalidateAll: () => queryClient.invalidateQueries({ queryKey: tournamentKeys.all }),
+    invalidateAllTournaments: () => queryClient.invalidateQueries({ queryKey: tournamentKeys.allTournaments() }),
+    invalidateByStatus: (status: Tournament['status']) =>
+      queryClient.invalidateQueries({ queryKey: tournamentKeys.status(status) }),
+    // Add refetch methods that return promises
+    refetchAll: () => queryClient.refetchQueries({ queryKey: tournamentKeys.all }),
+    refetchAllTournaments: () => queryClient.refetchQueries({ queryKey: tournamentKeys.allTournaments() }),
   };
 }

@@ -19,9 +19,10 @@ import type { Tournament } from '@/lib/types';
 interface DeleteTournamentDialogProps {
   tournament: Tournament;
   children: React.ReactNode;
+  onDelete?: () => void;
 }
 
-export function DeleteTournamentDialog({ tournament, children }: DeleteTournamentDialogProps) {
+export function DeleteTournamentDialog({ tournament, children, onDelete }: DeleteTournamentDialogProps) {
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
@@ -38,6 +39,9 @@ export function DeleteTournamentDialog({ tournament, children }: DeleteTournamen
         title: 'Tournament Deleted',
         description: 'The tournament and all associated matches have been permanently deleted.',
       });
+
+      // Call the onDelete callback to update the parent component
+      onDelete?.();
 
       setOpen(false);
 
