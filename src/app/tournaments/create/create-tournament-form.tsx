@@ -102,6 +102,9 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
           description: 'Your tournament has been successfully created.',
         });
 
+        // Force a router refresh to ensure the tournaments page gets fresh data
+        router.refresh();
+        
         // Navigate to the tournament detail page
         router.push(`/tournaments/${result.tournamentId}`);
       }

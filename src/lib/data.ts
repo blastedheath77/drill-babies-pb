@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   documentId,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
@@ -664,5 +665,53 @@ export async function getTournamentStandings(tournamentId: string): Promise<Tour
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getTournamentStandings');
     return [];
+  }
+}
+
+// Real-time tournament listeners for instant updates
+export function subscribeTournamentsRealtime(
+  callback: (tournaments: { active: Tournament[]; completed: Tournament[] }) => void,
+  onError?: (error: Error) => void
+): () => void {
+  try {
+    // Set up real-time listener for all tournaments
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'tournaments'), orderBy('createdDate', 'desc')),
+      (snapshot) => {
+        try {
+          const allTournaments = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Tournament[];
+
+          // Split into active and completed with no caching
+          const active = allTournaments
+            .filter((tournament) => tournament.status === 'active')
+            .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+
+          const completed = allTournaments
+            .filter((tournament) => tournament.status === 'completed')
+            .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+
+          callback({ active, completed });
+        } catch (error) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          logError(err, 'subscribeTournamentsRealtime-callback');
+          onError?.(err);
+        }
+      },
+      (error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logError(err, 'subscribeTournamentsRealtime-listener');
+        onError?.(err);
+      }
+    );
+
+    return unsubscribe;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logError(err, 'subscribeTournamentsRealtime');
+    onError?.(err);
+    return () => {}; // Return empty unsubscribe function
   }
 }
