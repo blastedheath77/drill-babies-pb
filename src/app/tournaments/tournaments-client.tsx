@@ -156,40 +156,45 @@ export function TournamentsClient() {
 
   const TournamentCard = ({ tournament }: { tournament: Tournament }) => (
     <Card key={tournament.id} className="hover:shadow-md transition-shadow">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg">{tournament.name}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">{tournament.description}</p>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+          <div className="flex-1">
+            <CardTitle className="text-lg sm:text-xl leading-tight">{tournament.name}</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{tournament.description}</p>
           </div>
-          {getStatusBadge(tournament.status)}
+          <div className="flex-shrink-0">
+            {getStatusBadge(tournament.status)}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex justify-between items-center text-sm text-muted-foreground mb-4">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {formatDate(tournament.createdDate)}
+      <CardContent className="pt-0">
+        <div className="space-y-3 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 flex-shrink-0" />
+              <span>{formatDate(tournament.createdDate)}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              {tournament.playerIds.length} players
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4 flex-shrink-0" />
+              <span>{tournament.playerIds.length} players</span>
             </span>
+          </div>
+          <div className="flex justify-start">
             <Badge variant="outline" className="text-xs">
               {tournament.format} • {tournament.type}
             </Badge>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Link href={`/tournaments/${tournament.id}`}>
-            <Button variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Link href={`/tournaments/${tournament.id}`} className="flex-1">
+            <Button variant="outline" size="default" className="w-full h-10">
               View Details
             </Button>
           </Link>
           <DeleteTournamentDialog tournament={tournament} onDelete={handleTournamentDeleted}>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-              <Trash2 className="h-3 w-3" />
+            <Button variant="outline" size="default" className="text-destructive hover:text-destructive w-full sm:w-auto h-10">
+              <Trash2 className="h-4 w-4 mr-2 sm:mr-0" />
+              <span className="sm:hidden">Delete</span>
             </Button>
           </DeleteTournamentDialog>
         </div>
@@ -245,26 +250,30 @@ export function TournamentsClient() {
         description="Organize and participate in club events."
       />
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6">
         <Tabs defaultValue="active" className="w-full">
-          <div className="flex justify-between items-center">
-            <TabsList>
-              <TabsTrigger value="active">Active ({activeTournaments.length})</TabsTrigger>
-              <TabsTrigger value="completed">Completed ({completedTournaments.length})</TabsTrigger>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="active" className="flex-1 sm:flex-none">
+                Active ({activeTournaments.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="flex-1 sm:flex-none">
+                Completed ({completedTournaments.length})
+              </TabsTrigger>
             </TabsList>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2 h-10"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 {isRefreshing ? 'Refreshing...' : 'Refresh'}
               </Button>
-              <Link href="/tournaments/create">
-                <Button>
+              <Link href="/tournaments/create" className="w-full sm:w-auto">
+                <Button className="w-full h-10">
                   <Plus className="h-4 w-4 mr-2" />
                   Create Tournament
                 </Button>

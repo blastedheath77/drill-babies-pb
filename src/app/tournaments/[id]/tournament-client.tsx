@@ -77,39 +77,40 @@ function MatchCard({ match, players, tournamentId }: MatchCardProps) {
         {getStatusBadge(match.status)}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
         {/* Team 1 */}
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-3 flex-1">
           <div className="flex -space-x-2">
             {team1.map((player) => (
-              <Avatar key={player.id} className="h-8 w-8 border-2 border-background">
+              <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
                 <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
           <div className="flex-1">
-            <p className="font-medium text-sm">{team1.map((p) => p.name).join(' & ')}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="font-medium text-base sm:text-sm">{team1.map((p) => p.name).join(' & ')}</p>
+            <p className="text-sm sm:text-xs text-muted-foreground">
               Avg. Rating: {(team1.reduce((sum, p) => sum + p.rating, 0) / team1.length).toFixed(1)}
             </p>
           </div>
         </div>
 
         {/* VS */}
-        <div className="mx-4 text-muted-foreground font-bold">VS</div>
+        <div className="mx-4 text-muted-foreground font-bold text-center hidden sm:block">VS</div>
+        <div className="text-center text-muted-foreground font-bold text-sm py-2 sm:hidden">VS</div>
 
         {/* Team 2 */}
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <div className="text-right">
-            <p className="font-medium text-sm">{team2.map((p) => p.name).join(' & ')}</p>
-            <p className="text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 flex-1 sm:justify-end">
+          <div className="flex-1 sm:text-right">
+            <p className="font-medium text-base sm:text-sm">{team2.map((p) => p.name).join(' & ')}</p>
+            <p className="text-sm sm:text-xs text-muted-foreground">
               Avg. Rating: {(team2.reduce((sum, p) => sum + p.rating, 0) / team2.length).toFixed(1)}
             </p>
           </div>
-          <div className="flex -space-x-2">
+          <div className="flex -space-x-2 order-first sm:order-last">
             {team2.map((player) => (
-              <Avatar key={player.id} className="h-8 w-8 border-2 border-background">
+              <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
                 <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
               </Avatar>

@@ -25,6 +25,8 @@ import { LogOut, LogIn } from 'lucide-react';
 import { Header } from './header';
 import { useAuth } from '@/contexts/auth-context';
 import { AuthWrapper } from '@/components/auth-wrapper';
+import { OfflineIndicator } from '@/components/offline-indicator';
+import { InstallPrompt } from '@/components/install-prompt';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -226,7 +228,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <Header />
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="p-3 sm:p-6 lg:p-8">{children}</main>
+        <OfflineIndicator />
+        <InstallPrompt />
       </SidebarInset>
     </SidebarProvider>
   );

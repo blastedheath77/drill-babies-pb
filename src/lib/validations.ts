@@ -158,6 +158,18 @@ export const createTournamentSchema = z
     playerIds: z
       .array(z.string().min(1, 'Player ID cannot be empty'))
       .min(2, 'Tournament must have at least 2 players'),
+    maxRounds: z
+      .number()
+      .int('Maximum rounds must be a whole number')
+      .min(1, 'Must have at least 1 round')
+      .max(50, 'Cannot exceed 50 rounds')
+      .optional(),
+    availableCourts: z
+      .number()
+      .int('Number of courts must be a whole number')
+      .min(1, 'Must have at least 1 court')
+      .max(4, 'Cannot exceed 4 courts')
+      .default(2),
   })
   .refine(
     (data) => {
@@ -212,6 +224,23 @@ export const tournamentSchema = z.object({
   status: tournamentStatusSchema,
   createdDate: z.string().datetime(),
   createdBy: z.string().min(1),
+  maxRounds: z
+    .number()
+    .int('Maximum rounds must be a whole number')
+    .min(1, 'Must have at least 1 round')
+    .max(50, 'Cannot exceed 50 rounds')
+    .optional(),
+  availableCourts: z
+    .number()
+    .int('Number of courts must be a whole number')
+    .min(1, 'Must have at least 1 court')
+    .max(4, 'Cannot exceed 4 courts')
+    .optional(),
+  estimatedDuration: z
+    .number()
+    .int('Estimated duration must be in minutes')
+    .min(1, 'Duration must be at least 1 minute')
+    .optional(),
 });
 
 // Tournament match validation schemas

@@ -28,7 +28,16 @@ export const metadata: Metadata = {
     'msapplication-TileColor': '#4287f5',
     'msapplication-tap-highlight': 'no',
     'theme-color': '#4287f5',
+    'format-detection': 'telephone=no',
   },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({

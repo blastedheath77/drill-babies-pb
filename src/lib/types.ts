@@ -61,6 +61,9 @@ export interface Tournament {
   playerIds: string[];
   createdDate: string;
   createdBy: string;
+  maxRounds?: number; // Limit rounds for time-constrained tournaments
+  availableCourts?: number; // Number of courts available (default: 2)
+  estimatedDuration?: number; // Estimated duration in minutes
 }
 
 export interface TournamentMatch {

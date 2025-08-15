@@ -20,12 +20,23 @@ interface CreateTournamentData {
   format: 'singles' | 'doubles';
   type: 'round-robin' | 'single-elimination' | 'double-elimination';
   playerIds: string[];
+  maxRounds?: number;
+  availableCourts?: number;
 }
 
 export async function createTournament(data: CreateTournamentData) {
   try {
     // Comprehensive validation using Zod schema
     const validatedData = validateData(createTournamentSchema, data);
+
+    // Calculate estimated duration
+    const estimatedDuration = calculateTournamentDuration(
+      validatedData.playerIds.length,
+      validatedData.format,
+      validatedData.type,
+      validatedData.maxRounds,
+      validatedData.availableCourts || 2
+    );
 
     // Create tournament document using validated data
     const tournament: Omit<Tournament, 'id'> = {
@@ -37,13 +48,27 @@ export async function createTournament(data: CreateTournamentData) {
       playerIds: validatedData.playerIds,
       createdDate: new Date().toISOString(),
       createdBy: 'admin', // TODO: Replace with actual user ID
+      availableCourts: validatedData.availableCourts || 2,
+      estimatedDuration,
     };
+
+    // Only include optional fields if they have values
+    if (validatedData.maxRounds !== undefined) {
+      tournament.maxRounds = validatedData.maxRounds;
+    }
 
     const tournamentRef = await addDoc(collection(db, 'tournaments'), tournament);
     const tournamentId = tournamentRef.id;
 
     // Generate matches based on tournament type
-    await generateMatches(tournamentId, validatedData.type, validatedData.format, validatedData.playerIds);
+    await generateMatches(
+      tournamentId, 
+      validatedData.type, 
+      validatedData.format, 
+      validatedData.playerIds,
+      validatedData.maxRounds,
+      validatedData.availableCourts || 2
+    );
 
     revalidatePath('/tournaments');
 
@@ -58,16 +83,55 @@ export async function createTournament(data: CreateTournamentData) {
   }
 }
 
+// Calculate estimated tournament duration in minutes
+function calculateTournamentDuration(
+  playerCount: number,
+  format: Tournament['format'],
+  type: Tournament['type'],
+  maxRounds?: number,
+  courtsAvailable: number = 2
+): number {
+  if (type !== 'round-robin') {
+    // For elimination tournaments, use existing logic
+    const estimatedMatches = format === 'singles' ? playerCount - 1 : Math.floor(playerCount / 2) - 1;
+    return estimatedMatches * 10; // 10 minutes per match
+  }
+
+  let totalMatches: number;
+  
+  if (format === 'singles') {
+    // Singles: n(n-1)/2 total possible matches
+    const totalPossible = (playerCount * (playerCount - 1)) / 2;
+    totalMatches = maxRounds ? Math.min(maxRounds, totalPossible) : totalPossible;
+  } else {
+    // Doubles: optimized generation with max rounds
+    if (maxRounds) {
+      totalMatches = maxRounds * courtsAvailable;
+    } else {
+      // Full round-robin: each partnership appears once
+      const totalPartnerships = (playerCount * (playerCount - 1)) / 2;
+      const matchesPerRound = Math.floor(playerCount / 4) * courtsAvailable;
+      const estimatedRounds = Math.ceil(totalPartnerships / matchesPerRound);
+      totalMatches = estimatedRounds * courtsAvailable;
+    }
+  }
+
+  // Estimate 8-10 minutes per match
+  return totalMatches * 9;
+}
+
 async function generateMatches(
   tournamentId: string,
   type: Tournament['type'],
   format: Tournament['format'],
-  playerIds: string[]
+  playerIds: string[],
+  maxRounds?: number,
+  courtsAvailable: number = 2
 ) {
   const batch = writeBatch(db);
 
   if (type === 'round-robin') {
-    await generateRoundRobinMatches(batch, tournamentId, format, playerIds);
+    await generateRoundRobinMatches(batch, tournamentId, format, playerIds, maxRounds, courtsAvailable);
   } else if (type === 'single-elimination') {
     await generateEliminationMatches(batch, tournamentId, format, playerIds, false);
   } else if (type === 'double-elimination') {
@@ -81,7 +145,9 @@ async function generateRoundRobinMatches(
   batch: any,
   tournamentId: string,
   format: Tournament['format'],
-  playerIds: string[]
+  playerIds: string[],
+  maxRounds?: number,
+  courtsAvailable: number = 2
 ) {
   let matchNumber = 1;
   logger.debug(`Generating round-robin matches for ${format} with ${playerIds.length} players`);
@@ -106,10 +172,194 @@ async function generateRoundRobinMatches(
       }
     }
   } else {
-    // Doubles partner rotation format: Much more manageable
-    // Each player partners with each other player exactly once
-    await generatePartnerRotationMatches(batch, tournamentId, playerIds, matchNumber);
+    // Doubles: use optimized generation for limited or full round-robin
+    if (maxRounds) {
+      await generateOptimizedDoublesMatches(batch, tournamentId, playerIds, maxRounds, courtsAvailable);
+    } else {
+      // Full partner rotation (existing logic)
+      await generatePartnerRotationMatches(batch, tournamentId, playerIds, matchNumber);
+    }
   }
+}
+
+// Optimized doubles match generation that maximizes partner diversity within round/court constraints
+async function generateOptimizedDoublesMatches(
+  batch: any,
+  tournamentId: string,
+  playerIds: string[],
+  maxRounds: number,
+  courtsAvailable: number
+) {
+  const n = playerIds.length;
+  const matches: Array<{ team1: string[]; team2: string[]; round: number }> = [];
+  
+  logger.debug(`Generating optimized doubles matches: ${n} players, ${maxRounds} rounds, ${courtsAvailable} courts`);
+  
+  // Track partnerships and oppositions to maximize fairness
+  const partnershipCount = new Map<string, number>();
+  const oppositionCount = new Map<string, number>();
+  const playerGameCount = new Map<string, number>();
+  
+  // Initialize tracking
+  for (let i = 0; i < n; i++) {
+    playerGameCount.set(playerIds[i], 0);
+    for (let j = i + 1; j < n; j++) {
+      const partnerKey = [playerIds[i], playerIds[j]].sort().join('-');
+      partnershipCount.set(partnerKey, 0);
+      oppositionCount.set(partnerKey, 0);
+    }
+  }
+  
+  // Generate matches for each round
+  for (let round = 1; round <= maxRounds; round++) {
+    const roundMatches = generateRoundMatches(playerIds, partnershipCount, oppositionCount, playerGameCount, courtsAvailable);
+    
+    // Add round number to matches
+    roundMatches.forEach(match => {
+      matches.push({ ...match, round });
+    });
+    
+    // Update tracking counts
+    roundMatches.forEach(match => {
+      // Update partnership counts
+      const partnership1 = match.team1.sort().join('-');
+      const partnership2 = match.team2.sort().join('-');
+      partnershipCount.set(partnership1, (partnershipCount.get(partnership1) || 0) + 1);
+      partnershipCount.set(partnership2, (partnershipCount.get(partnership2) || 0) + 1);
+      
+      // Update opposition counts
+      for (const p1 of match.team1) {
+        for (const p2 of match.team2) {
+          const oppKey = [p1, p2].sort().join('-');
+          oppositionCount.set(oppKey, (oppositionCount.get(oppKey) || 0) + 1);
+        }
+      }
+      
+      // Update player game counts
+      [...match.team1, ...match.team2].forEach(playerId => {
+        playerGameCount.set(playerId, (playerGameCount.get(playerId) || 0) + 1);
+      });
+    });
+  }
+  
+  // Create tournament match documents
+  let matchNumber = 1;
+  for (const match of matches) {
+    const tournamentMatch: Omit<TournamentMatch, 'id'> = {
+      tournamentId,
+      round: match.round,
+      matchNumber: matchNumber++,
+      team1PlayerIds: match.team1,
+      team2PlayerIds: match.team2,
+      status: 'pending',
+    };
+
+    const matchRef = doc(collection(db, 'tournamentMatches'));
+    batch.set(matchRef, tournamentMatch);
+  }
+  
+  // Log fairness statistics
+  const partnerCounts = Array.from(partnershipCount.values());
+  const gameCounts = Array.from(playerGameCount.values());
+  logger.info(`Generated ${matches.length} optimized matches:`, {
+    averagePartnershipsPerPair: partnerCounts.reduce((a, b) => a + b, 0) / partnerCounts.length,
+    gamesPerPlayer: gameCounts,
+    partnershipDistribution: Object.fromEntries(
+      playerIds.map(id => [
+        id, 
+        Array.from(partnershipCount.entries())
+          .filter(([key]) => key.includes(id))
+          .reduce((sum, [, count]) => sum + count, 0)
+      ])
+    )
+  });
+}
+
+// Generate matches for a single round, maximizing partner diversity
+function generateRoundMatches(
+  playerIds: string[],
+  partnershipCount: Map<string, number>,
+  oppositionCount: Map<string, number>, 
+  playerGameCount: Map<string, number>,
+  courtsAvailable: number
+): Array<{ team1: string[]; team2: string[] }> {
+  const n = playerIds.length;
+  const matchesThisRound: Array<{ team1: string[]; team2: string[] }> = [];
+  const usedThisRound = new Set<string>();
+  
+  // Find optimal pairings for this round
+  for (let court = 0; court < courtsAvailable && usedThisRound.size < n - 3; court++) {
+    const availablePlayers = playerIds.filter(id => !usedThisRound.has(id));
+    
+    if (availablePlayers.length < 4) break;
+    
+    let bestMatch: { team1: string[]; team2: string[]; score: number } | null = null;
+    
+    // Try all possible 4-player combinations from available players
+    for (let i = 0; i < availablePlayers.length; i++) {
+      for (let j = i + 1; j < availablePlayers.length; j++) {
+        for (let k = j + 1; k < availablePlayers.length; k++) {
+          for (let l = k + 1; l < availablePlayers.length; l++) {
+            const players = [availablePlayers[i], availablePlayers[j], availablePlayers[k], availablePlayers[l]];
+            
+            // Try both possible team combinations
+            const teamCombos = [
+              { team1: [players[0], players[1]], team2: [players[2], players[3]] },
+              { team1: [players[0], players[2]], team2: [players[1], players[3]] },
+              { team1: [players[0], players[3]], team2: [players[1], players[2]] }
+            ];
+            
+            for (const combo of teamCombos) {
+              const score = calculateMatchScore(combo, partnershipCount, oppositionCount, playerGameCount);
+              
+              if (!bestMatch || score > bestMatch.score) {
+                bestMatch = { ...combo, score };
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    if (bestMatch) {
+      matchesThisRound.push({ team1: bestMatch.team1, team2: bestMatch.team2 });
+      bestMatch.team1.forEach(id => usedThisRound.add(id));
+      bestMatch.team2.forEach(id => usedThisRound.add(id));
+    }
+  }
+  
+  return matchesThisRound;
+}
+
+// Score a potential match based on fairness criteria (higher is better)
+function calculateMatchScore(
+  match: { team1: string[]; team2: string[] },
+  partnershipCount: Map<string, number>,
+  oppositionCount: Map<string, number>,
+  playerGameCount: Map<string, number>
+): number {
+  let score = 0;
+  
+  // Prefer partnerships that haven't been used much
+  const partnership1 = match.team1.sort().join('-');
+  const partnership2 = match.team2.sort().join('-');
+  score += 100 - (partnershipCount.get(partnership1) || 0) * 10;
+  score += 100 - (partnershipCount.get(partnership2) || 0) * 10;
+  
+  // Prefer oppositions that haven't happened much
+  for (const p1 of match.team1) {
+    for (const p2 of match.team2) {
+      const oppKey = [p1, p2].sort().join('-');
+      score += 50 - (oppositionCount.get(oppKey) || 0) * 5;
+    }
+  }
+  
+  // Prefer players who have played fewer games
+  [...match.team1, ...match.team2].forEach(playerId => {
+    score += 25 - (playerGameCount.get(playerId) || 0) * 2;
+  });
+  
+  return score;
 }
 
 async function generatePartnerRotationMatches(
