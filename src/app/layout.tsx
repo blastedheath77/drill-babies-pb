@@ -61,10 +61,42 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
+              if ('serviceWorker' in navigator && !window.location.hostname.includes('localhost')) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
                     console.log('SW registered: ', registration);
+                    
+                    // Enable aggressive update checking only in production
+                    setInterval(function() {
+                      try {
+                        registration.update();
+                      } catch (error) {
+                        console.warn('SW update check failed:', error);
+                      }
+                    }, 60000); // Check every minute
+                    
+                    // Check for updates when the page becomes visible
+                    document.addEventListener('visibilitychange', function() {
+                      if (!document.hidden) {
+                        setTimeout(function() {
+                          try {
+                            registration.update();
+                          } catch (error) {
+                            console.warn('SW update check failed:', error);
+                          }
+                        }, 1000);
+                      }
+                    });
+                    
+                    // Check for updates on focus
+                    window.addEventListener('focus', function() {
+                      try {
+                        registration.update();
+                      } catch (error) {
+                        console.warn('SW update check failed:', error);
+                      }
+                    });
+                    
                   }, function(registrationError) {
                     console.log('SW registration failed: ', registrationError);
                   });

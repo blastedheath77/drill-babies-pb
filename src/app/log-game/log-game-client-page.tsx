@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,6 +60,9 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     label: string;
   }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [canScrollUp, setCanScrollUp] = useState(false);
+    const [canScrollDown, setCanScrollDown] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Available players (excluding already selected ones)
     const availablePlayers = players.filter(p => 
@@ -104,6 +107,23 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       setIsOpen(false);
     };
 
+    // Check scroll position and update indicators
+    const checkScrollPosition = useCallback(() => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      setCanScrollUp(scrollTop > 0);
+      setCanScrollDown(scrollTop < scrollHeight - clientHeight - 1);
+    }, []);
+
+    // Update scroll indicators when dropdown opens
+    useEffect(() => {
+      if (isOpen) {
+        setTimeout(checkScrollPosition, 10); // Small delay to ensure rendering is complete
+      }
+    }, [isOpen, checkScrollPosition]);
+
     // Cleanup on unmount
     useEffect(() => {
       return () => {
@@ -120,19 +140,42 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       <div className="relative flex-1 min-w-0">
         {/* Player dropdown appears centered on input field - expands up and down */}
         {isOpen && (
-          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg max-h-80 overflow-y-auto w-max min-w-full max-w-sm">
-            {availablePlayers.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => handlePlayerSelect(p)}
-                className={cn(
-                  "block w-full px-3 py-2 text-left hover:bg-accent transition-colors whitespace-nowrap",
-                  player && p.id === player.id && "bg-primary text-primary-foreground"
-                )}
-              >
-                <div className="font-medium">{p.name}</div>
-              </button>
-            ))}
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg max-h-80 w-max min-w-full max-w-sm">
+            {/* Top scroll indicator */}
+            {canScrollUp && (
+              <div className="sticky top-0 z-10 bg-gradient-to-b from-background to-transparent h-3 flex items-start justify-center">
+                <div className="w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-muted-foreground/60 mt-1"></div>
+              </div>
+            )}
+            
+            {/* Scrollable content */}
+            <div 
+              ref={scrollContainerRef}
+              className="overflow-y-auto scrollbar-always-visible max-h-72"
+              onScroll={checkScrollPosition}
+            >
+              <div className={cn("py-2", canScrollUp && "pt-1", canScrollDown && "pb-1")}>
+                {availablePlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handlePlayerSelect(p)}
+                    className={cn(
+                      "block w-full px-3 py-2 text-left hover:bg-accent transition-colors whitespace-nowrap",
+                      player && p.id === player.id && "bg-primary text-primary-foreground"
+                    )}
+                  >
+                    <div className="font-medium">{p.name}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Bottom scroll indicator */}
+            {canScrollDown && (
+              <div className="sticky bottom-0 z-10 bg-gradient-to-t from-background to-transparent h-3 flex items-end justify-center">
+                <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-muted-foreground/60 mb-1"></div>
+              </div>
+            )}
           </div>
         )}
 

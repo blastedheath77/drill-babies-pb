@@ -28,6 +28,8 @@ import { AuthWrapper } from '@/components/auth-wrapper';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { InstallPrompt } from '@/components/install-prompt';
 import { BottomNav } from '@/components/layout/bottom-nav';
+import { UpdateNotification, CompactUpdateNotification } from '@/components/update-notification';
+import { useAppUpdate } from '@/hooks/use-app-update';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -221,6 +223,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const { isUpdateAvailable, isUpdating, updateApp, dismissUpdate } = useAppUpdate();
   
   // Show login page without sidebar
   if (pathname === '/login') {
@@ -241,6 +244,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <OfflineIndicator />
         <InstallPrompt />
         <BottomNav />
+        
+        {/* Update notifications */}
+        <UpdateNotification
+          isVisible={isUpdateAvailable}
+          onUpdate={updateApp}
+          onDismiss={dismissUpdate}
+          isUpdating={isUpdating}
+        />
+        <CompactUpdateNotification
+          isVisible={isUpdateAvailable}
+          onUpdate={updateApp}
+          onDismiss={dismissUpdate}
+          isUpdating={isUpdating}
+        />
       </SidebarInset>
     </SidebarProvider>
   );
