@@ -33,7 +33,16 @@ export async function getPlayers(): Promise<Player[]> {
   try {
     const playersCollection = collection(db, 'players');
     const q = query(playersCollection, orderBy('rating', 'desc'));
-    const snapshot = await getDocs(q);
+    
+    // Add timeout to prevent hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Firebase request timeout')), 10000); // 10 second timeout
+    });
+    
+    const snapshot = await Promise.race([
+      getDocs(q),
+      timeoutPromise
+    ]) as any;
     
     // Clean data to remove Firestore-specific objects that cause hydration issues
     return snapshot.docs.map((doc) => {
@@ -44,6 +53,14 @@ export async function getPlayers(): Promise<Player[]> {
     });
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayers');
+    
+    // Return empty array with specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('UNAVAILABLE')) {
+        logger.warn('Firebase connection timeout, returning empty players list');
+      }
+    }
+    
     return [];
   }
 }
@@ -148,7 +165,16 @@ export async function getAllGames(): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
     const q = query(gamesCollection, orderBy('date', 'desc'));
-    const snapshot = await getDocs(q);
+    
+    // Add timeout to prevent hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Firebase request timeout')), 15000); // 15 second timeout for games
+    });
+    
+    const snapshot = await Promise.race([
+      getDocs(q),
+      timeoutPromise
+    ]) as any;
 
     const allPlayerIds = new Set<string>();
     const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);

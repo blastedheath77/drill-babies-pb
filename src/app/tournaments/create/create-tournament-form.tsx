@@ -443,8 +443,7 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
                       {players.map((player) => (
                         <FormItem
                           key={player.id}
-                          className="flex flex-row items-center space-x-3 space-y-0 p-3 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => handlePlayerToggle(player.id)}
+                          className="flex flex-row items-center space-x-3 space-y-0 p-3 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 transition-colors"
                         >
                           <FormControl>
                             <Checkbox
@@ -459,7 +458,10 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
                               <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
-                              <FormLabel className="text-base sm:text-sm font-medium cursor-pointer">
+                              <FormLabel 
+                                className="text-base sm:text-sm font-medium cursor-pointer"
+                                onClick={() => handlePlayerToggle(player.id)}
+                              >
                                 {player.name}
                               </FormLabel>
                               <p className="text-sm sm:text-xs text-muted-foreground">

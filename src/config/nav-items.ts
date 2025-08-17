@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -16,7 +16,8 @@ export const mainNavItems: NavItem[] = [
   { title: 'Players', href: '/players', icon: Users, category: 'main' },
   { title: 'Partnerships', href: '/partnerships', icon: UserCheck, category: 'main' },
   { title: 'Head-to-Head', href: '/head-to-head', icon: Swords, category: 'main' },
-  { title: 'Statistics', href: '/statistics', icon: BarChart, category: 'main' },
+  { title: 'Rankings', href: '/statistics', icon: BarChart, category: 'main' },
+  { title: 'Test', href: '/test', icon: TestTube, category: 'main' },
 ];
 
 // Action items (with special styling)

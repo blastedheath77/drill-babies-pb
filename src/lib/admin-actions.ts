@@ -143,14 +143,20 @@ export async function deleteGame(gameId: string): Promise<{ success: boolean; er
         
         const wasWinner = playerTeam.score > opponentTeam.score;
         
-        // Reverse the stats
+        // Get the original rating before this game (if rating changes were tracked)
+        let revertedRating = playerData.rating;
+        if (gameData.ratingChanges && gameData.ratingChanges[playerId]) {
+          // Use the "before" rating from when the game was logged
+          revertedRating = gameData.ratingChanges[playerId].before;
+        }
+        
+        // Reverse the stats including rating
         const updatedStats = {
           wins: Math.max(0, playerData.wins - (wasWinner ? 1 : 0)),
           losses: Math.max(0, playerData.losses - (wasWinner ? 0 : 1)),
           pointsFor: Math.max(0, playerData.pointsFor - playerTeam.score),
           pointsAgainst: Math.max(0, playerData.pointsAgainst - opponentTeam.score),
-          // Note: We're not reversing rating changes as that would be complex
-          // In a production app, you'd want to track rating history properly
+          rating: revertedRating,
         };
         
         batch.update(playerRef, updatedStats);

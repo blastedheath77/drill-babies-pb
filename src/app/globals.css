@@ -151,4 +151,41 @@
       font-size: 16px !important;
     }
   }
+  
+  /* Safe area support for iOS devices */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Bottom navigation specific styles */
+  .bottom-nav {
+    background: hsl(var(--background));
+    border-top: 1px solid hsl(var(--border));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* Enhanced mobile touch targets for bottom nav */
+  @media (max-width: 1024px) {
+    .bottom-nav-item {
+      min-height: 56px;
+      min-width: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      padding: 8px 12px;
+    }
+    
+    .bottom-nav-item:active {
+      transform: scale(0.95);
+      transition: transform 0.1s ease;
+    }
+  }
 }

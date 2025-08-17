@@ -34,28 +34,36 @@ const MOCK_CREDENTIALS = [
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
-    // Check for stored auth on mount
-    const storedUser = localStorage.getItem('pbstats-user');
-    const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
+    setHasMounted(true);
     
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        localStorage.removeItem('pbstats-user');
+    // Only run auth logic on client side to prevent hydration mismatch
+    if (typeof window !== 'undefined') {
+      // Check for stored auth on mount
+      const storedUser = localStorage.getItem('pbstats-user');
+      const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
+      
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          localStorage.removeItem('pbstats-user');
+        }
+      } else if (!hasLoggedOut) {
+        // Only default to admin if user hasn't explicitly logged out
+        const defaultAdmin = MOCK_USERS[0]; // Admin user
+        setUser(defaultAdmin);
+        localStorage.setItem('pbstats-user', JSON.stringify(defaultAdmin));
       }
-    } else if (!hasLoggedOut) {
-      // Only default to admin if user hasn't explicitly logged out
-      const defaultAdmin = MOCK_USERS[0]; // Admin user
-      setUser(defaultAdmin);
-      localStorage.setItem('pbstats-user', JSON.stringify(defaultAdmin));
     }
     setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
+    if (typeof window === 'undefined') return { success: false, error: 'Client-side only operation' };
+    
     setIsLoading(true);
     
     // Simulate API call delay
@@ -81,6 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    if (typeof window === 'undefined') return;
+    
     setUser(null);
     localStorage.removeItem('pbstats-user');
     localStorage.setItem('pbstats-logged-out', 'true'); // Set logout flag

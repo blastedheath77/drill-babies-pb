@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { AuthWrapper } from '@/components/auth-wrapper';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { InstallPrompt } from '@/components/install-prompt';
+import { BottomNav } from '@/components/layout/bottom-nav';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -61,7 +62,13 @@ function AppSidebarContent() {
         {/* Main Navigation */}
         <div className="flex-1">
           <SidebarMenu>
-            {mainNavItems.map((item) => (
+            {mainNavItems
+              .filter((item) => {
+                // Hide bottom nav items on mobile (only in sidebar)
+                const bottomNavRoutes = ['/', '/statistics', '/log-game'];
+                return !bottomNavRoutes.includes(item.href) || !isMobile;
+              })
+              .map((item) => (
               <SidebarMenuItem key={item.href}>
                 <Link href={item.href} onClick={handleNavClick}>
                   <SidebarMenuButton
@@ -131,27 +138,29 @@ function AppSidebarContent() {
           </div>
         )}
 
-        {/* Special Action Item - Log Game (at bottom) */}
-        <div className="px-2 pb-4">
-          <SidebarSeparator className="mb-4" />
-          <SidebarMenu>
-            {specialNavItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <Link href={item.href} onClick={handleNavClick}>
-                  <SidebarMenuButton
-                    isActive={pathname === item.href}
-                    size="mobile"
-                    tooltip={{ children: item.title, side: 'right' }}
-                    className="bg-primary/10 border-2 border-primary/30 hover:bg-primary/20 text-primary hover:text-primary data-[state=open]:bg-primary/20 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground shadow-sm"
-                  >
-                    <item.icon className="text-primary data-[active=true]:text-primary-foreground" />
-                    <span className="font-semibold">{item.title}</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </div>
+        {/* Special Action Item - Log Game (at bottom) - Hide on mobile as it's in bottom nav */}
+        {!isMobile && (
+          <div className="px-2 pb-4">
+            <SidebarSeparator className="mb-4" />
+            <SidebarMenu>
+              {specialNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <Link href={item.href} onClick={handleNavClick}>
+                    <SidebarMenuButton
+                      isActive={pathname === item.href}
+                      size="mobile"
+                      tooltip={{ children: item.title, side: 'right' }}
+                      className="bg-primary/10 border-2 border-primary/30 hover:bg-primary/20 text-primary hover:text-primary data-[state=open]:bg-primary/20 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground shadow-sm"
+                    >
+                      <item.icon className="text-primary data-[active=true]:text-primary-foreground" />
+                      <span className="font-semibold">{item.title}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </div>
+        )}
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
@@ -228,9 +237,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <Header />
-        <main className="p-3 sm:p-6 lg:p-8">{children}</main>
+        <main className="p-3 sm:p-6 lg:p-8 pb-24 lg:pb-8">{children}</main>
         <OfflineIndicator />
         <InstallPrompt />
+        <BottomNav />
       </SidebarInset>
     </SidebarProvider>
   );
