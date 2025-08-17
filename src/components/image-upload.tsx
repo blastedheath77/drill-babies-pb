@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ImageCropper } from '@/components/image-cropper';
 import { Upload, Camera, X } from 'lucide-react';
 
 interface ImageUploadProps {
@@ -26,6 +27,8 @@ export function ImageUpload({
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cropData, setCropData] = useState<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1 });
+  const [showCropper, setShowCropper] = useState(false);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,6 +53,7 @@ export function ImageUpload({
     const reader = new FileReader();
     reader.onload = (e) => {
       setPreview(e.target?.result as string);
+      setShowCropper(true); // Show cropper when image is loaded
     };
     reader.readAsDataURL(file);
   };
@@ -61,27 +65,37 @@ export function ImageUpload({
     setError(null);
 
     try {
+      console.log('Starting upload for file:', selectedFile.name, 'Size:', selectedFile.size);
+      
       // Dynamic import to avoid SSR issues
       const { storage, db } = await import('@/lib/firebase');
       const { ref, uploadBytes, getDownloadURL, deleteObject } = await import('firebase/storage');
       const { doc, updateDoc } = await import('firebase/firestore');
 
+      console.log('Firebase modules loaded successfully');
+
       // Create a reference to the file in Firebase Storage
       const timestamp = Date.now();
       const fileName = `player-avatars/${playerId}-${timestamp}.${selectedFile.name.split('.').pop()}`;
       const storageRef = ref(storage, fileName);
+      console.log('Created storage reference:', fileName);
 
       // Upload the file
+      console.log('Starting file upload to Firebase Storage...');
       const snapshot = await uploadBytes(storageRef, selectedFile);
+      console.log('File uploaded successfully, getting download URL...');
       
       // Get the download URL
       const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log('Download URL obtained:', downloadURL);
 
       // Update the player's avatar in Firestore
+      console.log('Updating player document in Firestore...');
       const playerRef = doc(db, 'players', playerId);
       await updateDoc(playerRef, {
         avatar: downloadURL,
       });
+      console.log('Player document updated successfully');
 
       // Delete the old avatar if it exists and is not a placeholder
       if (currentAvatar && currentAvatar.includes('firebase') && currentAvatar !== downloadURL) {
@@ -113,20 +127,35 @@ export function ImageUpload({
     setSelectedFile(null);
     setPreview(null);
     setError(null);
+    setShowCropper(false);
+    setCropData({ x: 0, y: 0, scale: 1 });
+  };
+
+  const handleCropChange = (newCropData: { x: number; y: number; scale: number }) => {
+    setCropData(newCropData);
   };
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {/* Current/Preview Avatar */}
-      <div className="flex justify-center">
-        <Avatar className="h-32 w-32 border-4 border-primary shadow-lg">
-          <AvatarImage 
-            src={preview || currentAvatar} 
-            alt={playerName}
-          />
-          <AvatarFallback>{playerName.substring(0, 2)}</AvatarFallback>
-        </Avatar>
-      </div>
+      {/* Current/Preview Avatar or Cropper */}
+      {showCropper && preview ? (
+        <ImageCropper
+          src={preview}
+          size={128}
+          onCropChange={handleCropChange}
+          className="flex flex-col items-center"
+        />
+      ) : (
+        <div className="flex justify-center">
+          <Avatar className="h-32 w-32 border-4 border-primary shadow-lg">
+            <AvatarImage 
+              src={preview || currentAvatar} 
+              alt={playerName}
+            />
+            <AvatarFallback>{playerName.substring(0, 2)}</AvatarFallback>
+          </Avatar>
+        </div>
+      )}
 
       {/* Upload Controls */}
       <div className="space-y-3">

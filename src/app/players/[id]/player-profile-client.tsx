@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { SimpleAvatarUpload } from '@/components/simple-avatar-upload';
+import { ImageUpload } from '@/components/image-upload';
 import { Edit3, X } from 'lucide-react';
 import type { Player } from '@/lib/types';
 
@@ -30,7 +30,7 @@ export function PlayerProfileClient({ player }: PlayerProfileClientProps) {
       <CardContent className="pt-6 flex flex-col items-center text-center">
         {isEditing ? (
           <div className="w-full">
-            <SimpleAvatarUpload
+            <ImageUpload
               playerId={player.id}
               playerName={player.name}
               currentAvatar={currentAvatar}

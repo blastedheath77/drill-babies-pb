@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Trash2, Plus, Users, GamepadIcon, Shield } from 'lucide-react';
+import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings } from 'lucide-react';
 import { 
   deletePlayer, 
   createPlayer, 
@@ -35,6 +35,10 @@ import {
   getPlayersWithGameCount, 
   getAllGamesWithPlayerNames 
 } from '@/lib/admin-actions';
+import { convertExistingRatings } from '@/lib/convert-ratings';
+import { updateGameDatesForTesting } from '@/lib/update-game-dates';
+import { backfillRatingHistory } from '@/lib/backfill-rating-history';
+import { syncAllPlayerStats } from '@/lib/sync-all-player-stats';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import type { Player, Game } from '@/lib/types';
 
@@ -57,6 +61,13 @@ export function AdminDashboard() {
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerEmail, setNewPlayerEmail] = useState('');
   const [isCreatingPlayer, setIsCreatingPlayer] = useState(false);
+
+  // Database management states
+  const [isConverting, setIsConverting] = useState(false);
+  const [isUpdatingDates, setIsUpdatingDates] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [managementMessage, setManagementMessage] = useState<string>('');
 
   // Load data on mount
   useEffect(() => {
@@ -147,12 +158,97 @@ export function AdminDashboard() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  // Database management functions
+  const handleConvertRatings = async () => {
+    setIsConverting(true);
+    setManagementMessage('Converting ratings to DUPR scale...');
+
+    try {
+      await convertExistingRatings();
+      setAlert({ type: 'success', message: 'Successfully converted all ratings to DUPR scale!' });
+      setManagementMessage('');
+      await loadPlayers();
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Failed to convert ratings' });
+      setManagementMessage('');
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const handleUpdateDates = async () => {
+    setIsUpdatingDates(true);
+    setManagementMessage('Updating game dates...');
+
+    try {
+      await updateGameDatesForTesting();
+      setAlert({ type: 'success', message: 'Successfully updated game dates for testing!' });
+      setManagementMessage('');
+      await loadGames();
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Failed to update game dates' });
+      setManagementMessage('');
+    } finally {
+      setIsUpdatingDates(false);
+    }
+  };
+
+  const handleBackfillRatings = async () => {
+    setIsBackfilling(true);
+    setManagementMessage('Backfilling rating history...');
+
+    try {
+      await backfillRatingHistory();
+      setAlert({ type: 'success', message: 'Successfully backfilled rating history!' });
+      setManagementMessage('');
+      await loadPlayers();
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Failed to backfill rating history' });
+      setManagementMessage('');
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
+  const handleSyncStats = async () => {
+    setIsSyncing(true);
+    setManagementMessage('Syncing all player stats...');
+
+    try {
+      await syncAllPlayerStats();
+      setAlert({ type: 'success', message: 'Successfully synced all player stats!' });
+      setManagementMessage('');
+      await loadPlayers();
+      await loadGames();
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Failed to sync player stats' });
+      setManagementMessage('');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const formatDate = (dateInput: any) => {
+    try {
+      // Handle Firestore Timestamp objects
+      if (dateInput && typeof dateInput === 'object' && 'seconds' in dateInput) {
+        const date = new Date(dateInput.seconds * 1000);
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      }
+      // Handle regular date strings
+      const date = new Date(dateInput);
+      return isNaN(date.getTime()) ? String(dateInput) : date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch (error) {
+      return String(dateInput);
+    }
   };
 
   const formatTeamScore = (team1Names: string[], team1Score: number, team2Names: string[], team2Score: number) => {
@@ -160,7 +256,7 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="container max-w-6xl mx-auto p-6">
+    <div className="container max-w-6xl mx-auto p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-6">
         <Shield className="h-8 w-8 text-primary" />
         <div>
@@ -176,14 +272,21 @@ export function AdminDashboard() {
       )}
 
       <Tabs defaultValue="players" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="players" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Players
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="players" className="flex items-center gap-1 text-xs sm:text-sm">
+            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Players</span>
+            <span className="xs:hidden">P</span>
           </TabsTrigger>
-          <TabsTrigger value="games" className="flex items-center gap-2">
-            <GamepadIcon className="h-4 w-4" />
-            Games
+          <TabsTrigger value="games" className="flex items-center gap-1 text-xs sm:text-sm">
+            <GamepadIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Games</span>
+            <span className="xs:hidden">G</span>
+          </TabsTrigger>
+          <TabsTrigger value="management" className="flex items-center gap-1 text-xs sm:text-sm">
+            <Database className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Management</span>
+            <span className="xs:hidden">M</span>
           </TabsTrigger>
         </TabsList>
 
@@ -198,7 +301,7 @@ export function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCreatePlayer} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="playerName">Name *</Label>
                     <Input
@@ -243,16 +346,17 @@ export function AdminDashboard() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Record</TableHead>
-                      <TableHead>Games</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[120px]">Name</TableHead>
+                        <TableHead className="min-w-[80px]">Rating</TableHead>
+                        <TableHead className="min-w-[80px]">Record</TableHead>
+                        <TableHead className="min-w-[60px]">Games</TableHead>
+                        <TableHead className="min-w-[80px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
                     {players.map((player) => (
                       <TableRow key={player.id}>
@@ -306,7 +410,8 @@ export function AdminDashboard() {
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -326,19 +431,63 @@ export function AdminDashboard() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Match</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[100px]">Date</TableHead>
+                        <TableHead className="min-w-[200px]">Match</TableHead>
+                        <TableHead className="min-w-[80px]">Type</TableHead>
+                        <TableHead className="min-w-[80px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
                   <TableBody>
-                    {games.map((game) => (
+                    {games
+                      .sort((a, b) => {
+                        // Sort by date, most recent first
+                        let dateA, dateB;
+                        
+                        // Handle Firestore Timestamp objects
+                        if (a.date && typeof a.date === 'object' && 'seconds' in a.date) {
+                          dateA = new Date(a.date.seconds * 1000);
+                        } else {
+                          dateA = new Date(a.date);
+                        }
+                        
+                        if (b.date && typeof b.date === 'object' && 'seconds' in b.date) {
+                          dateB = new Date(b.date.seconds * 1000);
+                        } else {
+                          dateB = new Date(b.date);
+                        }
+                        
+                        return dateB.getTime() - dateA.getTime();
+                      })
+                      .map((game) => (
                       <TableRow key={game.id}>
-                        <TableCell>{formatDate(game.date)}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            try {
+                              // Handle Firestore Timestamp objects
+                              if (game.date && typeof game.date === 'object' && 'seconds' in game.date) {
+                                const date = new Date(game.date.seconds * 1000);
+                                return date.toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                });
+                              }
+                              // Handle regular date strings
+                              const date = new Date(game.date);
+                              return isNaN(date.getTime()) ? String(game.date) : date.toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric', 
+                                year: 'numeric',
+                              });
+                            } catch (error) {
+                              return String(game.date);
+                            }
+                          })()}
+                        </TableCell>
                         <TableCell className="font-mono text-sm">
                           {formatTeamScore(
                             game.team1Names,
@@ -410,8 +559,76 @@ export function AdminDashboard() {
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="management" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Database Management
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Advanced tools for managing and maintaining the database
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {managementMessage && (
+                <Alert>
+                  <AlertDescription>{managementMessage}</AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="grid gap-6">
+                {/* Convert Ratings */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Convert Rating System</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Convert existing ELO ratings (1200-1700) to DUPR scale (2.0-8.0) for better pickleball rating representation.
+                  </p>
+                  <Button onClick={handleConvertRatings} disabled={isConverting}>
+                    {isConverting ? 'Converting...' : 'Convert to DUPR Scale'}
+                  </Button>
+                </div>
+
+                {/* Update Game Dates */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Update Game Dates</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Update existing games to have staggered dates (today, 2 days ago, 4 days ago, etc.) for testing rating history charts.
+                  </p>
+                  <Button onClick={handleUpdateDates} disabled={isUpdatingDates} variant="outline">
+                    {isUpdatingDates ? 'Updating...' : 'Update Game Dates for Testing'}
+                  </Button>
+                </div>
+
+                {/* Backfill Rating History */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Backfill Rating History</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Generate historical rating changes for existing games to populate the rating history charts. This simulates what the ratings would have been after each game.
+                  </p>
+                  <Button onClick={handleBackfillRatings} disabled={isBackfilling} variant="secondary">
+                    {isBackfilling ? 'Backfilling...' : 'Backfill Rating History'}
+                  </Button>
+                </div>
+
+                {/* Sync All Player Stats */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Sync All Player Stats</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Recalculate ALL player stats (rating, wins, losses, points for/against) from actual game history. Fixes discrepancies between stored stats and game results.
+                  </p>
+                  <Button onClick={handleSyncStats} disabled={isSyncing} variant="outline">
+                    {isSyncing ? 'Syncing...' : 'Sync All Player Stats'}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
