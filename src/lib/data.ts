@@ -324,29 +324,33 @@ export function getHeadToHeadStats(
   let losses = 0;
   let pointsDifference = 0;
 
-  const h2hGames = allGames.filter((game) => game.playerIds.includes(opponentId));
+  // Filter to games where both players participated
+  const h2hGames = allGames.filter((game) => 
+    game.playerIds.includes(playerId) && game.playerIds.includes(opponentId)
+  );
   let gamesPlayed = 0;
 
   h2hGames.forEach((game) => {
-    // Check if they are partners (on same team)
+    // Check if they are partners (on same team) - skip these games
     const playersOnTeam1 =
       game.team1.playerIds.includes(playerId) && game.team1.playerIds.includes(opponentId);
     const playersOnTeam2 =
       game.team2.playerIds.includes(playerId) && game.team2.playerIds.includes(opponentId);
 
-    // Skip games where they are partners
+    // Skip partnership games - we only want opponent games
     if (playersOnTeam1 || playersOnTeam2) return;
 
-    // Determine which team each player is on
+    // Ensure players are on opposite teams (redundant check for safety)
     const playerIsOnTeam1 = game.team1.playerIds.includes(playerId);
     const opponentIsOnTeam1 = game.team1.playerIds.includes(opponentId);
 
-    // They must be on opposite teams for a head-to-head matchup
+    // They must be on opposite teams for head-to-head (opponent) matchup
     if (playerIsOnTeam1 === opponentIsOnTeam1) return;
 
     const playerTeam = playerIsOnTeam1 ? game.team1 : game.team2;
     const opponentTeam = opponentIsOnTeam1 ? game.team1 : game.team2;
 
+    // Count this as a valid head-to-head game
     gamesPlayed++;
     if (playerTeam.score > opponentTeam.score) {
       wins++;
@@ -373,6 +377,12 @@ export function getPartnershipStats(playerId: string, allGames: Game[], allPlaye
   const doublesGames = allGames.filter((game) => game.type === 'Doubles');
 
   for (const game of doublesGames) {
+    // Check if the player is actually in this game
+    const isPlayerInGame = game.team1.playerIds.includes(playerId) || game.team2.playerIds.includes(playerId);
+    if (!isPlayerInGame) {
+      continue; // Skip games where this player didn't participate
+    }
+    
     const playerTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
     const partnerId = playerTeam.playerIds.find((id: string) => id !== playerId);
 

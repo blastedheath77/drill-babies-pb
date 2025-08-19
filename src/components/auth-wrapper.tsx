@@ -7,37 +7,60 @@ import { useEffect } from 'react';
 interface AuthWrapperProps {
   children: React.ReactNode;
   requireAuth?: boolean;
+  playerOnly?: boolean;
   adminOnly?: boolean;
+  viewerAllowed?: boolean;
 }
 
-export function AuthWrapper({ children, requireAuth = true, adminOnly = false }: AuthWrapperProps) {
-  const { user, isLoading, isAdmin } = useAuth();
+export function AuthWrapper({ 
+  children, 
+  requireAuth = false, 
+  playerOnly = false,
+  adminOnly = false,
+  viewerAllowed = true 
+}: AuthWrapperProps) {
+  const { user, isLoading, isInitialized, isAdmin, isPlayer } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading) {
-      // Skip auth checks for login page
-      if (pathname === '/login') {
-        return;
-      }
-
-      // If auth is required but user is not logged in
-      if (requireAuth && !user) {
-        router.push('/login');
-        return;
-      }
-
-      // If admin access is required but user is not admin
-      if (adminOnly && user && !isAdmin()) {
-        router.push('/');
-        return;
-      }
+    // Don't redirect until auth is initialized
+    if (!isInitialized || isLoading) {
+      return;
     }
-  }, [user, isLoading, isAdmin, router, pathname, requireAuth, adminOnly]);
+
+    // Skip auth checks for login and register pages
+    if (pathname === '/login' || pathname === '/register') {
+      return;
+    }
+
+    // If auth is required but user is not logged in
+    if (requireAuth && !user) {
+      router.push('/login');
+      return;
+    }
+
+    // If admin access is required but user is not admin
+    if (adminOnly && (!user || !isAdmin())) {
+      router.push('/');
+      return;
+    }
+
+    // If player access is required but user is not a player or admin
+    if (playerOnly && (!user || !isPlayer())) {
+      router.push('/login');
+      return;
+    }
+
+    // If viewers are not allowed and user is not authenticated
+    if (!viewerAllowed && !user) {
+      router.push('/login');
+      return;
+    }
+  }, [user, isLoading, isInitialized, isAdmin, isPlayer, router, pathname, requireAuth, playerOnly, adminOnly, viewerAllowed]);
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (isLoading || !isInitialized) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -48,13 +71,44 @@ export function AuthWrapper({ children, requireAuth = true, adminOnly = false }:
     );
   }
 
-  // Don't render if user needs to be redirected
-  if (requireAuth && !user) {
-    return null;
+  // Permission checks for rendering
+  
+  // Admin-only content
+  if (adminOnly && (!user || !isAdmin())) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="bg-destructive/10 text-destructive rounded-lg p-6 max-w-md mx-auto">
+            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+            <p className="text-sm">You need admin privileges to access this page.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  if (adminOnly && user && !isAdmin()) {
-    return null;
+  // Player-only content
+  if (playerOnly && (!user || !isPlayer())) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="bg-destructive/10 text-destructive rounded-lg p-6 max-w-md mx-auto">
+            <h2 className="text-xl font-semibold mb-2">Sign In Required</h2>
+            <p className="text-sm">You need to sign in to access this feature.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Auth required content
+  if (requireAuth && !user) {
+    return null; // Redirect will happen in useEffect
+  }
+
+  // Viewer not allowed
+  if (!viewerAllowed && !user) {
+    return null; // Redirect will happen in useEffect
   }
 
   return <>{children}</>;

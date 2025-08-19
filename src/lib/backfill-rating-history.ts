@@ -4,15 +4,52 @@ import { db } from './firebase';
 import { logError } from './errors';
 import { RATING_K_FACTOR, MIN_RATING, MAX_RATING } from './constants';
 
-// ELO-style calculation functions (copied from actions.ts)
+// Enhanced rating calculation functions with score margin and individual performance weighting
+
 function getExpectedScore(rating1: number, rating2: number) {
+  // Convert DUPR ratings to probability using a scaled logistic function
   const ratingDiff = rating2 - rating1;
-  return 1 / (1 + Math.pow(10, ratingDiff / 2));
+  return 1 / (1 + Math.pow(10, ratingDiff / 2)); // Scale factor of 2 for DUPR range
 }
 
-function getNewRating(rating: number, expectedScore: number, actualScore: number) {
-  const ratingChange = RATING_K_FACTOR * (actualScore - expectedScore) * 2;
+function getScoreMarginMultiplier(winnerScore: number, loserScore: number) {
+  // Calculate score margin multiplier - closer games have smaller swings
+  const scoreDifference = winnerScore - loserScore;
+  
+  // Base multiplier starts at 1.0, increases with margin
+  // Close games (1-point difference) = 0.7x multiplier
+  // Blowouts (8+ point difference) = 1.3x multiplier
+  const multiplier = 0.7 + (scoreDifference - 1) * 0.075;
+  
+  // Clamp between 0.5x and 1.5x to prevent extreme swings
+  return Math.max(0.5, Math.min(1.5, multiplier));
+}
+
+function getPerformanceMultiplier(playerRating: number, teamRating: number, gameType: string) {
+  // Individual performance weighting for doubles games
+  if (gameType === 'singles') {
+    return 1.0; // No adjustment for singles
+  }
+  
+  // In doubles, adjust based on relative strength within team
+  const ratingDifference = playerRating - teamRating;
+  
+  // Stronger player (above team average) gets smaller changes
+  // Weaker player (below team average) gets larger changes
+  // Formula: 1.0 + (teamAvg - playerRating) * 0.15
+  const multiplier = 1.0 - ratingDifference * 0.15;
+  
+  // Clamp between 0.7x and 1.3x
+  return Math.max(0.7, Math.min(1.3, multiplier));
+}
+
+function getNewRating(rating: number, expectedScore: number, actualScore: number, marginMultiplier: number = 1.0, performanceMultiplier: number = 1.0) {
+  // Calculate rating change with DUPR-appropriate scaling, margin adjustment, and performance weighting
+  const baseChange = RATING_K_FACTOR * (actualScore - expectedScore) * 2;
+  const ratingChange = baseChange * marginMultiplier * performanceMultiplier;
   const newRating = rating + ratingChange;
+
+  // Clamp rating within DUPR bounds
   return Math.max(MIN_RATING, Math.min(MAX_RATING, newRating));
 }
 
@@ -90,6 +127,11 @@ export async function backfillRatingHistory(): Promise<void> {
       const actualScoreTeam1 = team1Won ? 1 : 0;
       const actualScoreTeam2 = team1Won ? 0 : 1;
 
+      // Calculate margin and performance multipliers
+      const winnerScore = team1Won ? gameData.team1.score : gameData.team2.score;
+      const loserScore = team1Won ? gameData.team2.score : gameData.team1.score;
+      const marginMultiplier = getScoreMarginMultiplier(winnerScore, loserScore);
+
       // Calculate new ratings and track changes
       const ratingChanges: { [playerId: string]: { before: number; after: number } } = {};
 
@@ -97,10 +139,17 @@ export async function backfillRatingHistory(): Promise<void> {
         const oldRating = currentRatings[playerId] || 3.5;
         const isTeam1 = team1PlayerIds.includes(playerId);
 
+        // Calculate individual performance multiplier
+        const teamRating = isTeam1 ? team1Rating : team2Rating;
+        const gameType = gameData.type === 'Singles' ? 'singles' : 'doubles';
+        const performanceMultiplier = getPerformanceMultiplier(oldRating, teamRating, gameType);
+
         const newRating = getNewRating(
           oldRating,
           isTeam1 ? expectedScoreTeam1 : expectedScoreTeam2,
-          isTeam1 ? actualScoreTeam1 : actualScoreTeam2
+          isTeam1 ? actualScoreTeam1 : actualScoreTeam2,
+          marginMultiplier,
+          performanceMultiplier
         );
 
         ratingChanges[playerId] = { before: oldRating, after: newRating };

@@ -23,15 +23,52 @@ const matchResultSchema = z.object({
     }
   );
 
-// Rating calculation functions (copied from game logging)
+// Enhanced rating calculation functions with score margin and individual performance weighting
+
 function getExpectedScore(rating1: number, rating2: number) {
+  // Convert DUPR ratings to probability using a scaled logistic function
   const ratingDiff = rating2 - rating1;
-  return 1 / (1 + Math.pow(10, ratingDiff / 2));
+  return 1 / (1 + Math.pow(10, ratingDiff / 2)); // Scale factor of 2 for DUPR range
 }
 
-function getNewRating(rating: number, expectedScore: number, actualScore: number) {
-  const ratingChange = RATING_K_FACTOR * (actualScore - expectedScore) * 2;
+function getScoreMarginMultiplier(winnerScore: number, loserScore: number) {
+  // Calculate score margin multiplier - closer games have smaller swings
+  const scoreDifference = winnerScore - loserScore;
+  
+  // Base multiplier starts at 1.0, increases with margin
+  // Close games (1-point difference) = 0.7x multiplier
+  // Blowouts (8+ point difference) = 1.3x multiplier
+  const multiplier = 0.7 + (scoreDifference - 1) * 0.075;
+  
+  // Clamp between 0.5x and 1.5x to prevent extreme swings
+  return Math.max(0.5, Math.min(1.5, multiplier));
+}
+
+function getPerformanceMultiplier(playerRating: number, teamRating: number, gameType: string) {
+  // Individual performance weighting for doubles games
+  if (gameType === 'singles') {
+    return 1.0; // No adjustment for singles
+  }
+  
+  // In doubles, adjust based on relative strength within team
+  const ratingDifference = playerRating - teamRating;
+  
+  // Stronger player (above team average) gets smaller changes
+  // Weaker player (below team average) gets larger changes
+  // Formula: 1.0 + (teamAvg - playerRating) * 0.15
+  const multiplier = 1.0 - ratingDifference * 0.15;
+  
+  // Clamp between 0.7x and 1.3x
+  return Math.max(0.7, Math.min(1.3, multiplier));
+}
+
+function getNewRating(rating: number, expectedScore: number, actualScore: number, marginMultiplier: number = 1.0, performanceMultiplier: number = 1.0) {
+  // Calculate rating change with DUPR-appropriate scaling, margin adjustment, and performance weighting
+  const baseChange = RATING_K_FACTOR * (actualScore - expectedScore) * 2;
+  const ratingChange = baseChange * marginMultiplier * performanceMultiplier;
   const newRating = rating + ratingChange;
+
+  // Clamp rating within DUPR bounds
   return Math.max(MIN_RATING, Math.min(MAX_RATING, newRating));
 }
 
@@ -104,6 +141,11 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
     const actualScoreTeam1 = team1Won ? 1 : 0;
     const actualScoreTeam2 = team1Won ? 0 : 1;
 
+    // Calculate margin and performance multipliers
+    const winnerScore = team1Won ? team1Score : team2Score;
+    const loserScore = team1Won ? team2Score : team1Score;
+    const marginMultiplier = getScoreMarginMultiplier(winnerScore, loserScore);
+
     // Track rating changes for game record
     const ratingChanges: { [playerId: string]: { before: number; after: number } } = {};
 
@@ -115,10 +157,18 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
       if (player) {
         const isTeam1 = team1PlayerIds.includes(playerId);
         const oldRating = player.rating;
+        
+        // Calculate individual performance multiplier
+        const teamRating = isTeam1 ? team1Rating : team2Rating;
+        const gameType = team1PlayerIds.length === 1 ? 'singles' : 'doubles';
+        const performanceMultiplier = getPerformanceMultiplier(player.rating, teamRating, gameType);
+        
         const newRating = getNewRating(
           player.rating,
           isTeam1 ? expectedScoreTeam1 : expectedScoreTeam2,
-          isTeam1 ? actualScoreTeam1 : actualScoreTeam2
+          isTeam1 ? actualScoreTeam1 : actualScoreTeam2,
+          marginMultiplier,
+          performanceMultiplier
         );
 
         ratingChanges[playerId] = { before: oldRating, after: newRating };

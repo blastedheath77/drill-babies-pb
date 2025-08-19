@@ -16,7 +16,10 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
   const { data: players, isLoading, error, isError } = usePlayers();
 
   // Use React Query data if available, otherwise fall back to initial data
-  const playersData = players || initialPlayers;
+  const allPlayersData = players || initialPlayers;
+  
+  // Filter out players who haven't played any games for rankings
+  const playersData = allPlayersData.filter(player => (player.wins + player.losses) > 0);
 
   if (isError) {
     return (

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Icons } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -139,6 +140,18 @@ export default function LoginPage() {
                 </Button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <Link 
+                href="/register" 
+                className="text-primary hover:underline font-medium"
+              >
+                Sign up here
+              </Link>
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -11,7 +11,9 @@ export default async function StatisticsPage() {
   
   try {
     // Get initial data on server for SEO and faster first load
-    initialPlayers = await getPlayers();
+    const allPlayers = await getPlayers();
+    // Filter out players who haven't played any games for rankings
+    initialPlayers = allPlayers.filter(player => (player.wins + player.losses) > 0);
   } catch (error) {
     console.error('Failed to load initial players:', error);
     // Continue with empty array, client will handle loading

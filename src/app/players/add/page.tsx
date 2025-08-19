@@ -21,12 +21,13 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import { addPlayer } from './actions';
+import { AuthWrapper } from '@/components/auth-wrapper';
 
 const addPlayerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
 });
 
-export default function AddPlayerPage() {
+function AddPlayerContent() {
   const { toast } = useToast();
   const router = useRouter();
   const { invalidateAll, refetchAll } = useInvalidatePlayers();
@@ -92,5 +93,13 @@ export default function AddPlayerPage() {
         </form>
       </Form>
     </>
+  );
+}
+
+export default function AddPlayerPage() {
+  return (
+    <AuthWrapper playerOnly={true}>
+      <AddPlayerContent />
+    </AuthWrapper>
   );
 }

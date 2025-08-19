@@ -14,17 +14,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePlayers } from '@/hooks/use-players';
-import { useRecentGames, useTotalGamesCount } from '@/hooks/use-games';
+import { useRecentGames } from '@/hooks/use-games';
 import { BarChart, Trophy, Users, Swords, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
 
 export default function Home() {
-  const { data: players, isLoading: playersLoading, error: playersError } = usePlayers();
+  const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers();
   const { data: recentGames, isLoading: gamesLoading, error: gamesError } = useRecentGames(5);
-  const { data: totalGames, isLoading: countLoading } = useTotalGamesCount();
 
-  const isLoading = playersLoading || gamesLoading || countLoading;
+  // Filter out players with no games played
+  const players = allPlayers?.filter(player => (player.wins + player.losses) > 0) || [];
+
+  const isLoading = playersLoading || gamesLoading;
   const hasError = playersError || gamesError;
 
   if (hasError) {
@@ -96,39 +98,66 @@ export default function Home() {
     );
   }
 
-  const totalPlayers = players.length;
-
   return (
     <div className="flex flex-col gap-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Top Ranked Player"
-          value={players.length > 0 ? players[0].name : 'N/A'}
-          icon={<Trophy className="h-4 w-4 text-muted-foreground" />}
-          description={
-            players.length > 0 ? `Rating: ${players[0].rating.toFixed(2)}` : 'No players yet'
-          }
-        />
-        <StatCard
-          title="Total Players"
-          value={totalPlayers.toString()}
-          icon={<Users className="h-4 w-4 text-muted-foreground" />}
-          description="Active club members"
-        />
-        <StatCard
-          title="Games Logged"
-          value={(totalGames || 0).toString()}
-          icon={<Swords className="h-4 w-4 text-muted-foreground" />}
-          description="Recent matches played"
-        />
-        <Link href="/statistics">
-          <StatCard
-            title="View All Stats"
-            value="Dashboard"
-            icon={<BarChart className="h-4 w-4 text-muted-foreground" />}
-            description="Go to statistics page"
-          />
-        </Link>
+      {/* Enhanced Top Ranked Player Section */}
+      <div className="w-full">
+        {players.length > 0 ? (
+          <Card className="bg-gradient-to-br from-yellow-50 via-orange-50 to-red-50 border-2 border-yellow-200 shadow-lg">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-yellow-700">
+                <Trophy className="h-8 w-8 text-yellow-600" />
+                Top Ranked Player
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="flex flex-col items-center gap-4">
+                <Avatar className="h-20 w-20 border-4 border-yellow-400 shadow-lg">
+                  <AvatarImage
+                    src={players[0].avatar}
+                    alt={players[0].name}
+                    data-ai-hint="top player avatar"
+                  />
+                  <AvatarFallback className="bg-yellow-100 text-yellow-800 text-xl font-bold">
+                    {players[0].name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <Link
+                    href={`/players/${players[0].id}`}
+                    className="text-3xl font-bold text-gray-800 hover:text-yellow-700 hover:underline transition-colors"
+                  >
+                    {players[0].name}
+                  </Link>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <div className="bg-yellow-100 border-2 border-yellow-300 rounded-full px-4 py-2">
+                      <span className="text-xl font-bold text-yellow-800">
+                        Rating: {players[0].rating.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="bg-green-100 border-2 border-green-300 rounded-full px-3 py-2">
+                      <span className="text-sm font-semibold text-green-800">
+                        {players[0].wins}W - {players[0].losses}L
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="bg-gray-50 border-2 border-gray-200">
+            <CardHeader className="text-center">
+              <CardTitle className="flex items-center justify-center gap-2 text-xl text-gray-600">
+                <Trophy className="h-6 w-6 text-gray-500" />
+                No Players Yet
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-gray-500">Start by adding players and logging games!</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -187,28 +216,30 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {recentGames.map((game) => (
-              <div key={game.id} className="text-sm p-3 bg-secondary/50 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-semibold">{game.type}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(game.date).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <div
-                    className={`flex justify-between ${game.team1.score > game.team2.score ? 'font-bold' : ''}`}
-                  >
-                    <span>{game.team1.players.map((p) => p.name).join(' & ')}</span>
-                    <span>{game.team1.score}</span>
+              <Link key={game.id} href={`/games/${game.id}`}>
+                <div className="text-sm p-3 bg-secondary/50 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-semibold">{game.type}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(game.date).toLocaleDateString()}
+                    </span>
                   </div>
-                  <div
-                    className={`flex justify-between ${game.team2.score > game.team1.score ? 'font-bold' : ''}`}
-                  >
-                    <span>{game.team2.players.map((p) => p.name).join(' & ')}</span>
-                    <span>{game.team2.score}</span>
+                  <div className="space-y-1">
+                    <div
+                      className={`flex justify-between ${game.team1.score > game.team2.score ? 'font-bold' : ''}`}
+                    >
+                      <span>{game.team1.players.map((p) => p.name).join(' & ')}</span>
+                      <span>{game.team1.score}</span>
+                    </div>
+                    <div
+                      className={`flex justify-between ${game.team2.score > game.team1.score ? 'font-bold' : ''}`}
+                    >
+                      <span>{game.team2.players.map((p) => p.name).join(' & ')}</span>
+                      <span>{game.team2.score}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

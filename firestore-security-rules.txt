@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get user role
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Helper function to check if user is player or admin
+    function isPlayerOrAdmin() {
+      return request.auth != null && 
+             (getUserRole(request.auth.uid) == 'player' || 
+              getUserRole(request.auth.uid) == 'admin');
+    }
+    
+    // Users collection - users can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isAdmin(); // Admins can read all user documents
+      allow write: if isAdmin(); // Admins can modify user roles
+    }
+    
+    // Players collection - readable by all (viewers), writable by authenticated users
+    match /players/{document=**} {
+      allow read: if true; // Anyone can view player stats
+      allow create, update: if isPlayerOrAdmin(); // Only players+ can modify
+      allow delete: if isAdmin(); // Only admins can delete
+    }
+    
+    // Games collection - readable by all (viewers), writable by authenticated users  
+    match /games/{document=**} {
+      allow read: if true; // Anyone can view games
+      allow create, update: if isPlayerOrAdmin(); // Only players+ can log games
+      allow delete: if isAdmin(); // Only admins can delete games
+    }
+    
+    // Tournaments collection - readable by all, writable by authenticated users
+    match /tournaments/{document=**} {
+      allow read: if true; // Anyone can view tournaments
+      allow create, update: if isPlayerOrAdmin(); // Only players+ can create tournaments
+      allow delete: if isAdmin(); // Only admins can delete tournaments
+    }
+    
+    // Catch-all for any other collections (admin only)
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+
+/* 
+DEPLOYMENT INSTRUCTIONS:
+1. Copy the rules above (without this comment section)
+2. Go to Firebase Console → Firestore → Rules
+3. Replace existing rules with the above
+4. Click "Publish" 
+
+This implements the three-tier system:
+- VIEWERS: Can read all data (stats, players, games, tournaments)  
+- PLAYERS: Can read all data + create/update games and tournaments
+- ADMINS: Can do everything + delete data and manage users
+*/

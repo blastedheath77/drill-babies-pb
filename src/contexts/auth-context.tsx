@@ -1,113 +1,135 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { AuthContextType, User, UserRole } from '@/lib/auth-types';
+import type { AuthContextType, User } from '@/lib/auth-types';
+import { 
+  signInUser, 
+  signOutUser, 
+  registerUser, 
+  onAuthStateChange 
+} from '@/lib/user-management';
+import { logger } from '@/lib/logger';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Mock users for demo (in production, this would be in your database)
-const MOCK_USERS = [
-  {
-    id: 'admin-1',
-    name: 'Club Admin',
-    email: 'admin@pbstats.com',
-    role: 'admin' as UserRole,
-    avatar: 'https://placehold.co/100x100/4287f5/white.png?text=A',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'player-1',
-    name: 'John Player',
-    email: 'player@pbstats.com',
-    role: 'player' as UserRole,
-    avatar: 'https://placehold.co/100x100/10b981/white.png?text=P',
-    createdAt: new Date().toISOString(),
-  },
-];
-
-// Mock credentials (in production, use proper authentication)
-const MOCK_CREDENTIALS = [
-  { email: 'admin@pbstats.com', password: 'admin123' },
-  { email: 'player@pbstats.com', password: 'player123' },
-];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasMounted, setHasMounted] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    setHasMounted(true);
-    
-    // Only run auth logic on client side to prevent hydration mismatch
-    if (typeof window !== 'undefined') {
-      // Check for stored auth on mount
-      const storedUser = localStorage.getItem('pbstats-user');
-      const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
-      
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          localStorage.removeItem('pbstats-user');
+    // Try Firebase Auth first, fallback to localStorage
+    const unsubscribe = onAuthStateChange((firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        logger.info('User signed in via Firebase', { uid: firebaseUser.id, email: firebaseUser.email });
+      } else {
+        // Check localStorage for mock user data
+        if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('pbstats-user');
+          const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
+          
+          if (storedUser && !hasLoggedOut) {
+            try {
+              const userData = JSON.parse(storedUser);
+              setUser(userData);
+              logger.info('User loaded from localStorage', { id: userData.id, email: userData.email });
+            } catch (error) {
+              localStorage.removeItem('pbstats-user');
+              logger.error('Failed to parse stored user data', error);
+            }
+          }
         }
-      } else if (!hasLoggedOut) {
-        // Only default to admin if user hasn't explicitly logged out
-        const defaultAdmin = MOCK_USERS[0]; // Admin user
-        setUser(defaultAdmin);
-        localStorage.setItem('pbstats-user', JSON.stringify(defaultAdmin));
       }
-    }
-    setIsLoading(false);
+      
+      setIsLoading(false);
+      setIsInitialized(true);
+    });
+
+    return unsubscribe;
   }, []);
 
   const login = async (email: string, password: string) => {
-    if (typeof window === 'undefined') return { success: false, error: 'Client-side only operation' };
-    
     setIsLoading(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const credentials = MOCK_CREDENTIALS.find(
-      c => c.email === email && c.password === password
-    );
-    
-    if (credentials) {
-      const userData = MOCK_USERS.find(u => u.email === email);
-      if (userData) {
-        setUser(userData);
-        localStorage.setItem('pbstats-user', JSON.stringify(userData));
-        localStorage.removeItem('pbstats-logged-out'); // Clear logout flag
-        setIsLoading(false);
+    try {
+      const result = await signInUser(email, password);
+      if (result.success && result.user) {
+        setUser(result.user);
         return { success: true };
+      } else {
+        // Firebase Auth is now properly configured
+        return { success: false, error: result.error };
       }
+    } catch (error: any) {
+      logger.error('Login error in context', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    return { success: false, error: 'Invalid email or password' };
   };
 
-  const logout = () => {
-    if (typeof window === 'undefined') return;
+  const register = async (email: string, password: string, name: string) => {
+    setIsLoading(true);
     
-    setUser(null);
-    localStorage.removeItem('pbstats-user');
-    localStorage.setItem('pbstats-logged-out', 'true'); // Set logout flag
+    try {
+      const result = await registerUser(email, password, name);
+      if (result.success && result.user) {
+        setUser(result.user);
+        return { success: true };
+      } else {
+        // Firebase Auth is now properly configured
+        return { success: false, error: result.error };
+      }
+    } catch (error: any) {
+      logger.error('Registration error in context', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      // Try Firebase logout first
+      const success = await signOutUser();
+      
+      // Always clear localStorage and set user to null (works for both Firebase and mock)
+      setUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('pbstats-user');
+        localStorage.setItem('pbstats-logged-out', 'true');
+      }
+    } catch (error) {
+      logger.error('Logout error', error);
+      // Even if Firebase logout fails, clear local state
+      setUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('pbstats-user');
+        localStorage.setItem('pbstats-logged-out', 'true');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isAdmin = () => user?.role === 'admin';
   const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
+  const isAuthenticated = () => user !== null;
 
   return (
     <AuthContext.Provider 
       value={{ 
         user, 
         isLoading, 
+        isInitialized,
         login, 
+        register,
         logout, 
         isAdmin, 
-        isPlayer 
+        isPlayer,
+        isAuthenticated
       }}
     >
       {children}

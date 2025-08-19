@@ -58,7 +58,7 @@ export function HeadToHeadClient({
       const playerTeam1 = game.team1.playerIds.includes(playerId);
       const opponentTeam1 = game.team1.playerIds.includes(selectedOpponentId);
       return playerTeam1 !== opponentTeam1;
-    });
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by most recent first
 
     const recentForm = h2hGames.slice(0, 5).map(game => {
       const playerTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
@@ -73,34 +73,59 @@ export function HeadToHeadClient({
       };
     });
 
+    // Calculate streaks properly - current streak from most recent games
     const streaks = {
       current: 0,
       longest: 0,
       type: 'none' as 'win' | 'loss' | 'none'
     };
 
-    let currentStreak = 0;
-    let currentType: 'win' | 'loss' | 'none' = 'none';
-    let longestStreak = 0;
+    if (h2hGames.length > 0) {
+      // Calculate current streak starting from most recent game
+      let currentStreak = 1;
+      const mostRecentResult = h2hGames[0];
+      const playerTeam = mostRecentResult.team1.playerIds.includes(playerId) ? mostRecentResult.team1 : mostRecentResult.team2;
+      const opponentTeam = mostRecentResult.team1.playerIds.includes(playerId) ? mostRecentResult.team2 : mostRecentResult.team1;
+      const currentType = playerTeam.score > opponentTeam.score ? 'win' : 'loss';
 
-    recentForm.forEach((game, index) => {
-      if (index === 0) {
-        currentType = game.result === 'W' ? 'win' : 'loss';
-        currentStreak = 1;
-        longestStreak = 1;
-      } else if ((game.result === 'W' && currentType === 'win') || 
-                 (game.result === 'L' && currentType === 'loss')) {
-        currentStreak++;
-        longestStreak = Math.max(longestStreak, currentStreak);
-      } else {
-        currentStreak = 1;
-        currentType = game.result === 'W' ? 'win' : 'loss';
+      // Count consecutive games with same result from most recent
+      for (let i = 1; i < h2hGames.length; i++) {
+        const game = h2hGames[i];
+        const pTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
+        const oTeam = game.team1.playerIds.includes(playerId) ? game.team2 : game.team1;
+        const gameResult = pTeam.score > oTeam.score ? 'win' : 'loss';
+        
+        if (gameResult === currentType) {
+          currentStreak++;
+        } else {
+          break;
+        }
       }
-    });
 
-    streaks.current = currentStreak;
-    streaks.longest = longestStreak;
-    streaks.type = currentType;
+      // Calculate longest streak in all h2h games
+      let longestStreak = 1;
+      let tempStreak = 1;
+      let tempType = currentType;
+
+      for (let i = 1; i < h2hGames.length; i++) {
+        const game = h2hGames[i];
+        const pTeam = game.team1.playerIds.includes(playerId) ? game.team1 : game.team2;
+        const oTeam = game.team1.playerIds.includes(playerId) ? game.team2 : game.team1;
+        const gameResult = pTeam.score > oTeam.score ? 'win' : 'loss';
+        
+        if (gameResult === tempType) {
+          tempStreak++;
+          longestStreak = Math.max(longestStreak, tempStreak);
+        } else {
+          tempStreak = 1;
+          tempType = gameResult;
+        }
+      }
+
+      streaks.current = currentStreak;
+      streaks.longest = longestStreak;
+      streaks.type = currentType;
+    }
 
     return {
       recentForm,
@@ -377,16 +402,20 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
     if (partnerships.length === 0) return { bestPartner: null, totalGames: 0, averageWinRate: 0 };
 
     const totalGames = partnerships.reduce((sum, p) => sum + p.gamesPlayed, 0);
-    const bestPartner = partnerships.reduce((best, current) => {
-      const currentWinRate = current.gamesPlayed > 0 ? current.wins / current.gamesPlayed : 0;
-      const bestWinRate = best.gamesPlayed > 0 ? best.wins / best.gamesPlayed : 0;
-      
-      // Prioritize partners with more games if win rates are close
-      if (Math.abs(currentWinRate - bestWinRate) < 0.1) {
-        return current.gamesPlayed > best.gamesPlayed ? current : best;
-      }
-      return currentWinRate > bestWinRate ? current : best;
-    }, partnerships[0]);
+    // Filter partnerships with at least 3 games for "Best Partner" calculation
+    const qualifiedPartnerships = partnerships.filter(p => p.gamesPlayed >= 3);
+    const bestPartner = qualifiedPartnerships.length > 0 
+      ? qualifiedPartnerships.reduce((best, current) => {
+          const currentWinRate = current.gamesPlayed > 0 ? current.wins / current.gamesPlayed : 0;
+          const bestWinRate = best.gamesPlayed > 0 ? best.wins / best.gamesPlayed : 0;
+          
+          // Prioritize partners with more games if win rates are close
+          if (Math.abs(currentWinRate - bestWinRate) < 0.1) {
+            return current.gamesPlayed > best.gamesPlayed ? current : best;
+          }
+          return currentWinRate > bestWinRate ? current : best;
+        }, qualifiedPartnerships[0])
+      : null;
 
     const totalWins = partnerships.reduce((sum, p) => sum + p.wins, 0);
     const averageWinRate = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;

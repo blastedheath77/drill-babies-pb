@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
+import { AuthWrapper } from '@/components/auth-wrapper';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -48,7 +49,7 @@ interface ForensicsResult {
   };
 }
 
-export default function DatabaseAdminPage() {
+function DatabaseAdminContent() {
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [forensics, setForensics] = useState<ForensicsResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -580,5 +581,13 @@ export default function DatabaseAdminPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+export default function DatabaseAdminPage() {
+  return (
+    <AuthWrapper adminOnly={true}>
+      <DatabaseAdminContent />
+    </AuthWrapper>
   );
 }

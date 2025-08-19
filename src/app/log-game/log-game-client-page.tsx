@@ -64,10 +64,16 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     const [canScrollDown, setCanScrollDown] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Available players (excluding already selected ones)
-    const availablePlayers = players.filter(p => 
-      !player || p.id === player.id || !otherSelectedPlayers.some(selected => selected && selected.id === p.id)
-    );
+    // Available players (excluding already selected ones) sorted alphabetically by first name
+    const availablePlayers = players
+      .filter(p => 
+        !player || p.id === player.id || !otherSelectedPlayers.some(selected => selected && selected.id === p.id)
+      )
+      .sort((a, b) => {
+        const aFirstName = a.name.split(' ')[0];
+        const bFirstName = b.name.split(' ')[0];
+        return aFirstName.localeCompare(bFirstName);
+      });
 
     // Handle dropdown open/close with scroll prevention
     const handleToggle = () => {

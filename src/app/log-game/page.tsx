@@ -3,8 +3,9 @@
 import { LogGameClientPage } from './log-game-client-page';
 import { usePlayers } from '@/hooks/use-players';
 import { PageHeader } from '@/components/page-header';
+import { AuthWrapper } from '@/components/auth-wrapper';
 
-export default function LogGamePage() {
+function LogGameContent() {
   const { data: players, isLoading, error } = usePlayers();
 
   if (isLoading) {
@@ -39,4 +40,12 @@ export default function LogGamePage() {
   }
 
   return <LogGameClientPage players={players || []} />;
+}
+
+export default function LogGamePage() {
+  return (
+    <AuthWrapper playerOnly={true}>
+      <LogGameContent />
+    </AuthWrapper>
+  );
 }

@@ -1,11 +1,33 @@
-import { getPlayers } from '@/lib/data';
+'use client';
+
 import { CreateTournamentForm } from './create-tournament-form';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { AuthWrapper } from '@/components/auth-wrapper';
+import { usePlayers } from '@/hooks/use-players';
 
-export default async function CreateTournamentPage() {
-  const players = await getPlayers();
+function CreateTournamentContent() {
+  const { data: players, isLoading, error } = usePlayers();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading players...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load players. Please refresh the page.</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -21,7 +43,15 @@ export default async function CreateTournamentPage() {
         </div>
       </div>
 
-      <CreateTournamentForm players={players} />
+      <CreateTournamentForm players={players || []} />
     </>
+  );
+}
+
+export default function CreateTournamentPage() {
+  return (
+    <AuthWrapper playerOnly={true}>
+      <CreateTournamentContent />
+    </AuthWrapper>
   );
 }
