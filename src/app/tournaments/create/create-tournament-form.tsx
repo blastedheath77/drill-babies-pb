@@ -144,10 +144,18 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
     }
   };
 
-  // Calculate tournament preview statistics
+  // Calculate tournament preview statistics with detailed game distribution
   const getTournamentPreview = () => {
     const n = selectedPlayers.length;
-    if (n < 2) return { matches: 0, rounds: 0, duration: 0, partnersPerPlayer: 0 };
+    if (n < 2) return { 
+      matches: 0, 
+      rounds: 0, 
+      duration: 0, 
+      partnersPerPlayer: 0, 
+      gamesPerPlayer: { min: 0, max: 0, average: 0 },
+      gameDistribution: 'N/A',
+      isBalanced: true
+    };
 
     const courts = watchedCourts || 2;
     const maxRounds = watchedMaxRounds;
@@ -156,42 +164,103 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
       if (watchedFormat === 'singles') {
         // Singles round-robin
         const totalPossibleMatches = (n * (n - 1)) / 2;
-        const matches = maxRounds ? Math.min(maxRounds, totalPossibleMatches) : totalPossibleMatches;
-        const rounds = maxRounds || totalPossibleMatches;
+        const matches = maxRounds ? Math.min(maxRounds * courts, totalPossibleMatches) : totalPossibleMatches;
+        const actualRounds = maxRounds || Math.ceil(totalPossibleMatches / courts);
+        
+        // In singles round-robin, each player plays against every other player once
+        let gamesPerPlayer;
+        let isBalanced = true;
+        let gameDistribution;
+        
+        if (maxRounds && maxRounds * courts < totalPossibleMatches) {
+          // Limited rounds - distribution may vary
+          const gamesPerPlayerExact = (matches * 2) / n; // Each match involves 2 players
+          const minGames = Math.floor(gamesPerPlayerExact);
+          const maxGames = Math.ceil(gamesPerPlayerExact);
+          const averageGames = gamesPerPlayerExact;
+          
+          isBalanced = minGames === maxGames;
+          gameDistribution = isBalanced ? `${minGames} games each` : `${minGames}-${maxGames} games`;
+          
+          gamesPerPlayer = { min: minGames, max: maxGames, average: averageGames };
+        } else {
+          // Full round-robin - perfectly balanced
+          const games = n - 1;
+          gamesPerPlayer = { min: games, max: games, average: games };
+          gameDistribution = `${games} games each`;
+          isBalanced = true;
+        }
         
         return {
           matches,
-          rounds,
+          rounds: actualRounds,
           duration: matches * 9, // 9 minutes per match
           partnersPerPlayer: 0, // Not applicable for singles
+          gamesPerPlayer,
+          gameDistribution,
+          isBalanced
         };
       } else {
         // Doubles round-robin
-        if (n % 2 !== 0) return { matches: 0, rounds: 0, duration: 0, partnersPerPlayer: 0 };
+        if (n % 2 !== 0) return { 
+          matches: 0, 
+          rounds: 0, 
+          duration: 0, 
+          partnersPerPlayer: 0, 
+          gamesPerPlayer: { min: 0, max: 0, average: 0 },
+          gameDistribution: 'N/A',
+          isBalanced: true
+        };
         
         if (maxRounds) {
-          // Limited rounds - optimized algorithm
-          const matches = maxRounds * courts;
-          const partnersPerPlayer = Math.min(maxRounds, n - 1); // Each round = 1 new partner (ideally)
+          // Limited rounds - calculate actual game distribution
+          // Max matches per round is limited by both players and courts
+          const maxMatchesByPlayers = Math.floor(n / 4); // Each match needs 4 players
+          const matchesPerRound = Math.min(maxMatchesByPlayers, courts);
+          const totalMatches = maxRounds * matchesPerRound;
+          
+          // In doubles, each match involves 4 players
+          const totalPlayerGames = totalMatches * 4;
+          const gamesPerPlayerExact = totalPlayerGames / n;
+          const minGames = Math.floor(gamesPerPlayerExact);
+          const maxGames = Math.ceil(gamesPerPlayerExact);
+          const isBalanced = minGames === maxGames;
+          
+          const gameDistribution = isBalanced 
+            ? `${minGames} games each` 
+            : `${minGames}-${maxGames} games`;
+          
+          const partnersPerPlayer = Math.min(maxRounds, n - 1); // Approximate
           
           return {
-            matches,
+            matches: totalMatches,
             rounds: maxRounds,
-            duration: matches * 9,
+            duration: totalMatches * 9,
             partnersPerPlayer,
+            gamesPerPlayer: { min: minGames, max: maxGames, average: gamesPerPlayerExact },
+            gameDistribution,
+            isBalanced
           };
         } else {
-          // Full partner rotation
+          // Full partner rotation - everyone plays with everyone
           const totalPartnerships = (n * (n - 1)) / 2;
-          const matchesPerRound = Math.floor(n / 4) * courts;
+          // Max matches per round is limited by both players and courts
+          const maxMatchesByPlayers = Math.floor(n / 4); // Each match needs 4 players
+          const matchesPerRound = Math.min(maxMatchesByPlayers, courts);
           const rounds = Math.ceil(totalPartnerships / matchesPerRound);
           const matches = rounds * matchesPerRound;
+          
+          // Each player plays with each other player exactly once
+          const gamesPerPlayer = n - 1;
           
           return {
             matches,
             rounds,
             duration: matches * 9,
             partnersPerPlayer: n - 1, // Everyone partners with everyone
+            gamesPerPlayer: { min: gamesPerPlayer, max: gamesPerPlayer, average: gamesPerPlayer },
+            gameDistribution: `${gamesPerPlayer} games each`,
+            isBalanced: true
           };
         }
       }
@@ -200,11 +269,37 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
       const matches = watchedFormat === 'singles' ? n - 1 : Math.floor(n / 2) - 1;
       const rounds = Math.ceil(Math.log2(watchedFormat === 'singles' ? n : Math.floor(n / 2)));
       
+      // In elimination, games per player varies significantly
+      let gamesPerPlayer;
+      let gameDistribution;
+      let isBalanced = false;
+      
+      if (watchedFormat === 'singles') {
+        // Singles elimination: winner plays log2(n) games, others play 1 game (except some who play 0)
+        const maxGames = rounds;
+        const minGames = 1;
+        const averageGames = matches / n;
+        
+        gamesPerPlayer = { min: minGames, max: maxGames, average: averageGames };
+        gameDistribution = `1-${maxGames} games (varies by elimination)`;
+      } else {
+        // Doubles elimination  
+        const maxGames = rounds;
+        const minGames = 1;
+        const averageGames = (matches * 4) / n; // Each match has 4 players
+        
+        gamesPerPlayer = { min: minGames, max: maxGames, average: averageGames };
+        gameDistribution = `1-${maxGames} games (varies by elimination)`;
+      }
+      
       return {
         matches,
         rounds,
         duration: matches * 10, // Elimination matches tend to be longer
         partnersPerPlayer: watchedFormat === 'doubles' ? 1 : 0,
+        gamesPerPlayer,
+        gameDistribution,
+        isBalanced
       };
     }
   };
@@ -383,7 +478,7 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
                 return (
                   <div className="pt-4 border-t">
                     <p className="text-base sm:text-sm font-medium mb-3">Tournament Preview</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
                       <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                         <div className="font-medium text-blue-700 text-lg sm:text-base">{preview.matches} matches</div>
                         <div className="text-blue-600 text-sm">Total games</div>
@@ -400,6 +495,42 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
                         <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
                           <div className="font-medium text-orange-700 text-lg sm:text-base">{preview.partnersPerPlayer} partners</div>
                           <div className="text-orange-600 text-sm">Per player</div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Game Distribution per Player */}
+                    <div className={`p-4 rounded-lg border-2 ${
+                      preview.isBalanced 
+                        ? 'bg-green-50 border-green-200' 
+                        : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-3 h-3 rounded-full ${
+                          preview.isBalanced ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}></div>
+                        <span className={`font-medium text-sm ${
+                          preview.isBalanced ? 'text-green-700' : 'text-yellow-700'
+                        }`}>
+                          Games per Player
+                        </span>
+                      </div>
+                      <div className={`font-medium text-lg sm:text-base mb-1 ${
+                        preview.isBalanced ? 'text-green-700' : 'text-yellow-700'
+                      }`}>
+                        {preview.gameDistribution}
+                      </div>
+                      <div className={`text-sm ${
+                        preview.isBalanced ? 'text-green-600' : 'text-yellow-600'
+                      }`}>
+                        {preview.isBalanced 
+                          ? '✓ Perfectly balanced - everyone plays the same number of games'
+                          : `⚠ Uneven distribution - some players may play ${preview.gamesPerPlayer.min} games, others ${preview.gamesPerPlayer.max} games`
+                        }
+                      </div>
+                      {!preview.isBalanced && preview.gamesPerPlayer.average > 0 && (
+                        <div className="text-xs text-yellow-600 mt-1">
+                          Average: {preview.gamesPerPlayer.average.toFixed(1)} games per player
                         </div>
                       )}
                     </div>

@@ -641,21 +641,39 @@ export async function getTournamentStandings(tournamentId: string): Promise<Tour
 
     const standings: TournamentStanding[] = [];
 
-    // Get all tournament games
-    const tournamentGames = await getDocs(
-      query(collection(db, 'games'), where('tournamentId', '==', tournamentId))
-    );
+    // Get all tournament games and matches
+    const [tournamentGames, tournamentMatches] = await Promise.all([
+      getDocs(query(collection(db, 'games'), where('tournamentId', '==', tournamentId))),
+      getDocs(query(collection(db, 'tournamentMatches'), where('tournamentId', '==', tournamentId)))
+    ]);
 
     // Calculate standings for each registered player
     for (const playerId of tournament.playerIds) {
       const player = await getPlayerById(playerId);
       if (!player) continue;
 
+      let scheduledGames = 0;
       let gamesPlayed = 0;
       let wins = 0;
       let losses = 0;
       let pointsFor = 0;
       let pointsAgainst = 0;
+
+      // Count scheduled games from tournament matches
+      tournamentMatches.forEach((matchDoc) => {
+        const match = { id: matchDoc.id, ...matchDoc.data() } as TournamentMatch;
+        
+        // Check if this player is in this match (singles or doubles)
+        const isInMatch = 
+          match.player1Id === playerId ||
+          match.player2Id === playerId ||
+          (match.team1PlayerIds && match.team1PlayerIds.includes(playerId)) ||
+          (match.team2PlayerIds && match.team2PlayerIds.includes(playerId));
+          
+        if (isInMatch) {
+          scheduledGames++;
+        }
+      });
 
       tournamentGames.forEach((gameDoc) => {
         const game = { id: gameDoc.id, ...gameDoc.data() } as Game;
@@ -681,6 +699,7 @@ export async function getTournamentStandings(tournamentId: string): Promise<Tour
       standings.push({
         playerId,
         player,
+        scheduledGames,
         gamesPlayed,
         wins,
         losses,

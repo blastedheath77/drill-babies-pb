@@ -35,10 +35,10 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
     setIsClient(true);
   }, []);
 
-  const mainItems = getNavItemsByCategory('main', isAdmin());
-  const actionItems = getNavItemsByCategory('action', isAdmin());
-  const specialItems = getNavItemsByCategory('special', isAdmin());
-  const adminItems = getNavItemsByCategory('admin', isAdmin());
+  const mainItems = getNavItemsByCategory('main', user?.role);
+  const actionItems = getNavItemsByCategory('action', user?.role);
+  const specialItems = getNavItemsByCategory('special', user?.role);
+  const adminItems = getNavItemsByCategory('admin', user?.role);
 
   const renderNavItem = (item: NavItem) => {
     const isActive = pathname === item.href;
@@ -271,10 +271,10 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
 // Mobile Bottom Navigation Component
 function MobileBottomNav() {
   const pathname = usePathname();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const bottomNavItems = getBottomNavItems(isAdmin());
+  const bottomNavItems = getBottomNavItems(user?.role);
 
   const isActive = (item: NavItem) => {
     return pathname === item.href;
@@ -285,6 +285,26 @@ function MobileBottomNav() {
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bottom-nav lg:hidden">
         <div className="flex items-center justify-around h-20 px-4 safe-area-inset-bottom">
+          {/* Menu Button */}
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <button
+                className={cn(
+                  "bottom-nav-item rounded-lg transition-all duration-200",
+                  "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
+              >
+                <Menu className="h-5 w-5 mb-1 text-muted-foreground" />
+                <span className="text-xs font-medium leading-none text-muted-foreground">
+                  Menu
+                </span>
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[270px]">
+              <MobileSidebarMenu onClose={() => setSheetOpen(false)} />
+            </SheetContent>
+          </Sheet>
+          
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item);
@@ -317,26 +337,6 @@ function MobileBottomNav() {
               </Link>
             );
           })}
-          
-          {/* Menu Button */}
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger asChild>
-              <button
-                className={cn(
-                  "bottom-nav-item rounded-lg transition-all duration-200",
-                  "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                )}
-              >
-                <Menu className="h-5 w-5 mb-1 text-muted-foreground" />
-                <span className="text-xs font-medium leading-none text-muted-foreground">
-                  Menu
-                </span>
-              </button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-80">
-              <MobileSidebarMenu onClose={() => setSheetOpen(false)} />
-            </SheetContent>
-          </Sheet>
         </div>
       </nav>
       
@@ -357,11 +357,15 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
     setIsClient(true);
   }, []);
 
-  const visibleItems = getVisibleNavItems(isAdmin(), true);
+  const visibleItems = getVisibleNavItems(user?.role, true);
   
   // Filter out items that are already in the bottom navigation
-  const bottomNavPaths = getBottomNavItems(isAdmin()).map(item => item.href);
-  const menuItems = visibleItems.filter(item => !bottomNavPaths.includes(item.href));
+  const bottomNavPaths = getBottomNavItems(user?.role).map(item => item.href);
+  const allMenuItems = visibleItems.filter(item => !bottomNavPaths.includes(item.href));
+  
+  // Separate admin items from regular menu items
+  const regularMenuItems = allMenuItems.filter(item => item.category !== 'admin');
+  const adminMenuItems = allMenuItems.filter(item => item.category === 'admin');
 
   return (
     <div className="flex flex-col h-full py-6">
@@ -375,8 +379,8 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
       
       {/* Navigation Items */}
       <div className="flex-1 mt-6 overflow-auto">
-        <nav className="space-y-1 px-3">
-          {menuItems.map((item) => {
+        <nav className="space-y-1 px-1">
+          {regularMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             
@@ -386,24 +390,52 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-1 rounded-lg px-1 py-2 text-base font-bold transition-colors",
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
               >
                 <Icon className="h-4 w-4" />
-                <div className="flex-1">
-                  <div>{item.title}</div>
-                  {item.description && (
-                    <div className="text-xs opacity-70 mt-0.5">{item.description}</div>
-                  )}
+                <div className="flex-1 min-w-0">
+                  <div className="whitespace-nowrap overflow-hidden text-ellipsis">{item.title}</div>
                 </div>
               </Link>
             );
           })}
         </nav>
       </div>
+
+      {/* Admin Items - positioned above Account section */}
+      {adminMenuItems.length > 0 && (
+        <div className="pt-4 px-1 flex-shrink-0">
+          <nav className="space-y-1">
+            {adminMenuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-1 rounded-lg px-1 py-2 text-base font-bold transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <div className="flex-1 min-w-0">
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis">{item.title}</div>
+                  </div>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      )}
 
       {/* Authentication Section */}
       <div className="border-t pt-4 px-3 flex-shrink-0">
@@ -509,11 +541,11 @@ export function UnifiedNavigation({ className }: UnifiedNavigationProps) {
 // Hook for external components to check navigation state
 export function useUnifiedNavigation() {
   const isMobile = useIsMobile();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   
   return {
     isMobile,
-    visibleItems: getVisibleNavItems(isAdmin(), isMobile),
-    bottomNavItems: getBottomNavItems(isAdmin()),
+    visibleItems: getVisibleNavItems(user?.role, isMobile),
+    bottomNavItems: getBottomNavItems(user?.role),
   };
 }

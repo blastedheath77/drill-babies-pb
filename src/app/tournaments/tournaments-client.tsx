@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Calendar, Users, Plus, Trash2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Trophy, Calendar, Users, Plus, Trash2, Loader2, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { subscribeTournamentsRealtime, getTournamentsByStatus } from '@/lib/data';
+import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
 import type { Tournament } from '@/lib/types';
 
 export function TournamentsClient() {
+  const { canCreateTournaments } = useAuth();
   const [activeTournaments, setActiveTournaments] = useState<Tournament[]>([]);
   const [completedTournaments, setCompletedTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,7 +161,14 @@ export function TournamentsClient() {
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
           <div className="flex-1">
-            <CardTitle className="text-lg sm:text-xl leading-tight">{tournament.name}</CardTitle>
+            <CardTitle className="text-lg sm:text-xl leading-tight flex items-center gap-2">
+              {tournament.isQuickPlay ? (
+                <Zap className="h-4 w-4 text-green-600 flex-shrink-0" />
+              ) : (
+                <Trophy className="h-4 w-4 text-blue-600 flex-shrink-0" />
+              )}
+              {tournament.name}
+            </CardTitle>
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{tournament.description}</p>
           </div>
           <div className="flex-shrink-0">
@@ -191,12 +200,14 @@ export function TournamentsClient() {
               View Details
             </Button>
           </Link>
-          <DeleteTournamentDialog tournament={tournament} onDelete={handleTournamentDeleted}>
-            <Button variant="outline" size="default" className="text-destructive hover:text-destructive w-full sm:w-auto h-10">
-              <Trash2 className="h-4 w-4 mr-2 sm:mr-0" />
-              <span className="sm:hidden">Delete</span>
-            </Button>
-          </DeleteTournamentDialog>
+          {canCreateTournaments() && (
+            <DeleteTournamentDialog tournament={tournament} onDelete={handleTournamentDeleted}>
+              <Button variant="outline" size="default" className="text-destructive hover:text-destructive w-full sm:w-auto h-10">
+                <Trash2 className="h-4 w-4 mr-2 sm:mr-0" />
+                <span className="sm:hidden">Delete</span>
+              </Button>
+            </DeleteTournamentDialog>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -207,8 +218,8 @@ export function TournamentsClient() {
     return (
       <>
         <PageHeader
-          title="Tournaments & Leagues"
-          description="Organize and participate in club events."
+          title="Rec Play and Tournaments"
+          description="Organise recreational play and tournaments."
         />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
@@ -225,8 +236,8 @@ export function TournamentsClient() {
     return (
       <>
         <PageHeader
-          title="Tournaments & Leagues"
-          description="Organize and participate in club events."
+          title="Rec Play and Tournaments"
+          description="Organise recreational play and tournaments."
         />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
@@ -246,8 +257,8 @@ export function TournamentsClient() {
   return (
     <>
       <PageHeader
-        title="Tournaments & Leagues"
-        description="Organize and participate in club events."
+        title="Rec Play and Tournaments"
+        description="Organise recreational play and tournaments."
       />
 
       <div className="mb-6">
@@ -262,22 +273,22 @@ export function TournamentsClient() {
               </TabsTrigger>
             </TabsList>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Button
-                variant="outline"
-                size="default"
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="flex items-center justify-center gap-2 h-10"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </Button>
-              <Link href="/tournaments/create" className="w-full sm:w-auto">
-                <Button className="w-full h-10">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Tournament
-                </Button>
-              </Link>
+              {canCreateTournaments() && (
+                <>
+                  <Link href="/tournaments/quick-play" className="w-full sm:w-auto">
+                    <Button className="w-full h-10 bg-green-600 hover:bg-green-700 text-white border-0">
+                      <Zap className="h-4 w-4 mr-2" />
+                      Quick Play
+                    </Button>
+                  </Link>
+                  <Link href="/tournaments/create" className="w-full sm:w-auto">
+                    <Button className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white border-0">
+                      <Trophy className="h-4 w-4 mr-2" />
+                      Create Tournament
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 

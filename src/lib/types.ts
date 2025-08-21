@@ -64,6 +64,8 @@ export interface Tournament {
   maxRounds?: number; // Limit rounds for time-constrained tournaments
   availableCourts?: number; // Number of courts available (default: 2)
   estimatedDuration?: number; // Estimated duration in minutes
+  isQuickPlay?: boolean; // Quick Play mode allows adding rounds dynamically
+  currentRound?: number; // Track current round for Quick Play
 }
 
 export interface TournamentMatch {
@@ -84,6 +86,7 @@ export interface TournamentMatch {
 export interface TournamentStanding {
   playerId: string;
   player: Player;
+  scheduledGames: number; // Total matches scheduled for this player (including pending)
   gamesPlayed: number;
   wins: number;
   losses: number;
@@ -91,4 +94,55 @@ export interface TournamentStanding {
   pointsAgainst: number;
   pointsDifference: number;
   winPercentage: number;
+}
+
+// Circles system types
+export interface Circle {
+  id: string;
+  name: string;
+  description: string;
+  createdBy: string; // User ID of creator
+  createdAt: string;
+  updatedAt: string;
+  isPrivate: boolean; // If true, requires invitation to join
+  memberCount: number;
+  settings?: {
+    allowMemberInvites: boolean; // If members can invite others
+    autoAcceptInvites: boolean; // If invites are auto-accepted
+  };
+}
+
+export interface CircleMembership {
+  id: string;
+  circleId: string;
+  userId: string;
+  role: 'admin' | 'member'; // admin can manage circle, member can just participate
+  joinedAt: string;
+  invitedBy?: string; // User ID who invited this member
+}
+
+export interface CircleInvite {
+  id: string;
+  circleId: string;
+  circle?: Circle; // Populated for UI
+  invitedUserId: string;
+  invitedBy: string; // User ID who sent the invite
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+  message?: string; // Optional personal message
+}
+
+export interface CircleContext {
+  selectedCircleId: string | 'all'; // 'all' means show all players/data
+  availableCircles: Circle[];
+}
+
+// Extended types to support circle context
+export interface GameWithCircle extends Game {
+  circleId?: string; // Optional - games can exist without a specific circle
+}
+
+export interface TournamentWithCircle extends Tournament {
+  circleId?: string; // Optional - tournaments can be circle-specific
 }

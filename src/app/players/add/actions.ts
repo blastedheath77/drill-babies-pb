@@ -3,8 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { safeAddPlayer } from '@/lib/database-admin';
 import { createPlayerSchema, validateData } from '@/lib/validations';
+import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { requirePermission } from '@/lib/permissions';
 
 export async function addPlayer(values: { name: string; email?: string }) {
+  // Check authentication and permissions
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  requirePermission(currentUser, 'canCreatePlayers');
+
   const validatedData = validateData(createPlayerSchema, values);
   const { name } = validatedData;
 

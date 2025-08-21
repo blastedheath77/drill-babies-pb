@@ -1,7 +1,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'player' | 'admin';
+export type UserRole = 'viewer' | 'player' | 'admin';
 
 export interface User {
   id: string; // Firebase UID
@@ -38,7 +38,10 @@ export interface AuthContextType {
   logout: () => void;
   isAdmin: () => boolean;
   isPlayer: () => boolean;
+  isViewer: () => boolean;
   isAuthenticated: () => boolean;
+  canCreateTournaments: () => boolean;
+  canManagePlayers: () => boolean;
 }
 
 export interface RegistrationData {

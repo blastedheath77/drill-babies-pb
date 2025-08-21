@@ -1,11 +1,13 @@
 'use server';
 
-import { collection, doc, addDoc, writeBatch, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, addDoc, writeBatch, deleteDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { revalidatePath } from 'next/cache';
 import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { createTournamentSchema, validateData } from '@/lib/validations';
+import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { requirePermission } from '@/lib/permissions';
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -24,8 +26,14 @@ interface CreateTournamentData {
   availableCourts?: number;
 }
 
+
 export async function createTournament(data: CreateTournamentData) {
   try {
+    // Check authentication and permissions
+    const currentUser = await getCurrentUser();
+    requireAuthentication(currentUser);
+    requirePermission(currentUser, 'canCreateTournaments');
+    
     // Comprehensive validation using Zod schema
     const validatedData = validateData(createTournamentSchema, data);
 
@@ -83,6 +91,7 @@ export async function createTournament(data: CreateTournamentData) {
   }
 }
 
+
 // Calculate estimated tournament duration in minutes
 function calculateTournamentDuration(
   playerCount: number,
@@ -106,13 +115,18 @@ function calculateTournamentDuration(
   } else {
     // Doubles: optimized generation with max rounds
     if (maxRounds) {
-      totalMatches = maxRounds * courtsAvailable;
+      // Max matches per round is limited by both players and courts
+      const maxMatchesByPlayers = Math.floor(playerCount / 4); // Each match needs 4 players
+      const matchesPerRound = Math.min(maxMatchesByPlayers, courtsAvailable);
+      totalMatches = maxRounds * matchesPerRound;
     } else {
       // Full round-robin: each partnership appears once
       const totalPartnerships = (playerCount * (playerCount - 1)) / 2;
-      const matchesPerRound = Math.floor(playerCount / 4) * courtsAvailable;
+      // Max matches per round is limited by both players and courts
+      const maxMatchesByPlayers = Math.floor(playerCount / 4); // Each match needs 4 players
+      const matchesPerRound = Math.min(maxMatchesByPlayers, courtsAvailable);
       const estimatedRounds = Math.ceil(totalPartnerships / matchesPerRound);
-      totalMatches = estimatedRounds * courtsAvailable;
+      totalMatches = estimatedRounds * matchesPerRound;
     }
   }
 
@@ -154,22 +168,39 @@ async function generateRoundRobinMatches(
 
   if (format === 'singles') {
     // Singles round-robin: everyone plays everyone
-    for (let i = 0; i < playerIds.length; i++) {
-      for (let j = i + 1; j < playerIds.length; j++) {
-        const match: Omit<TournamentMatch, 'id'> = {
-          tournamentId,
-          round: 1,
-          matchNumber: matchNumber++,
-          player1Id: playerIds[i],
-          player2Id: playerIds[j],
-          status: 'pending',
-        };
-
-        logger.debug(`Creating match ${matchNumber - 1}: ${playerIds[i]} vs ${playerIds[j]}`);
-
-        const matchRef = doc(collection(db, 'tournamentMatches'));
-        batch.set(matchRef, match);
+    // First shuffle the player order to randomize match pairings
+    const shuffledPlayerIds = [...playerIds].sort(() => Math.random() - 0.5);
+    
+    const allMatches: Array<{player1Id: string, player2Id: string}> = [];
+    
+    // Generate all possible pairings
+    for (let i = 0; i < shuffledPlayerIds.length; i++) {
+      for (let j = i + 1; j < shuffledPlayerIds.length; j++) {
+        allMatches.push({
+          player1Id: shuffledPlayerIds[i],
+          player2Id: shuffledPlayerIds[j]
+        });
       }
+    }
+    
+    // Shuffle the matches to randomize the order they're played
+    const shuffledMatches = allMatches.sort(() => Math.random() - 0.5);
+    
+    // Create tournament match documents
+    for (const matchData of shuffledMatches) {
+      const match: Omit<TournamentMatch, 'id'> = {
+        tournamentId,
+        round: 1,
+        matchNumber: matchNumber++,
+        player1Id: matchData.player1Id,
+        player2Id: matchData.player2Id,
+        status: 'pending',
+      };
+
+      logger.debug(`Creating match ${matchNumber - 1}: ${matchData.player1Id} vs ${matchData.player2Id}`);
+
+      const matchRef = doc(collection(db, 'tournamentMatches'));
+      batch.set(matchRef, match);
     }
   } else {
     // Doubles: use optimized generation for limited or full round-robin
@@ -287,20 +318,26 @@ function generateRoundMatches(
   const matchesThisRound: Array<{ team1: string[]; team2: string[] }> = [];
   const usedThisRound = new Set<string>();
   
+  // Randomize the player order at the start to avoid bias
+  const shuffledPlayerIds = [...playerIds].sort(() => Math.random() - 0.5);
+  
   // Find optimal pairings for this round
   for (let court = 0; court < courtsAvailable && usedThisRound.size < n - 3; court++) {
-    const availablePlayers = playerIds.filter(id => !usedThisRound.has(id));
+    const availablePlayers = shuffledPlayerIds.filter(id => !usedThisRound.has(id));
     
     if (availablePlayers.length < 4) break;
     
+    // Shuffle available players to add randomness to the selection process
+    const randomizedAvailable = [...availablePlayers].sort(() => Math.random() - 0.5);
+    
     let bestMatch: { team1: string[]; team2: string[]; score: number } | null = null;
     
-    // Try all possible 4-player combinations from available players
-    for (let i = 0; i < availablePlayers.length; i++) {
-      for (let j = i + 1; j < availablePlayers.length; j++) {
-        for (let k = j + 1; k < availablePlayers.length; k++) {
-          for (let l = k + 1; l < availablePlayers.length; l++) {
-            const players = [availablePlayers[i], availablePlayers[j], availablePlayers[k], availablePlayers[l]];
+    // Try all possible 4-player combinations from randomized available players
+    for (let i = 0; i < randomizedAvailable.length; i++) {
+      for (let j = i + 1; j < randomizedAvailable.length; j++) {
+        for (let k = j + 1; k < randomizedAvailable.length; k++) {
+          for (let l = k + 1; l < randomizedAvailable.length; l++) {
+            const players = [randomizedAvailable[i], randomizedAvailable[j], randomizedAvailable[k], randomizedAvailable[l]];
             
             // Try both possible team combinations
             const teamCombos = [
@@ -382,14 +419,17 @@ async function generatePartnerRotationMatches(
   // Initialize game counts
   playerIds.forEach(player => playerGamesCount.set(player, 0));
   
-  // Generate all unique partnerships
+  // Randomize player order first to avoid positional bias
+  const randomizedPlayerIds = [...playerIds].sort(() => Math.random() - 0.5);
+  
+  // Generate all unique partnerships from randomized player order
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      allPartnerships.push([playerIds[i], playerIds[j]]);
+      allPartnerships.push([randomizedPlayerIds[i], randomizedPlayerIds[j]]);
     }
   }
   
-  // Shuffle partnerships to avoid bias
+  // Shuffle partnerships to avoid bias in pairing order
   const shuffledPartnerships = [...allPartnerships].sort(() => Math.random() - 0.5);
   
   // Track which partnerships have been used
@@ -518,15 +558,18 @@ async function generateEliminationMatches(
   } else {
     // Doubles elimination - create fixed teams and pair them up
     const teams = generateFixedDoubleTeams(playerIds);
+    
+    // Shuffle the teams to randomize which teams play first
+    const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
 
-    for (let i = 0; i < teams.length; i += 2) {
-      if (i + 1 < teams.length) {
+    for (let i = 0; i < shuffledTeams.length; i += 2) {
+      if (i + 1 < shuffledTeams.length) {
         const match: Omit<TournamentMatch, 'id'> = {
           tournamentId,
           round,
           matchNumber: matchNumber++,
-          team1PlayerIds: teams[i],
-          team2PlayerIds: teams[i + 1],
+          team1PlayerIds: shuffledTeams[i],
+          team2PlayerIds: shuffledTeams[i + 1],
           status: 'pending',
         };
 
@@ -564,6 +607,11 @@ function generateFixedDoubleTeams(playerIds: string[]): string[][] {
 
 export async function deleteTournament(tournamentId: string) {
   try {
+    // Check authentication and permissions
+    const currentUser = await getCurrentUser();
+    requireAuthentication(currentUser);
+    requirePermission(currentUser, 'canDeleteTournaments');
+    
     logger.info('Deleting tournament', { tournamentId });
 
     // Use a batch to ensure all deletions happen together

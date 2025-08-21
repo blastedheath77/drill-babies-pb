@@ -1,13 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Trophy, Calendar, Users, Target, Edit } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, Users, Target, Edit, Plus, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { MatchResultDialog } from '@/components/match-result-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { addQuickPlayRound } from '../quick-play-actions';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/auth-context';
 import type { Tournament, TournamentMatch, TournamentStanding, Player } from '@/lib/types';
 
 interface TournamentClientProps {
@@ -21,9 +26,10 @@ interface MatchCardProps {
   match: TournamentMatch;
   players: Map<string, Player>;
   tournamentId: string;
+  canCreateTournaments: () => boolean;
 }
 
-function MatchCard({ match, players, tournamentId }: MatchCardProps) {
+function MatchCard({ match, players, tournamentId, canCreateTournaments }: MatchCardProps) {
   const getMatchPlayers = () => {
     if (match.player1Id && match.player2Id) {
       // Singles match
@@ -129,7 +135,7 @@ function MatchCard({ match, players, tournamentId }: MatchCardProps) {
             </div>
           )}
           
-          {match.status === 'pending' && (
+          {match.status === 'pending' && canCreateTournaments() && (
             <MatchResultDialog 
               match={match} 
               players={players} 
@@ -155,6 +161,11 @@ function MatchCard({ match, players, tournamentId }: MatchCardProps) {
 }
 
 export function TournamentClient({ tournament, matches, standings, playerMap }: TournamentClientProps) {
+  const [isAddingRound, setIsAddingRound] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
+  const { canCreateTournaments } = useAuth();
+
   // Group matches by round
   const matchesByRound = matches.reduce(
     (acc, match) => {
@@ -164,6 +175,33 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
     },
     {} as Record<number, TournamentMatch[]>
   );
+
+  const handleAddRound = async () => {
+    if (isAddingRound) return;
+
+    setIsAddingRound(true);
+    try {
+      const result = await addQuickPlayRound(tournament.id);
+      
+      if (result.success) {
+        toast({
+          title: 'Round Added!',
+          description: `Round ${result.roundNumber} has been generated with new matches.`,
+        });
+        
+        // Refresh the page to show new matches
+        router.refresh();
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to add round.',
+      });
+    } finally {
+      setIsAddingRound(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -193,55 +231,80 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
 
   return (
     <>
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/tournaments">
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold tracking-tight">{tournament.name}</h1>
-            {getStatusBadge(tournament.status)}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <Link href="/tournaments">
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
+              <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight truncate">{tournament.name}</h1>
           </div>
-          <p className="text-muted-foreground">{tournament.description}</p>
         </div>
+        
+        <div className="flex flex-wrap items-center gap-2">
+          {getStatusBadge(tournament.status)}
+          {tournament.isQuickPlay && (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Zap className="h-3 w-3 mr-1" />
+              Quick Play
+            </Badge>
+          )}
+          
+          {/* Add Round button for Quick Play tournaments */}
+          {tournament.isQuickPlay && tournament.status === 'active' && canCreateTournaments() && (
+            <Button 
+              onClick={handleAddRound} 
+              disabled={isAddingRound}
+              className="bg-green-600 hover:bg-green-700 ml-auto text-xs sm:text-sm"
+              size="sm"
+            >
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              {isAddingRound ? 'Adding...' : 'Add Round'}
+            </Button>
+          )}
+        </div>
+        
+        {tournament.description && (
+          <p className="text-sm text-muted-foreground">{tournament.description}</p>
+        )}
       </div>
 
       {/* Tournament Info */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Created</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm font-medium">Created</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {formatDate(tournament.createdDate)}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Players</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm font-medium">Players</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {tournament.playerIds.length} participants
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
+              <Target className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Format</p>
-                <p className="text-sm text-muted-foreground">{tournament.format}</p>
+                <p className="text-xs sm:text-sm font-medium">Format</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{tournament.format}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-muted-foreground" />
+              <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Type</p>
-                <p className="text-sm text-muted-foreground">{tournament.type.replace('-', ' ')}</p>
+                <p className="text-xs sm:text-sm font-medium">Type</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{tournament.type.replace('-', ' ')}</p>
               </div>
             </div>
           </div>
@@ -279,6 +342,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                               match={match} 
                               players={playerMap} 
                               tournamentId={tournament.id}
+                              canCreateTournaments={canCreateTournaments}
                             />
                           ))}
                       </div>
@@ -308,51 +372,47 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                 <CardTitle>Tournament Standings</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {standings.map((standing, index) => (
                     <div
                       key={standing.playerId}
-                      className="flex items-center gap-4 p-4 border rounded-lg"
+                      className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 border rounded-lg"
                     >
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
+                      <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 text-primary font-bold text-xs sm:text-sm">
                         {index + 1}
                       </div>
 
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={standing.player.avatar} alt={standing.player.name} />
-                        <AvatarFallback>{standing.player.name.substring(0, 2)}</AvatarFallback>
-                      </Avatar>
-
-                      <div className="flex-1">
-                        <p className="font-medium">{standing.player.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Rating: {standing.player.rating.toFixed(2)}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm sm:text-base truncate">{standing.player.name}</p>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-4 text-center">
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 sm:gap-4 text-center text-xs sm:text-sm">
+                        <div className="sm:block">
+                          <p className="font-medium">{standing.scheduledGames}</p>
+                          <p className="text-xs text-muted-foreground">Scheduled</p>
+                        </div>
                         <div>
-                          <p className="text-sm font-medium">{standing.gamesPlayed}</p>
+                          <p className="font-medium">{standing.gamesPlayed}</p>
                           <p className="text-xs text-muted-foreground">Played</p>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-green-600">{standing.wins}</p>
+                          <p className="font-medium text-green-600">{standing.wins}</p>
                           <p className="text-xs text-muted-foreground">Wins</p>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-red-600">{standing.losses}</p>
+                        <div className="hidden sm:block">
+                          <p className="font-medium text-red-600">{standing.losses}</p>
                           <p className="text-xs text-muted-foreground">Losses</p>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">
+                        <div className="hidden sm:block">
+                          <p className="font-medium">
                             {standing.winPercentage.toFixed(1)}%
                           </p>
                           <p className="text-xs text-muted-foreground">Win Rate</p>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
+                      <div className="text-right text-xs sm:text-sm">
+                        <p className="font-medium">
                           {standing.pointsDifference >= 0 ? '+' : ''}
                           {standing.pointsDifference}
                         </p>

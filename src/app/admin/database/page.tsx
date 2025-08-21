@@ -32,6 +32,7 @@ import {
   nuclearDatabaseReset,
   cleanupOrphanedReferences
 } from '@/lib/database-forensics';
+import { AdminCircleManagement } from '@/components/admin-circle-management';
 
 interface DatabaseStats {
   players: number;
@@ -269,6 +270,9 @@ function DatabaseAdminContent() {
       </PageHeader>
 
       <div className="space-y-8">
+        {/* Circle Management */}
+        <AdminCircleManagement />
+
         {/* Database Stats */}
         <Card>
           <CardHeader>

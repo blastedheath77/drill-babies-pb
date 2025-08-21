@@ -3,6 +3,7 @@
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '../ui/button';
 import { Icons } from '../icons';
+import { CircleSelectorCompact } from '../circle-selector';
 
 export function Header() {
   return (
@@ -10,7 +11,12 @@ export function Header() {
       <div className="flex items-center gap-2 md:hidden">
         <span className="text-lg font-semibold">Pickleball Stats</span>
       </div>
-      <div className="flex-1">{/* Can add page title or breadcrumbs here */}</div>
+      <div className="flex-1 flex items-center gap-4">
+        <CircleSelectorCompact className="hidden sm:flex" />
+      </div>
+      <div className="flex items-center gap-2">
+        <CircleSelectorCompact className="sm:hidden" />
+      </div>
     </header>
   );
 }

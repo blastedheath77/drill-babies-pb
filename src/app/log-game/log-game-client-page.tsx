@@ -146,7 +146,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       <div className="relative flex-1 min-w-0">
         {/* Player dropdown appears centered on input field - expands up and down */}
         {isOpen && (
-          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg max-h-80 w-max min-w-full max-w-sm">
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg max-h-[30rem] w-max min-w-full max-w-sm">
             {/* Top scroll indicator */}
             {canScrollUp && (
               <div className="sticky top-0 z-10 bg-gradient-to-b from-background to-transparent h-3 flex items-start justify-center">
@@ -157,7 +157,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
             {/* Scrollable content */}
             <div 
               ref={scrollContainerRef}
-              className="overflow-y-auto scrollbar-always-visible max-h-72"
+              className="overflow-y-auto scrollbar-always-visible max-h-[27rem]"
               onScroll={checkScrollPosition}
             >
               <div className={cn("py-2", canScrollUp && "pt-1", canScrollDown && "pb-1")}>

@@ -1,11 +1,13 @@
 'use client';
 
 import { usePlayers } from '@/hooks/use-players';
+import { useCircleFilter } from '@/contexts/circle-context';
 import { SortableStatisticsTable } from '@/components/sortable-statistics-table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Users } from 'lucide-react';
 import type { Player } from '@/lib/types';
 
 interface StatisticsClientProps {
@@ -14,12 +16,20 @@ interface StatisticsClientProps {
 
 export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
   const { data: players, isLoading, error, isError } = usePlayers();
+  const { isFilteringByCircle, circleName, filterLabel } = useCircleFilter();
 
   // Use React Query data if available, otherwise fall back to initial data
   const allPlayersData = players || initialPlayers;
   
   // Filter out players who haven't played any games for rankings
-  const playersData = allPlayersData.filter(player => (player.wins + player.losses) > 0);
+  let playersData = allPlayersData.filter(player => (player.wins + player.losses) > 0);
+
+  // TODO: Implement circle-based filtering when we have circle-player associations
+  // For now, show all players but indicate the filtering intent
+  if (isFilteringByCircle) {
+    // Placeholder: In real implementation, this would filter players by circle membership
+    // playersData = playersData.filter(player => player.circleIds?.includes(circleId));
+  }
 
   if (isError) {
     return (
@@ -63,5 +73,32 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
     );
   }
 
-  return <SortableStatisticsTable players={playersData} />;
+  return (
+    <div className="space-y-6">
+      {/* Circle Filter Indicator */}
+      {isFilteringByCircle && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4" />
+              Circle Filter Active
+              <Badge variant="secondary">{filterLabel}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Circle-based filtering is not yet fully implemented. Currently showing all players.
+                This feature will filter statistics to only show players from the selected circle.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Statistics Table */}
+      <SortableStatisticsTable players={playersData} />
+    </div>
+  );
 }

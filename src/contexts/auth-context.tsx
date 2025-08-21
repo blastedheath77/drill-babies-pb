@@ -8,6 +8,7 @@ import {
   registerUser, 
   onAuthStateChange 
 } from '@/lib/user-management';
+import { getUserPermissions } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,7 +117,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = () => user?.role === 'admin';
   const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
+  const isViewer = () => user?.role === 'viewer';
   const isAuthenticated = () => user !== null;
+  
+  const canCreateTournaments = () => getUserPermissions(user).canCreateTournaments;
+  const canManagePlayers = () => getUserPermissions(user).canCreatePlayers;
 
   return (
     <AuthContext.Provider 
@@ -129,7 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout, 
         isAdmin, 
         isPlayer,
-        isAuthenticated
+        isViewer,
+        isAuthenticated,
+        canCreateTournaments,
+        canManagePlayers
       }}
     >
       {children}

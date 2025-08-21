@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Circle } from 'lucide-react';
+import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
   title: string;
@@ -9,6 +10,7 @@ export interface NavItem {
   category?: 'main' | 'action' | 'special' | 'admin';
   priority: 'primary' | 'secondary' | 'tertiary';
   adminOnly?: boolean;
+  minRole?: UserRole; // Minimum role required to see this item
   mobileVisible?: boolean;
   desktopVisible?: boolean;
   bottomNavEligible?: boolean;
@@ -73,6 +75,17 @@ export const mainNavItems: NavItem[] = [
     description: 'Player matchup stats'
   },
   { 
+    title: 'Circles', 
+    href: '/circles', 
+    icon: Circle, 
+    category: 'main',
+    priority: 'secondary',
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Manage player circles'
+  },
+  { 
     title: 'Rankings', 
     href: '/statistics', 
     icon: BarChart, 
@@ -99,7 +112,7 @@ export const mainNavItems: NavItem[] = [
 // Action items (with special styling)
 export const actionNavItems: NavItem[] = [
   { 
-    title: 'Tournaments', 
+    title: 'Rec Play & Tournaments', 
     href: '/tournaments', 
     icon: Trophy, 
     category: 'action',
@@ -119,6 +132,7 @@ export const specialNavItems: NavItem[] = [
     icon: PlusSquare, 
     category: 'special',
     priority: 'primary',
+    minRole: 'player', // Viewers cannot log games
     bottomNavEligible: true,
     mobileVisible: true,
     desktopVisible: true,
@@ -140,18 +154,6 @@ export const adminNavItems: NavItem[] = [
     desktopVisible: true,
     description: 'Admin controls'
   },
-  { 
-    title: 'Database Management', 
-    href: '/admin/database', 
-    icon: Database, 
-    category: 'admin',
-    priority: 'tertiary',
-    adminOnly: true,
-    bottomNavEligible: false,
-    mobileVisible: true,
-    desktopVisible: true,
-    description: 'Database management'
-  },
 ];
 
 // All navigation items combined
@@ -165,11 +167,21 @@ export const allNavItems: NavItem[] = [
 // Legacy export for backwards compatibility
 export const navItems: NavItem[] = allNavItems;
 
+// Role hierarchy for filtering
+const ROLE_HIERARCHY: Record<UserRole, number> = {
+  'viewer': 0,
+  'player': 1,
+  'admin': 2,
+};
+
 // Utility functions for filtering navigation items
-export function getVisibleNavItems(isAdmin: boolean = false, isMobile: boolean = false): NavItem[] {
+export function getVisibleNavItems(userRole: UserRole | null = 'viewer', isMobile: boolean = false): NavItem[] {
+  const roleLevel = userRole ? ROLE_HIERARCHY[userRole] : 0;
+  
   return allNavItems.filter(item => {
-    // Filter by admin status
-    if (item.adminOnly && !isAdmin) return false;
+    // Filter by role requirements
+    if (item.minRole && roleLevel < ROLE_HIERARCHY[item.minRole]) return false;
+    if (item.adminOnly && userRole !== 'admin') return false;
     
     // Filter by device visibility
     if (isMobile && item.mobileVisible === false) return false;
@@ -179,14 +191,17 @@ export function getVisibleNavItems(isAdmin: boolean = false, isMobile: boolean =
   });
 }
 
-export function getBottomNavItems(isAdmin: boolean = false): NavItem[] {
+export function getBottomNavItems(userRole: UserRole | null = 'viewer'): NavItem[] {
+  const roleLevel = userRole ? ROLE_HIERARCHY[userRole] : 0;
+  
   return allNavItems
     .filter(item => {
       // Must be eligible for bottom nav
       if (!item.bottomNavEligible) return false;
       
-      // Filter by admin status
-      if (item.adminOnly && !isAdmin) return false;
+      // Filter by role requirements
+      if (item.minRole && roleLevel < ROLE_HIERARCHY[item.minRole]) return false;
+      if (item.adminOnly && userRole !== 'admin') return false;
       
       // Must be mobile visible
       if (item.mobileVisible === false) return false;
@@ -194,25 +209,33 @@ export function getBottomNavItems(isAdmin: boolean = false): NavItem[] {
       return true;
     })
     .sort((a, b) => {
-      // Sort by priority (primary first)
-      const priorityOrder = { primary: 0, secondary: 1, tertiary: 2 };
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
+      // Custom order: Home, Rankings, Log Game
+      const customOrder = { '/': 0, '/statistics': 1, '/log-game': 2 };
+      const aOrder = customOrder[a.href as keyof typeof customOrder] ?? 99;
+      const bOrder = customOrder[b.href as keyof typeof customOrder] ?? 99;
+      return aOrder - bOrder;
     })
     .slice(0, 4); // Limit to 4 items for bottom nav
 }
 
-export function getNavItemsByCategory(category: NavItem['category'], isAdmin: boolean = false): NavItem[] {
+export function getNavItemsByCategory(category: NavItem['category'], userRole: UserRole | null = 'viewer'): NavItem[] {
+  const roleLevel = userRole ? ROLE_HIERARCHY[userRole] : 0;
+  
   return allNavItems.filter(item => {
     if (item.category !== category) return false;
-    if (item.adminOnly && !isAdmin) return false;
+    if (item.minRole && roleLevel < ROLE_HIERARCHY[item.minRole]) return false;
+    if (item.adminOnly && userRole !== 'admin') return false;
     return true;
   });
 }
 
-export function getNavItemsByPriority(priority: NavItem['priority'], isAdmin: boolean = false): NavItem[] {
+export function getNavItemsByPriority(priority: NavItem['priority'], userRole: UserRole | null = 'viewer'): NavItem[] {
+  const roleLevel = userRole ? ROLE_HIERARCHY[userRole] : 0;
+  
   return allNavItems.filter(item => {
     if (item.priority !== priority) return false;
-    if (item.adminOnly && !isAdmin) return false;
+    if (item.minRole && roleLevel < ROLE_HIERARCHY[item.minRole]) return false;
+    if (item.adminOnly && userRole !== 'admin') return false;
     return true;
   });
 }

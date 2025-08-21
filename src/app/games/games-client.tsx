@@ -25,7 +25,8 @@ import {
   Filter,
   ChevronDown,
   AlertTriangle,
-  Crown
+  Crown,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAllGames } from '@/hooks/use-games';
@@ -81,13 +82,17 @@ export function GamesClient() {
         singlesGames: 0,
         doublesGames: 0,
         tournamentGames: 0,
+        quickPlayGames: 0,
+        casualGames: 0,
         averageScore: 0
       };
     }
 
     const singlesGames = filteredGames.filter(g => g.type === 'Singles').length;
     const doublesGames = filteredGames.filter(g => g.type === 'Doubles').length;
-    const tournamentGames = filteredGames.filter(g => g.tournamentId).length;
+    const tournamentGames = filteredGames.filter(g => g.tournamentId && !g.isQuickPlay).length;
+    const quickPlayGames = filteredGames.filter(g => g.isQuickPlay).length;
+    const casualGames = filteredGames.filter(g => !g.tournamentId && !g.isQuickPlay).length;
     
     const totalPoints = filteredGames.reduce((sum, game) => 
       sum + game.team1.score + game.team2.score, 0
@@ -99,6 +104,8 @@ export function GamesClient() {
       singlesGames,
       doublesGames,
       tournamentGames,
+      quickPlayGames,
+      casualGames,
       averageScore: Math.round(averageScore * 10) / 10
     };
   }, [filteredGames]);
@@ -169,33 +176,49 @@ export function GamesClient() {
         description="View all recent games and match results."
       />
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Games"
-          value={stats.totalGames.toString()}
-          icon={<Swords className="h-4 w-4" />}
-          description={`In selected time period`}
-        />
-        <StatCard
-          title="Singles"
-          value={stats.singlesGames.toString()}
-          icon={<Users className="h-4 w-4" />}
-          description={`${stats.totalGames > 0 ? Math.round((stats.singlesGames / stats.totalGames) * 100) : 0}% of games`}
-        />
-        <StatCard
-          title="Doubles"
-          value={stats.doublesGames.toString()}
-          icon={<Users className="h-4 w-4" />}
-          description={`${stats.totalGames > 0 ? Math.round((stats.doublesGames / stats.totalGames) * 100) : 0}% of games`}
-        />
-        <StatCard
-          title="Tournament"
-          value={stats.tournamentGames.toString()}
-          icon={<Trophy className="h-4 w-4" />}
-          description={`${stats.totalGames > 0 ? Math.round((stats.tournamentGames / stats.totalGames) * 100) : 0}% of games`}
-        />
-      </div>
+      {/* Condensed Stats Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Swords className="h-5 w-5" />
+            Games Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-primary">{stats.totalGames}</div>
+              <div className="text-sm text-muted-foreground">Total Games</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold">{stats.singlesGames}</div>
+              <div className="text-sm text-muted-foreground">Singles</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold">{stats.doublesGames}</div>
+              <div className="text-sm text-muted-foreground">Doubles</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-blue-600">{stats.tournamentGames}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <Trophy className="h-3 w-3" />
+                Tournaments
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-green-600">{stats.quickPlayGames}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <Zap className="h-3 w-3" />
+                Quick Play
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold">{stats.casualGames}</div>
+              <div className="text-sm text-muted-foreground">Casual</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters and Games List */}
       <Card>
