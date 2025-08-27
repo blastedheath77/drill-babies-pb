@@ -55,9 +55,11 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-192x192.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-192x192.png" />
+        <link rel="shortcut icon" href="/favicon.ico" />
         <meta name="msapplication-TileImage" content="/icons/icon-192x192.png" />
         <script
           dangerouslySetInnerHTML={{
