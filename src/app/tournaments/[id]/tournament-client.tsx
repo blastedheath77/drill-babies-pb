@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Trophy, Calendar, Users, Target, Edit, Plus, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { MatchResultDialog } from '@/components/match-result-dialog';
@@ -372,57 +373,58 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                 <CardTitle>Tournament Standings</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {standings.map((standing, index) => (
-                    <div
-                      key={standing.playerId}
-                      className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 text-primary font-bold text-xs sm:text-sm">
-                        {index + 1}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm sm:text-base truncate">{standing.player.name}</p>
-                      </div>
-
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 sm:gap-4 text-center text-xs sm:text-sm">
-                        <div className="sm:block">
-                          <p className="font-medium">{standing.scheduledGames}</p>
-                          <p className="text-xs text-muted-foreground">Scheduled</p>
-                        </div>
-                        <div>
-                          <p className="font-medium">{standing.gamesPlayed}</p>
-                          <p className="text-xs text-muted-foreground">Played</p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-green-600">{standing.wins}</p>
-                          <p className="text-xs text-muted-foreground">Wins</p>
-                        </div>
-                        <div className="hidden sm:block">
-                          <p className="font-medium text-red-600">{standing.losses}</p>
-                          <p className="text-xs text-muted-foreground">Losses</p>
-                        </div>
-                        <div className="hidden sm:block">
-                          <p className="font-medium">
-                            {standing.winPercentage.toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-muted-foreground">Win Rate</p>
-                        </div>
-                      </div>
-
-                      <div className="text-right text-xs sm:text-sm">
-                        <p className="font-medium">
-                          {standing.pointsDifference >= 0 ? '+' : ''}
-                          {standing.pointsDifference}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {standing.pointsFor}-{standing.pointsAgainst}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Player</TableHead>
+                      <TableHead className="text-center">Scheduled</TableHead>
+                      <TableHead className="text-center">Played</TableHead>
+                      <TableHead className="text-center">Wins</TableHead>
+                      <TableHead className="text-center hidden sm:table-cell">Losses</TableHead>
+                      <TableHead className="text-center hidden sm:table-cell">Win Rate</TableHead>
+                      <TableHead className="text-center">Point Diff</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {standings.map((standing, index) => (
+                      <TableRow key={standing.playerId}>
+                        <TableCell>
+                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs">
+                            {index + 1}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={standing.player.avatar} alt={standing.player.name} />
+                              <AvatarFallback>{standing.player.name.substring(0, 2)}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{standing.player.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-medium">{standing.scheduledGames}</TableCell>
+                        <TableCell className="text-center font-medium">{standing.gamesPlayed}</TableCell>
+                        <TableCell className="text-center font-medium text-green-600">{standing.wins}</TableCell>
+                        <TableCell className="text-center font-medium text-red-600 hidden sm:table-cell">{standing.losses}</TableCell>
+                        <TableCell className="text-center font-medium hidden sm:table-cell">
+                          {standing.winPercentage.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="text-right">
+                            <div className="font-medium">
+                              {standing.pointsDifference >= 0 ? '+' : ''}
+                              {standing.pointsDifference}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {standing.pointsFor}-{standing.pointsAgainst}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           ) : (

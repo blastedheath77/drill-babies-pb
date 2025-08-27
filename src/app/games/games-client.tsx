@@ -400,12 +400,6 @@ export function GamesClient() {
                             </div>
                           </div>
 
-                          {/* Footer */}
-                          <div className="flex justify-end items-center pt-2 border-t">
-                            <Button variant="ghost" size="sm">
-                              View Details
-                            </Button>
-                          </div>
                         </div>
                       </CardContent>
                     </Card>
