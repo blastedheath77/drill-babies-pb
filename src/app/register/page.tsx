@@ -21,6 +21,7 @@ export default function RegisterPage() {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     // Client-side validation
     if (formData.password !== formData.confirmPassword) {
@@ -59,8 +61,9 @@ export default function RegisterPage() {
       console.log('Registration result:', result);
       
       if (result.success) {
-        console.log('Registration successful, redirecting to home');
-        router.push('/');
+        console.log('Registration successful, showing verification message');
+        setSuccess('Account created successfully! Please check your email and click the verification link before signing in.');
+        // Don't redirect automatically - user needs to verify email first
       } else {
         console.error('Registration failed:', result.error);
         setError(result.error || 'Registration failed');
@@ -152,6 +155,12 @@ export default function RegisterPage() {
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
 

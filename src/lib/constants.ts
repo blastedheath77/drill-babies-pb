@@ -2,7 +2,7 @@
 export const DEFAULT_RATING = 3.5; // Starting rating for new players
 export const MIN_RATING = 2.0;
 export const MAX_RATING = 8.0;
-export const RATING_K_FACTOR = 0.1; // Smaller factor for DUPR scale adjustments
+export const RATING_K_FACTOR = 0.08; // Reduced factor for more conservative rating changes
 
 // Avatar and Display Constants
 export const DEFAULT_AVATAR_URL = 'https://placehold.co/100x100.png';

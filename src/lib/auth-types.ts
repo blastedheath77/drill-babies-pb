@@ -36,6 +36,8 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  resendEmailVerification: () => Promise<{ success: boolean; error?: string }>;
   isAdmin: () => boolean;
   isPlayer: () => boolean;
   isViewer: () => boolean;

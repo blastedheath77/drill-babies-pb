@@ -44,22 +44,28 @@ function getScoreMarginMultiplier(winnerScore: number, loserScore: number) {
   return Math.max(0.5, Math.min(1.5, multiplier));
 }
 
-function getPerformanceMultiplier(playerRating: number, teamRating: number, gameType: string) {
+function getPerformanceMultiplier(playerRating: number, teamRating: number, gameType: string, isWinner: boolean) {
   // Individual performance weighting for doubles games
   if (gameType === 'singles') {
     return 1.0; // No adjustment for singles
   }
   
-  // In doubles, adjust based on relative strength within team
+  // In doubles, adjust based on player strength relative to their own team
   const ratingDifference = playerRating - teamRating;
   
-  // Stronger player (above team average) gets smaller changes
-  // Weaker player (below team average) gets larger changes
-  // Formula: 1.0 + (teamAvg - playerRating) * 0.15
-  const multiplier = 1.0 - ratingDifference * 0.15;
-  
-  // Clamp between 0.7x and 1.3x
-  return Math.max(0.7, Math.min(1.3, multiplier));
+  if (isWinner) {
+    // For WINS: Weaker players (below team average) get larger bonuses
+    // Stronger players (above team average) get smaller bonuses
+    // Formula: 1.0 - (playerRating - teamAvg) * 0.25
+    const multiplier = 1.0 - ratingDifference * 0.25;
+    return Math.max(0.6, Math.min(1.4, multiplier));
+  } else {
+    // For LOSSES: Weaker players (below team average) get smaller penalties
+    // Stronger players (above team average) get larger penalties
+    // Formula: 1.0 + (playerRating - teamAvg) * 0.25
+    const multiplier = 1.0 + ratingDifference * 0.25;
+    return Math.max(0.6, Math.min(1.4, multiplier));
+  }
 }
 
 function getNewRating(rating: number, expectedScore: number, actualScore: number, marginMultiplier: number = 1.0, performanceMultiplier: number = 1.0) {
@@ -161,7 +167,8 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
         // Calculate individual performance multiplier
         const teamRating = isTeam1 ? team1Rating : team2Rating;
         const gameType = team1PlayerIds.length === 1 ? 'singles' : 'doubles';
-        const performanceMultiplier = getPerformanceMultiplier(player.rating, teamRating, gameType);
+        const isWinner = (isTeam1 && team1Won) || (!isTeam1 && !team1Won);
+        const performanceMultiplier = getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
         
         const newRating = getNewRating(
           player.rating,

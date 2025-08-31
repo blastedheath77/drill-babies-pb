@@ -22,6 +22,7 @@ import type { Player } from '@/lib/types';
 import { logGame } from '@/app/log-game/actions';
 import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
+import { ScoreSelector } from '@/components/ui/score-selector';
 
 interface LogGameClientPageProps {
   players: Player[];
@@ -219,101 +220,6 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     );
   }
 
-  // Score selector using button grid style
-  function CompactScoreSelector({ value, onChange }: { value: number; onChange: (value: number) => void; }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const scores = Array.from({ length: 16 }, (_, i) => i); // 0-15
-
-    // Handle dropdown open/close with scroll prevention
-    const handleToggle = () => {
-      if (!isOpen) {
-        // Opening dropdown - prevent scrolling
-        document.body.style.overflow = 'hidden';
-        document.body.style.overscrollBehavior = 'none';
-        document.documentElement.style.overflow = 'hidden';
-        document.documentElement.style.overscrollBehavior = 'none';
-        setIsOpen(true);
-      } else {
-        // Closing dropdown - restore scrolling
-        document.body.style.overflow = '';
-        document.body.style.overscrollBehavior = '';
-        document.documentElement.style.overflow = '';
-        document.documentElement.style.overscrollBehavior = '';
-        setIsOpen(false);
-      }
-    };
-
-    const handleScoreSelect = (score: number) => {
-      onChange(score);
-      // Restore scrolling when closing
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-      setIsOpen(false);
-    };
-
-    const handleBackdropClick = () => {
-      // Restore scrolling when closing
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-      setIsOpen(false);
-    };
-
-    // Cleanup on unmount
-    useEffect(() => {
-      return () => {
-        if (isOpen) {
-          document.body.style.overflow = '';
-          document.body.style.overscrollBehavior = '';
-          document.documentElement.style.overflow = '';
-          document.documentElement.style.overscrollBehavior = '';
-        }
-      };
-    }, [isOpen]);
-
-    return (
-      <div className="relative">
-        {/* Score grid appears above - responsive positioning */}
-        {isOpen && (
-          <div className="absolute bottom-12 right-0 z-50 bg-background border border-border rounded-lg shadow-lg p-2 animate-in slide-in-from-bottom-2 duration-200">
-            <div className="grid grid-cols-4 gap-1 w-32">
-              {scores.map((score) => (
-                <Button
-                  key={score}
-                  variant={score === value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleScoreSelect(score)}
-                  className="h-8 w-8 p-0 text-xs font-mono"
-                >
-                  {score}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Score button */}
-        <Button
-          variant="outline"
-          onClick={handleToggle}
-          className="w-12 h-10 text-lg font-mono p-0 shrink-0"
-        >
-          {value}
-        </Button>
-
-        {/* Backdrop to close */}
-        {isOpen && (
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={handleBackdropClick}
-          />
-        )}
-      </div>
-    );
-  }
 
   async function onSubmit() {
     // Validate required fields
@@ -438,7 +344,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
                 )}
                 
                 <div className="ml-1 shrink-0">
-                  <CompactScoreSelector value={team1Score} onChange={setTeam1Score} />
+                  <ScoreSelector value={team1Score} onChange={setTeam1Score} />
                 </div>
               </div>
             </div>
@@ -481,7 +387,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
                 )}
                 
                 <div className="ml-1 shrink-0">
-                  <CompactScoreSelector value={team2Score} onChange={setTeam2Score} />
+                  <ScoreSelector value={team2Score} onChange={setTeam2Score} />
                 </div>
               </div>
             </div>

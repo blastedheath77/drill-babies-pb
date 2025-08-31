@@ -6,7 +6,9 @@ import {
   signInUser, 
   signOutUser, 
   registerUser, 
-  onAuthStateChange 
+  onAuthStateChange,
+  resetPassword,
+  resendEmailVerification
 } from '@/lib/user-management';
 import { getUserPermissions } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
@@ -19,28 +21,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Try Firebase Auth first, fallback to localStorage
+    // Use Firebase Auth only - no localStorage fallback
     const unsubscribe = onAuthStateChange((firebaseUser) => {
+      setUser(firebaseUser);
       if (firebaseUser) {
-        setUser(firebaseUser);
         logger.info('User signed in via Firebase', { uid: firebaseUser.id, email: firebaseUser.email });
-      } else {
-        // Check localStorage for mock user data
-        if (typeof window !== 'undefined') {
-          const storedUser = localStorage.getItem('pbstats-user');
-          const hasLoggedOut = localStorage.getItem('pbstats-logged-out');
-          
-          if (storedUser && !hasLoggedOut) {
-            try {
-              const userData = JSON.parse(storedUser);
-              setUser(userData);
-              logger.info('User loaded from localStorage', { id: userData.id, email: userData.email });
-            } catch (error) {
-              localStorage.removeItem('pbstats-user');
-              logger.error('Failed to parse stored user data', error);
-            }
-          }
-        }
       }
       
       setIsLoading(false);
@@ -59,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.user);
         return { success: true };
       } else {
-        // Firebase Auth is now properly configured
         return { success: false, error: result.error };
       }
     } catch (error: any) {
@@ -79,7 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.user);
         return { success: true };
       } else {
-        // Firebase Auth is now properly configured
         return { success: false, error: result.error };
       }
     } catch (error: any) {
@@ -93,26 +76,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setIsLoading(true);
     try {
-      // Try Firebase logout first
-      const success = await signOutUser();
-      
-      // Always clear localStorage and set user to null (works for both Firebase and mock)
+      await signOutUser();
       setUser(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('pbstats-user');
-        localStorage.setItem('pbstats-logged-out', 'true');
-      }
     } catch (error) {
       logger.error('Logout error', error);
       // Even if Firebase logout fails, clear local state
       setUser(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('pbstats-user');
-        localStorage.setItem('pbstats-logged-out', 'true');
-      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePasswordReset = async (email: string) => {
+    return await resetPassword(email);
+  };
+
+  const handleResendEmailVerification = async () => {
+    return await resendEmailVerification();
   };
 
   const isAdmin = () => user?.role === 'admin';
@@ -132,6 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login, 
         register,
         logout, 
+        resetPassword: handlePasswordReset,
+        resendEmailVerification: handleResendEmailVerification,
         isAdmin, 
         isPlayer,
         isViewer,

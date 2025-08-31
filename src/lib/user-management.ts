@@ -4,7 +4,12 @@ import {
   signOut,
   updateProfile,
   User as FirebaseUser,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 import { 
   doc, 
@@ -149,6 +154,12 @@ export async function registerUser(
     console.log('✅ User profile updated');
     logger.info('User profile updated', { uid: firebaseUser.uid, displayName: name });
 
+    // Send email verification
+    console.log('📧 Sending email verification...');
+    await sendEmailVerification(firebaseUser);
+    console.log('✅ Email verification sent');
+    logger.info('Email verification sent', { uid: firebaseUser.uid, email: firebaseUser.email });
+
     // Create user document in Firestore
     console.log('💾 Creating user document in Firestore...');
     const user = await createUserDocument(firebaseUser, { name, role });
@@ -191,6 +202,15 @@ export async function signInUser(
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
     console.log('✅ Firebase sign-in successful:', firebaseUser.uid);
+
+    // Check if email is verified
+    if (!firebaseUser.emailVerified) {
+      console.warn('⚠️ Email not verified');
+      return { 
+        success: false, 
+        error: 'Please verify your email address before signing in. Check your inbox for a verification email.' 
+      };
+    }
 
     // Get user document from Firestore
     console.log('📄 Getting user document from Firestore...');
@@ -302,8 +322,96 @@ function getAuthErrorMessage(errorCode: string): string {
       return 'Too many failed attempts. Please try again later.';
     case 'auth/network-request-failed':
       return 'Network error. Please check your connection.';
+    case 'auth/requires-recent-login':
+      return 'Please sign out and sign back in before changing your password.';
+    case 'auth/email-already-verified':
+      return 'Your email address is already verified.';
+    case 'auth/invalid-action-code':
+      return 'The verification link is invalid or has expired.';
+    case 'auth/expired-action-code':
+      return 'The verification link has expired. Please request a new one.';
     default:
       return 'An error occurred during authentication. Please try again.';
+  }
+}
+
+/**
+ * Send password reset email
+ */
+export async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('🔄 Sending password reset email to:', email);
+    await sendPasswordResetEmail(auth, email);
+    console.log('✅ Password reset email sent');
+    logger.info('Password reset email sent', { email });
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Password reset error:', error);
+    logger.error('Password reset error', { errorCode: error.code, errorMessage: error.message, email });
+    return { 
+      success: false, 
+      error: getAuthErrorMessage(error.code) 
+    };
+  }
+}
+
+/**
+ * Resend email verification
+ */
+export async function resendEmailVerification(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: 'No user is currently signed in.' };
+    }
+
+    if (user.emailVerified) {
+      return { success: false, error: 'Your email is already verified.' };
+    }
+
+    console.log('📧 Resending email verification to:', user.email);
+    await sendEmailVerification(user);
+    console.log('✅ Email verification resent');
+    logger.info('Email verification resent', { uid: user.uid, email: user.email });
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Email verification resend error:', error);
+    logger.error('Email verification resend error', { errorCode: error.code, errorMessage: error.message });
+    return { 
+      success: false, 
+      error: getAuthErrorMessage(error.code) 
+    };
+  }
+}
+
+/**
+ * Update user password
+ */
+export async function updateUserPassword(
+  currentPassword: string, 
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      return { success: false, error: 'No user is currently signed in.' };
+    }
+
+    // Re-authenticate user before updating password
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    
+    // Update password
+    await updatePassword(user, newPassword);
+    logger.info('Password updated successfully', { uid: user.uid });
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Password update error:', error);
+    logger.error('Password update error', { errorCode: error.code, errorMessage: error.message });
+    return { 
+      success: false, 
+      error: getAuthErrorMessage(error.code) 
+    };
   }
 }
 

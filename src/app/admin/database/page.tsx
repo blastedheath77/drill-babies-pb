@@ -25,7 +25,10 @@ import {
   nukeDatabaseCompletely, 
   deduplicatePlayers, 
   initializeFreshDatabase, 
-  getDatabaseStats 
+  getDatabaseStats,
+  compressPlayerRatings,
+  rollbackRatingCompression,
+  getRatingBackups
 } from '@/lib/database-admin';
 import {
   analyzeDatabaseIntegrity,
@@ -56,6 +59,10 @@ function DatabaseAdminContent() {
   const [loading, setLoading] = useState(false);
   const [confirmNuke, setConfirmNuke] = useState(false);
   const [confirmNuclear, setConfirmNuclear] = useState(false);
+  const [confirmCompress, setConfirmCompress] = useState(false);
+  const [compressionFactor, setCompressionFactor] = useState(0.6);
+  const [compressionPreview, setCompressionPreview] = useState<any>(null);
+  const [ratingBackups, setRatingBackups] = useState<any[]>([]);
   const { toast } = useToast();
   const { refetchAll: refetchPlayers } = useInvalidatePlayers();
   const { invalidateAll: invalidateGames } = useInvalidateGames();
@@ -252,9 +259,102 @@ function DatabaseAdminContent() {
     }
   };
 
-  // Load stats on component mount
+  const handleCompressionPreview = async () => {
+    setLoading(true);
+    try {
+      const result = await compressPlayerRatings(compressionFactor, true); // dry run
+      if (result.success) {
+        setCompressionPreview(result);
+        toast({
+          title: 'Preview Generated',
+          description: `Would affect ${result.stats.playersAffected} players`
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Preview Failed',
+        description: error instanceof Error ? error.message : 'Failed to generate preview'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRatingCompression = async () => {
+    if (!confirmCompress) {
+      setConfirmCompress(true);
+      setTimeout(() => setConfirmCompress(false), 5000);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await compressPlayerRatings(compressionFactor, false); // actual run
+      if (result.success) {
+        clearAllCaches();
+        toast({
+          title: 'Ratings Compressed!',
+          description: result.message + ' Caches cleared.'
+        });
+        setConfirmCompress(false);
+        setCompressionPreview(null);
+        await loadStats();
+        await loadBackups();
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Compression Failed',
+        description: error instanceof Error ? error.message : 'Rating compression failed'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRatingRollback = async (backupId: string) => {
+    setLoading(true);
+    try {
+      const result = await rollbackRatingCompression(backupId);
+      if (result.success) {
+        clearAllCaches();
+        toast({
+          title: 'Ratings Restored!',
+          description: result.message + ' Caches cleared.'
+        });
+        await loadStats();
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Rollback Failed',
+        description: error instanceof Error ? error.message : 'Rating rollback failed'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadBackups = async () => {
+    try {
+      const backups = await getRatingBackups();
+      setRatingBackups(backups);
+    } catch (error) {
+      console.error('Failed to load rating backups:', error);
+    }
+  };
+
+  // Load stats and backups on component mount
   React.useEffect(() => {
     loadStats();
+    loadBackups();
   }, []);
 
   return (
@@ -344,6 +444,143 @@ function DatabaseAdminContent() {
               <Trash2 className="h-4 w-4 mr-2" />
               Clear All Caches
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Rating Compression Section */}
+        <Card className="border-green-200">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-600">
+              <Users className="h-5 w-5 mr-2" />
+              Rating Compression
+            </CardTitle>
+            <CardDescription>
+              Shrink the rating gap between players while maintaining relative skill differences
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Compression Factor Input */}
+            <div className="flex items-center space-x-4">
+              <label htmlFor="compressionFactor" className="text-sm font-medium">
+                Compression Factor:
+              </label>
+              <input
+                id="compressionFactor"
+                type="number"
+                min="0.1"
+                max="1.0"
+                step="0.1"
+                value={compressionFactor}
+                onChange={(e) => setCompressionFactor(parseFloat(e.target.value))}
+                className="w-20 px-2 py-1 border rounded text-center"
+              />
+              <span className="text-xs text-muted-foreground">
+                (0.6 = 40% compression, 1.0 = no change)
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button 
+                onClick={handleCompressionPreview}
+                disabled={loading}
+                variant="outline"
+                className="w-full"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Preview Changes
+              </Button>
+              
+              <Button 
+                onClick={handleRatingCompression}
+                disabled={loading || !compressionPreview}
+                variant={confirmCompress ? "destructive" : "default"}
+                className="w-full"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {confirmCompress ? 'CONFIRM COMPRESS' : 'Compress Ratings'}
+              </Button>
+            </div>
+
+            {confirmCompress && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>RATING COMPRESSION:</strong> This will permanently modify all player ratings. 
+                  A backup will be created automatically. Click again to confirm.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Compression Preview */}
+            {compressionPreview && (
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Preview Results:</span>
+                  <Badge variant="outline">
+                    {compressionPreview.stats.playersAffected} players affected
+                  </Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Average Rating:</span>
+                    <div>{compressionPreview.stats.avgOldRating} → {compressionPreview.stats.avgNewRating}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium">Compression Factor:</span>
+                    <div>{compressionFactor} (toward 3.5)</div>
+                  </div>
+                </div>
+
+                {/* Show extreme cases */}
+                <div className="space-y-2">
+                  <span className="font-medium text-sm">Biggest Changes:</span>
+                  <div className="max-h-32 overflow-y-auto text-xs">
+                    {compressionPreview.changes
+                      .sort((a: any, b: any) => Math.abs(b.change) - Math.abs(a.change))
+                      .slice(0, 5)
+                      .map((change: any, i: number) => (
+                        <div key={i} className="flex justify-between">
+                          <span>{change.name}</span>
+                          <span className={change.change > 0 ? 'text-green-600' : 'text-red-600'}>
+                            {change.oldRating} → {change.newRating} ({change.change >= 0 ? '+' : ''}{change.change})
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rating Backups */}
+            {ratingBackups.length > 0 && (
+              <div className="mt-6 space-y-4">
+                <span className="font-medium">Available Backups:</span>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {ratingBackups.slice(0, 3).map((backup) => (
+                    <div key={backup.id} className="flex items-center justify-between text-sm border rounded p-2">
+                      <div>
+                        <div className="font-medium">
+                          {new Date(backup.timestamp).toLocaleDateString()} {new Date(backup.timestamp).toLocaleTimeString()}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {backup.playerCount} players • Factor: {backup.compressionFactor || 'N/A'}
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={() => handleRatingRollback(backup.id)}
+                        disabled={loading}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Restore
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

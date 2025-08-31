@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { recordTournamentMatchResult } from '@/app/tournaments/match-actions';
 import { Trophy, Users } from 'lucide-react';
 import type { TournamentMatch, Player } from '@/lib/types';
+import { ScoreSelector } from '@/components/ui/score-selector';
 
 const matchResultFormSchema = z.object({
   team1Score: z.coerce
@@ -186,14 +187,14 @@ export function MatchResultDialog({
                       {team1.map((p) => p.name).join(' & ')} Score
                     </FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        min="0"
-                        max="50"
-                        className="text-center text-xl font-bold"
-                        {...field}
-                      />
+                      <div className="flex justify-center">
+                        <ScoreSelector 
+                          value={field.value} 
+                          onChange={field.onChange} 
+                          maxScore={15}
+                          className="mx-auto"
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -210,14 +211,14 @@ export function MatchResultDialog({
                       {team2.map((p) => p.name).join(' & ')} Score
                     </FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        min="0"
-                        max="50"
-                        className="text-center text-xl font-bold"
-                        {...field}
-                      />
+                      <div className="flex justify-center">
+                        <ScoreSelector 
+                          value={field.value} 
+                          onChange={field.onChange} 
+                          maxScore={15}
+                          className="mx-auto"
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

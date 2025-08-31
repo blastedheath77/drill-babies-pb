@@ -233,6 +233,187 @@ export async function initializeFreshDatabase(): Promise<{ success: boolean; mes
 }
 
 /**
+ * Compress player ratings toward center (3.5) while maintaining relative skill differences
+ */
+export async function compressPlayerRatings(
+  compressionFactor: number = 0.6,
+  dryRun: boolean = true
+): Promise<{ 
+  success: boolean; 
+  message: string; 
+  changes: { id: string; name: string; oldRating: number; newRating: number; change: number }[];
+  stats: { playersAffected: number; avgOldRating: number; avgNewRating: number; };
+}> {
+  try {
+    logger.info(`${dryRun ? 'DRY RUN: ' : ''}Starting rating compression with factor ${compressionFactor}...`);
+    
+    // Get all players
+    const playersSnapshot = await getDocs(collection(db, 'players'));
+    if (playersSnapshot.empty) {
+      return { 
+        success: false, 
+        message: 'No players found in database',
+        changes: [],
+        stats: { playersAffected: 0, avgOldRating: 0, avgNewRating: 0 }
+      };
+    }
+
+    const players = playersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Array<{ id: string; rating: number; name: string; [key: string]: any }>;
+
+    // Calculate compression changes
+    const changes = players.map(player => {
+      const oldRating = player.rating || DEFAULT_RATING;
+      const newRating = 3.5 + (oldRating - 3.5) * compressionFactor;
+      const change = newRating - oldRating;
+      
+      return {
+        id: player.id,
+        name: player.name,
+        oldRating,
+        newRating: Math.round(newRating * 100) / 100, // Round to 2 decimal places
+        change: Math.round(change * 100) / 100
+      };
+    });
+
+    // Calculate statistics
+    const totalOldRating = changes.reduce((sum, c) => sum + c.oldRating, 0);
+    const totalNewRating = changes.reduce((sum, c) => sum + c.newRating, 0);
+    const stats = {
+      playersAffected: changes.length,
+      avgOldRating: Math.round((totalOldRating / changes.length) * 100) / 100,
+      avgNewRating: Math.round((totalNewRating / changes.length) * 100) / 100
+    };
+
+    // If dry run, just return preview
+    if (dryRun) {
+      logger.info(`DRY RUN: Would compress ${changes.length} player ratings`);
+      return {
+        success: true,
+        message: `DRY RUN: Would compress ${changes.length} player ratings. Average would change from ${stats.avgOldRating} to ${stats.avgNewRating}.`,
+        changes,
+        stats
+      };
+    }
+
+    // Create backup before making changes
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      operation: 'rating_compression',
+      compressionFactor,
+      originalRatings: changes.map(c => ({ id: c.id, name: c.name, rating: c.oldRating }))
+    };
+
+    // Store backup
+    await addDoc(collection(db, 'ratingBackups'), backupData);
+    logger.info('Created rating backup before compression');
+
+    // Apply changes using batch
+    const batch = writeBatch(db);
+    changes.forEach(change => {
+      const playerRef = doc(db, 'players', change.id);
+      batch.update(playerRef, { rating: change.newRating });
+    });
+
+    await batch.commit();
+    logger.info(`Successfully compressed ${changes.length} player ratings`);
+
+    return {
+      success: true,
+      message: `Successfully compressed ${changes.length} player ratings. Average changed from ${stats.avgOldRating} to ${stats.avgNewRating}.`,
+      changes,
+      stats
+    };
+
+  } catch (error) {
+    logger.error('Failed to compress player ratings:', error);
+    return {
+      success: false,
+      message: `Failed to compress ratings: ${error}`,
+      changes: [],
+      stats: { playersAffected: 0, avgOldRating: 0, avgNewRating: 0 }
+    };
+  }
+}
+
+/**
+ * Rollback ratings from a previous compression using backup data
+ */
+export async function rollbackRatingCompression(
+  backupId: string
+): Promise<{ success: boolean; message: string; restoredCount: number }> {
+  try {
+    logger.info(`Starting rating rollback from backup ${backupId}...`);
+    
+    // Get backup data
+    const backupDoc = await getDocs(query(collection(db, 'ratingBackups'), where('__name__', '==', backupId)));
+    if (backupDoc.empty) {
+      return { success: false, message: 'Backup not found', restoredCount: 0 };
+    }
+
+    const backupData = backupDoc.docs[0].data();
+    const originalRatings = backupData.originalRatings as { id: string; name: string; rating: number }[];
+
+    // Restore original ratings using batch
+    const batch = writeBatch(db);
+    originalRatings.forEach(({ id, rating }) => {
+      const playerRef = doc(db, 'players', id);
+      batch.update(playerRef, { rating });
+    });
+
+    await batch.commit();
+    logger.info(`Successfully rolled back ${originalRatings.length} player ratings`);
+
+    return {
+      success: true,
+      message: `Successfully restored ${originalRatings.length} player ratings from backup`,
+      restoredCount: originalRatings.length
+    };
+
+  } catch (error) {
+    logger.error('Failed to rollback rating compression:', error);
+    return {
+      success: false,
+      message: `Failed to rollback ratings: ${error}`,
+      restoredCount: 0
+    };
+  }
+}
+
+/**
+ * Get available rating backups
+ */
+export async function getRatingBackups(): Promise<{
+  id: string;
+  timestamp: string;
+  operation: string;
+  compressionFactor?: number;
+  playerCount: number;
+}[]> {
+  try {
+    const backupsSnapshot = await getDocs(
+      query(collection(db, 'ratingBackups'), orderBy('timestamp', 'desc'))
+    );
+    
+    return backupsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        timestamp: data.timestamp,
+        operation: data.operation,
+        compressionFactor: data.compressionFactor,
+        playerCount: data.originalRatings?.length || 0
+      };
+    });
+  } catch (error) {
+    logger.error('Failed to get rating backups:', error);
+    return [];
+  }
+}
+
+/**
  * Get database stats
  */
 export async function getDatabaseStats(): Promise<{

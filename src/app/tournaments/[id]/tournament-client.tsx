@@ -376,47 +376,47 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="text-center">Scheduled</TableHead>
-                      <TableHead className="text-center">Played</TableHead>
-                      <TableHead className="text-center">Wins</TableHead>
-                      <TableHead className="text-center hidden sm:table-cell">Losses</TableHead>
-                      <TableHead className="text-center hidden sm:table-cell">Win Rate</TableHead>
-                      <TableHead className="text-center">Point Diff</TableHead>
+                      <TableHead className="w-8 px-2">#</TableHead>
+                      <TableHead className="px-2">Player</TableHead>
+                      <TableHead className="text-center px-1">Sch</TableHead>
+                      <TableHead className="text-center px-1">Play</TableHead>
+                      <TableHead className="text-center px-1">Wins</TableHead>
+                      <TableHead className="text-center px-1 hidden md:table-cell">Losses</TableHead>
+                      <TableHead className="text-center px-1 hidden lg:table-cell">Win Rate</TableHead>
+                      <TableHead className="text-center px-1">Diff</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {standings.map((standing, index) => (
                       <TableRow key={standing.playerId}>
-                        <TableCell>
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-xs">
+                        <TableCell className="px-2">
+                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-xs">
                             {index + 1}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
+                        <TableCell className="px-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
                               <AvatarImage src={standing.player.avatar} alt={standing.player.name} />
-                              <AvatarFallback>{standing.player.name.substring(0, 2)}</AvatarFallback>
+                              <AvatarFallback className="text-xs">{standing.player.name.substring(0, 2)}</AvatarFallback>
                             </Avatar>
-                            <span className="font-medium">{standing.player.name}</span>
+                            <span className="font-medium text-sm truncate max-w-[80px] sm:max-w-none">{standing.player.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-center font-medium">{standing.scheduledGames}</TableCell>
-                        <TableCell className="text-center font-medium">{standing.gamesPlayed}</TableCell>
-                        <TableCell className="text-center font-medium text-green-600">{standing.wins}</TableCell>
-                        <TableCell className="text-center font-medium text-red-600 hidden sm:table-cell">{standing.losses}</TableCell>
-                        <TableCell className="text-center font-medium hidden sm:table-cell">
+                        <TableCell className="text-center font-medium text-sm px-1">{standing.scheduledGames}</TableCell>
+                        <TableCell className="text-center font-medium text-sm px-1">{standing.gamesPlayed}</TableCell>
+                        <TableCell className="text-center font-medium text-sm text-green-600 px-1">{standing.wins}</TableCell>
+                        <TableCell className="text-center font-medium text-sm text-red-600 px-1 hidden md:table-cell">{standing.losses}</TableCell>
+                        <TableCell className="text-center font-medium text-sm px-1 hidden lg:table-cell">
                           {standing.winPercentage.toFixed(1)}%
                         </TableCell>
-                        <TableCell className="text-center">
-                          <div className="text-right">
-                            <div className="font-medium">
+                        <TableCell className="text-center px-1">
+                          <div className="text-center">
+                            <div className="font-medium text-sm">
                               {standing.pointsDifference >= 0 ? '+' : ''}
                               {standing.pointsDifference}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground hidden sm:block">
                               {standing.pointsFor}-{standing.pointsAgainst}
                             </div>
                           </div>
