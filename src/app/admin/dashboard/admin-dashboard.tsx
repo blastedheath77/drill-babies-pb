@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings } from 'lucide-react';
+import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings, Ghost, FileText } from 'lucide-react';
 import { 
   deletePlayer, 
   createPlayer, 
@@ -40,6 +40,8 @@ import { updateGameDatesForTesting } from '@/lib/update-game-dates';
 import { backfillRatingHistory } from '@/lib/backfill-rating-history';
 import { syncAllPlayerStats } from '@/lib/sync-all-player-stats';
 import { useInvalidatePlayers } from '@/hooks/use-players';
+import { AdminPhantomPlayerManagement } from '@/components/admin-phantom-player-management';
+import { AdminAuditTrailViewer } from '@/components/admin-audit-trail-viewer';
 import type { Player, Game } from '@/lib/types';
 
 type PlayerWithGameCount = Player & { gameCount: number };
@@ -272,7 +274,7 @@ export function AdminDashboard() {
       )}
 
       <Tabs defaultValue="players" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="players" className="flex items-center gap-1 text-xs sm:text-sm">
             <Users className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Players</span>
@@ -282,6 +284,16 @@ export function AdminDashboard() {
             <GamepadIcon className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Games</span>
             <span className="xs:hidden">G</span>
+          </TabsTrigger>
+          <TabsTrigger value="phantom" className="flex items-center gap-1 text-xs sm:text-sm">
+            <Ghost className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Phantom</span>
+            <span className="xs:hidden">Ph</span>
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="flex items-center gap-1 text-xs sm:text-sm">
+            <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Audit</span>
+            <span className="xs:hidden">A</span>
           </TabsTrigger>
           <TabsTrigger value="management" className="flex items-center gap-1 text-xs sm:text-sm">
             <Database className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -564,6 +576,14 @@ export function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="phantom" className="space-y-6">
+          <AdminPhantomPlayerManagement />
+        </TabsContent>
+
+        <TabsContent value="audit" className="space-y-6">
+          <AdminAuditTrailViewer />
         </TabsContent>
 
         <TabsContent value="management" className="space-y-6">

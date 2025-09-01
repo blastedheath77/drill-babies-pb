@@ -14,6 +14,7 @@ import { db } from './firebase';
 import type { Player, Game } from './types';
 import { DEFAULT_RATING, DEFAULT_AVATAR_URL } from './constants';
 import { logError } from './errors';
+import { logPhantomPlayerCreated } from './audit-trail';
 
 export async function deletePlayer(playerId: string, forceDelete: boolean = false): Promise<{ success: boolean; error?: string }> {
   try {
@@ -85,6 +86,8 @@ export async function createPlayer(playerData: {
   name: string;
   email?: string;
   avatar?: string;
+  createdBy?: string;        // For tracking who created the player
+  isPhantom?: boolean;       // Whether this is a phantom player
 }): Promise<{ success: boolean; playerId?: string; error?: string }> {
   try {
     const newPlayer: Omit<Player, 'id'> = {
@@ -95,9 +98,26 @@ export async function createPlayer(playerData: {
       losses: 0,
       pointsFor: 0,
       pointsAgainst: 0,
+      // Enhanced fields for phantom player support
+      isPhantom: playerData.isPhantom || false,
+      createdBy: playerData.createdBy,
+      createdAt: new Date().toISOString(),
+      email: playerData.email?.toLowerCase().trim(),
+      // claimedByUserId and claimedAt remain undefined until claimed
     };
 
     const docRef = await addDoc(collection(db, 'players'), newPlayer);
+    
+    // Log audit event for phantom player creation (if applicable)
+    if (playerData.isPhantom) {
+      await logPhantomPlayerCreated(
+        docRef.id,
+        playerData.name,
+        playerData.createdBy || 'admin',
+        !!playerData.email,
+        playerData.email
+      );
+    }
     
     return { 
       success: true, 

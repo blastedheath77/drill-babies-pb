@@ -140,6 +140,12 @@ export async function safeAddPlayer(playerData: {
       pointsFor: playerData.pointsFor ?? 0,
       pointsAgainst: playerData.pointsAgainst ?? 0,
       createdAt: serverTimestamp(),
+      // Enhanced fields for phantom player support
+      isPhantom: false, // Regular players are not phantom players
+      createdBy: undefined,
+      email: undefined,
+      claimedByUserId: undefined,
+      claimedAt: undefined,
     });
     
     logger.info(`Player added: ${playerData.name} (${docRef.id})`);

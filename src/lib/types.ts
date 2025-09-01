@@ -7,6 +7,13 @@ export interface Player {
   losses: number;
   pointsFor: number;
   pointsAgainst: number;
+  // Phantom player and claiming fields
+  claimedByUserId?: string;  // Links to User.id when claimed by a user
+  email?: string;            // Email for phantom players (enables claiming)
+  isPhantom?: boolean;       // True for phantom players, false for claimed/direct players
+  createdBy?: string;        // User ID who created this phantom player
+  createdAt?: string;        // When phantom player was created
+  claimedAt?: string;        // When player was claimed by user
 }
 
 export interface Game {
@@ -145,4 +152,70 @@ export interface GameWithCircle extends Game {
 
 export interface TournamentWithCircle extends Tournament {
   circleId?: string; // Optional - tournaments can be circle-specific
+}
+
+// Phantom Player and Claiming Types
+export interface PhantomPlayerCreationData {
+  name: string;
+  email?: string;          // Optional - makes player claimable if provided
+  avatar?: string;
+  createdBy: string;       // User ID who created this phantom player
+}
+
+export interface PlayerClaimRequest {
+  userId: string;
+  playerId: string;
+  email: string;           // Must match phantom player's email
+}
+
+export interface PlayerClaimLog {
+  id: string;
+  playerId: string;
+  playerName: string;
+  claimedByUserId: string;
+  claimedByUserName: string;
+  claimedAt: string;
+  originalEmail?: string;   // Email used for claiming
+  previousOwner?: string;   // If player was re-claimed
+}
+
+// Extended types for phantom player support
+export interface PlayerWithClaimStatus extends Player {
+  isClaimable: boolean;     // Computed: isPhantom && email exists
+  claimStatus: 'claimed' | 'claimable' | 'anonymous'; // Status for UI display
+}
+
+// Enhanced Circle Invitation Types
+export interface EmailCircleInvite {
+  id: string;
+  circleId: string;
+  circle?: Circle; // Populated for UI
+  invitedEmail: string;     // Email address for invitation
+  invitedBy: string;        // User ID who sent the invite
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'converted';
+  createdAt: string;
+  expiresAt: string;
+  message?: string;         // Optional personal message
+  convertedToUserId?: string; // Set when email invite becomes user invite
+  convertedAt?: string;     // When conversion happened
+}
+
+export interface CircleInviteWithEmail extends CircleInvite {
+  invitedUserEmail?: string; // Email of invited user for display
+}
+
+export interface CircleInvitationRequest {
+  circleId: string;
+  invitedBy: string;
+  message?: string;
+  // Either invite by userId OR by email
+  invitedUserId?: string;   // For existing users
+  invitedEmail?: string;    // For email-based invites
+}
+
+export interface CircleInvitationResponse {
+  success: boolean;
+  message: string;
+  inviteId?: string;
+  inviteType?: 'user' | 'email';
 }
