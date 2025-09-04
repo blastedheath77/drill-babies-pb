@@ -74,6 +74,7 @@ export function ScoreSelector({ value, onChange, maxScore = 15, className }: Sco
             {scores.map((score) => (
               <Button
                 key={score}
+                type="button"
                 variant={score === value ? "default" : "outline"}
                 size="sm"
                 onClick={() => handleScoreSelect(score)}
@@ -88,6 +89,7 @@ export function ScoreSelector({ value, onChange, maxScore = 15, className }: Sco
 
       {/* Score button */}
       <Button
+        type="button"
         variant="outline"
         onClick={handleToggle}
         className="w-12 h-10 text-lg font-mono p-0 shrink-0"

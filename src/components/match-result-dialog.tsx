@@ -182,17 +182,15 @@ export function MatchResultDialog({
                 name="team1Score"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      {team1.map((p) => p.name).join(' & ')} Score
-                    </FormLabel>
                     <FormControl>
-                      <div className="flex justify-center">
+                      <div className="flex flex-col items-center">
+                        <FormLabel className="mb-2">
+                          Score
+                        </FormLabel>
                         <ScoreSelector 
                           value={field.value} 
                           onChange={field.onChange} 
                           maxScore={15}
-                          className="mx-auto"
                         />
                       </div>
                     </FormControl>
@@ -206,17 +204,15 @@ export function MatchResultDialog({
                 name="team2Score"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      {team2.map((p) => p.name).join(' & ')} Score
-                    </FormLabel>
                     <FormControl>
-                      <div className="flex justify-center">
+                      <div className="flex flex-col items-center">
+                        <FormLabel className="mb-2">
+                          Score
+                        </FormLabel>
                         <ScoreSelector 
                           value={field.value} 
                           onChange={field.onChange} 
                           maxScore={15}
-                          className="mx-auto"
                         />
                       </div>
                     </FormControl>
