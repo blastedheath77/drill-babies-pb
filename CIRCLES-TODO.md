@@ -109,16 +109,34 @@ The circles system allows:
 
 ---
 
+## 🔥 NEW: SOCIAL CIRCLES OVERHAUL (2024)
+
+### Vision: True Social Circle Contexts
+Transform circles from simple groupings to full social contexts where:
+- Games are associated with specific circles
+- Statistics are calculated per-circle OR across all user's circles
+- Players can switch contexts to see different player pools and stats
+- Each circle becomes an isolated social ecosystem
+
+### Critical Changes Required:
+1. **Circle-Scoped Games**: Associate each game with a circle
+2. **Circle-Scoped Statistics**: Calculate ratings/wins/losses per circle
+3. **Context Switching**: "All Circles" aggregates vs individual circle isolation
+4. **Circle-Aware Player Filtering**: Show relevant players based on circle context
+
+---
+
 ## ⏳ PENDING FEATURES
 
-### 10. Game Logging Circle Context ⚠️
-- **Target**: `src/app/log-game/`
-- **Status**: Not started
-- **Description**: Add circle selection when logging games
+### 10. Circle-Scoped Game Storage 🔥 **HIGH PRIORITY**
+- **Target**: `src/lib/types.ts`, `src/app/log-game/`
+- **Status**: **READY TO IMPLEMENT**
+- **Description**: Associate games with specific circles for true social contexts
 - **Requirements**:
-  - Circle selector in game logging form
-  - Optional circle assignment to games
-  - Default to selected circle context
+  - Add `circleId: string?` to Game model (nullable for backward compatibility)
+  - Update game logging form to require circle selection
+  - Default to user's selected circle context
+  - Update game storage logic to include circleId
 
 ### 11. Tournament Circle Integration ⚠️
 - **Target**: `src/app/tournaments/create/`
@@ -138,15 +156,16 @@ The circles system allows:
   - Default circle preference storage
   - Auto-select preferred circle on login
 
-### 13. Full Data Filtering ⚠️
-- **Target**: All statistics and data queries
-- **Status**: Framework ready, implementation needed
-- **Description**: Complete circle-aware data filtering
+### 13. Circle-Aware Data Filtering 🔥 **HIGH PRIORITY**
+- **Target**: `src/lib/data.ts`, `src/hooks/use-*.ts`, Statistics pages
+- **Status**: **CRITICAL - CORE FUNCTIONALITY**
+- **Description**: Complete circle-scoped data filtering for true social contexts
 - **Requirements**:
-  - Update database queries to filter by circle membership
-  - Player filtering by circle throughout app
-  - Game/tournament filtering by circle context
-  - Statistics calculations within circle scope
+  - Update `getGames()` to filter by circle context (circleId or user's circles)
+  - Update `getPlayers()` to show only circle members when circle is selected
+  - Modify statistics calculations to be circle-aware
+  - Create "All Circles" aggregation mode that combines user's circle data
+  - Update all React Query hooks to accept circle context
 
 ### 14. Data Migration Strategy ⚠️
 - **Target**: Existing games and tournaments
@@ -204,17 +223,31 @@ Fields: userId (Ascending)
 
 ---
 
-## 🚀 IMPLEMENTATION PRIORITY
+## 🚀 IMPLEMENTATION PRIORITY (2024 SOCIAL CIRCLES OVERHAUL)
 
-When resuming development, recommended order:
+**Phase 1: Core Social Context Foundation**
+1. **Circle-Scoped Game Storage** (#10) - Add circleId to games
+2. **Circle-Aware Data Filtering** (#13) - Core functionality for social contexts
+3. **Player Filtering by Circle** - Show relevant players only
+4. **Testing with Existing Data** - Ensure backward compatibility
 
-1. **Complete data filtering** (#13) - Core functionality
-2. **Game logging integration** (#10) - High user value
-3. **User lookup for invitations** - Complete invitation system
-4. **Tournament integration** (#11) - Event organization
-5. **User preferences** (#12) - Quality of life
-6. **Data migration** (#14) - Legacy data handling
-7. **Comprehensive testing** (#15) - Quality assurance
+**Phase 2: User Experience Enhancement**
+5. **Game Logging Integration** - Circle selection in UI
+6. **All Circles Aggregation Mode** - Cross-circle statistics
+7. **Statistics Page Updates** - Circle-scoped rankings and stats
+8. **User Preferences** (#12) - Default circle selection
+
+**Phase 3: Advanced Features**
+9. **Tournament Integration** (#11) - Circle-specific events
+10. **Data Migration Strategy** (#14) - Handle legacy data
+11. **User Lookup for Invitations** - Complete invitation system
+12. **Comprehensive Testing** (#15) - End-to-end validation
+
+**🎯 SUCCESS CRITERIA:**
+- Users can create games within specific circles
+- Statistics are properly isolated by circle
+- "All Circles" mode aggregates data correctly
+- Existing functionality preserved during migration
 
 ---
 
@@ -248,15 +281,21 @@ When resuming development, recommended order:
 
 ## 📊 CURRENT STATUS SUMMARY
 
-**✅ Completed**: 9/16 major features (56%)  
-**⏳ Pending**: 6/16 major features (38%)  
+**✅ Foundation Completed**: 9/16 major features (56% infrastructure)  
+**🔥 Social Circles Overhaul**: 8 new high-priority tasks added  
 **🔧 Infrastructure**: 100% complete and production-ready  
-**🎨 UI/UX**: 90% complete  
-**💾 Data Layer**: 80% complete  
+**🎨 UI/UX**: 90% complete (needs circle-scoped updates)  
+**💾 Data Layer**: 40% complete (needs major circle-aware overhaul)  
 
-The circles feature foundation is **solid and production-ready**. Users can create circles, manage memberships, and switch contexts. The remaining work focuses on deeper data integration and advanced features.
+**NEXT STEPS (Phase 1):**
+1. Add `circleId` to Game model
+2. Implement circle-aware data filtering 
+3. Update game logging to include circle selection
+4. Test backward compatibility
+
+The circles feature foundation is **solid and production-ready**. Now implementing the social context overhaul to make circles true isolated social environments with scoped statistics and player filtering.
 
 ---
 
-*Last Updated: August 2025*  
-*Status: Feature shelved but foundation complete*
+*Last Updated: September 2024*  
+*Status: Social Circles Overhaul - Implementation Phase*

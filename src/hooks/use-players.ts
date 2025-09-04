@@ -1,21 +1,48 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlayers, getPlayerById } from '@/lib/data';
+import { getPlayers, getPlayerById, getPlayersInCircle, getPlayersInUserCircles } from '@/lib/data';
+import { useCircles } from '@/contexts/circle-context';
 import type { Player } from '@/lib/types';
 
-// Query keys for consistent cache management
+// Circle-aware query keys for consistent cache management
 export const playerKeys = {
   all: ['players'] as const,
   lists: () => [...playerKeys.all, 'list'] as const,
-  list: (filters: any) => [...playerKeys.lists(), filters] as const,
+  list: (circleId?: string | null) => [...playerKeys.lists(), circleId] as const,
+  circle: (circleId: string) => [...playerKeys.lists(), 'circle', circleId] as const,
+  userCircles: (circleIds: string[]) => [...playerKeys.lists(), 'userCircles', circleIds] as const,
   details: () => [...playerKeys.all, 'detail'] as const,
   detail: (id: string) => [...playerKeys.details(), id] as const,
 };
 
-// Hook to get all players with caching
+// Circle-aware hook to get players with caching
 export function usePlayers() {
+  const { selectedCircleId, availableCircles } = useCircles();
+  
+  // Determine query parameters based on circle context
+  const getQueryParams = () => {
+    if (selectedCircleId === 'all') {
+      // For "All Circles" mode, get players from user's circles
+      const userCircleIds = availableCircles.map(circle => circle.id);
+      return { mode: 'userCircles', circleIds: userCircleIds };
+    } else {
+      // For specific circle, get players for that circle
+      return { mode: 'circle', circleId: selectedCircleId };
+    }
+  };
+  
+  const { mode, circleId, circleIds } = getQueryParams();
+  
   return useQuery({
-    queryKey: playerKeys.lists(),
-    queryFn: getPlayers,
+    queryKey: mode === 'userCircles' 
+      ? playerKeys.userCircles(circleIds || [])
+      : playerKeys.list(circleId),
+    queryFn: () => {
+      if (mode === 'userCircles' && circleIds) {
+        return getPlayersInUserCircles(circleIds);
+      } else {
+        return getPlayers(circleId);
+      }
+    },
     staleTime: 10 * 1000, // Players list stays fresh for 10 seconds (shorter for consistency)
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: true, // Always refetch when component mounts

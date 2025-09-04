@@ -1,33 +1,63 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getRecentGames, getGamesForPlayer, getTotalGamesCount, getAllGames, getPlayers, getTournamentsByStatus, getTournaments } from '@/lib/data';
+import { getRecentGames, getGamesForPlayer, getTotalGamesCount, getAllGames, getPlayers, getTournamentsByStatus, getTournaments, getGamesForUserCircles } from '@/lib/data';
+import { useCircles } from '@/contexts/circle-context';
 import type { Game, Tournament } from '@/lib/types';
 
-// Query keys for games
+// Query keys for games - now circle-aware
 export const gameKeys = {
   all: ['games'] as const,
   lists: () => [...gameKeys.all, 'list'] as const,
-  allGames: () => [...gameKeys.lists(), 'all'] as const,
-  recent: (count?: number) => [...gameKeys.lists(), 'recent', count] as const,
+  allGames: (circleId?: string | null) => [...gameKeys.lists(), 'all', circleId] as const,
+  recent: (count?: number, circleId?: string | null) => [...gameKeys.lists(), 'recent', count, circleId] as const,
   player: (playerId: string) => [...gameKeys.lists(), 'player', playerId] as const,
-  count: () => [...gameKeys.all, 'count'] as const,
+  count: (circleId?: string | null) => [...gameKeys.all, 'count', circleId] as const,
+  userCircles: (userCircleIds: string[]) => [...gameKeys.lists(), 'userCircles', userCircleIds] as const,
 };
 
-// Hook to get all games with caching
+// Circle-aware hook to get all games with caching
 export function useAllGames() {
+  const { selectedCircleId, availableCircles } = useCircles();
+  
+  // Determine query parameters based on circle context
+  const getQueryParams = () => {
+    if (selectedCircleId === 'all') {
+      // For "All Circles" mode, get games from user's circles
+      const userCircleIds = availableCircles.map(circle => circle.id);
+      return { mode: 'userCircles', circleIds: userCircleIds };
+    } else {
+      // For specific circle, get games for that circle
+      return { mode: 'circle', circleId: selectedCircleId };
+    }
+  };
+  
+  const { mode, circleId, circleIds } = getQueryParams();
+  
   return useQuery({
-    queryKey: gameKeys.allGames(),
-    queryFn: getAllGames,
+    queryKey: mode === 'userCircles' 
+      ? gameKeys.userCircles(circleIds || [])
+      : gameKeys.allGames(circleId),
+    queryFn: () => {
+      if (mode === 'userCircles' && circleIds) {
+        return getGamesForUserCircles(circleIds);
+      } else {
+        return getAllGames(circleId);
+      }
+    },
     staleTime: 5 * 60 * 1000, // All games stay fresh for 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
 }
 
-// Hook to get recent games with caching
+// Circle-aware hook to get recent games with caching
 export function useRecentGames(count: number = 5) {
+  const { selectedCircleId } = useCircles();
+  
+  const circleId = selectedCircleId === 'all' ? undefined : selectedCircleId;
+  
   return useQuery({
-    queryKey: gameKeys.recent(count),
-    queryFn: () => getRecentGames(count),
+    queryKey: gameKeys.recent(count, circleId),
+    queryFn: () => getRecentGames(count, circleId),
     staleTime: 2 * 60 * 1000, // Recent games stay fresh for 2 minutes
   });
 }

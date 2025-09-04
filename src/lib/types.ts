@@ -32,6 +32,7 @@ export interface Game {
   };
   playerIds: string[]; // For easier querying
   tournamentId?: string;
+  circleId?: string; // Circle association for social context - nullable for backward compatibility
   ratingChanges?: { [playerId: string]: { before: number; after: number } }; // Rating history
 }
 
@@ -146,10 +147,6 @@ export interface CircleContext {
 }
 
 // Extended types to support circle context
-export interface GameWithCircle extends Game {
-  circleId?: string; // Optional - games can exist without a specific circle
-}
-
 export interface TournamentWithCircle extends Tournament {
   circleId?: string; // Optional - tournaments can be circle-specific
 }

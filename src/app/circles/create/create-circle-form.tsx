@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
@@ -79,19 +80,25 @@ export function CreateCircleForm() {
 
       if (result.success) {
         toast({
-          title: 'Success',
-          description: result.message,
+          title: '🎉 Circle Created Successfully!',
+          description: `${data.name} has been created. You can now start inviting players.`,
+          duration: 5000,
         });
 
         // Refresh circles context
         await refreshCircles();
+        
+        // Reset form for potential future use
+        form.reset();
 
-        // Navigate to the new circle
-        if (result.circleId) {
-          router.push(`/circles/${result.circleId}`);
-        } else {
-          router.push('/circles');
-        }
+        // Navigate to the new circle with a small delay to ensure context refresh
+        setTimeout(() => {
+          if (result.circleId) {
+            router.push(`/circles/${result.circleId}`);
+          } else {
+            router.push('/circles');
+          }
+        }, 500);
       } else {
         toast({
           title: 'Error',
@@ -113,6 +120,8 @@ export function CreateCircleForm() {
 
   const watchIsPrivate = form.watch('isPrivate');
   const watchAutoAcceptInvites = form.watch('autoAcceptInvites');
+  const watchName = form.watch('name');
+  const watchDescription = form.watch('description');
 
   return (
     <Card>
@@ -261,6 +270,51 @@ export function CreateCircleForm() {
                 </Alert>
               )}
             </div>
+
+            {/* Circle Preview */}
+            {watchName && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Preview</h3>
+                <Card className="border-2 border-dashed">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        {watchIsPrivate ? (
+                          <Lock className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Unlock className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="truncate">{watchName}</span>
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        1 member
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {watchDescription || 'No description provided'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          1
+                        </span>
+                        {watchIsPrivate && (
+                          <Badge variant="secondary" className="text-xs">
+                            Private
+                          </Badge>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" disabled>
+                        Manage
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Submit Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 pt-4">

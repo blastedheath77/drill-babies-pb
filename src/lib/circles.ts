@@ -483,3 +483,63 @@ export async function updateCircleMemberCount(circleId: string): Promise<void> {
     logger.error('Failed to update circle member count:', error);
   }
 }
+
+// Bulk delete all circles created by user (for testing/cleanup)
+export async function deleteAllUserCircles(
+  userId: string
+): Promise<{ success: boolean; deletedCount: number; message: string }> {
+  try {
+    // Get all circles where user is admin
+    const userCircles = await getUserCircles(userId);
+    const adminCircles = [];
+    
+    // Check which circles the user is admin of
+    for (const circle of userCircles) {
+      const isAdmin = await isCircleAdmin(circle.id, userId);
+      if (isAdmin) {
+        adminCircles.push(circle);
+      }
+    }
+    
+    if (adminCircles.length === 0) {
+      return {
+        success: true,
+        deletedCount: 0,
+        message: 'No circles found where you are admin'
+      };
+    }
+    
+    // Delete each circle
+    let deletedCount = 0;
+    const errors = [];
+    
+    for (const circle of adminCircles) {
+      try {
+        const result = await deleteCircle(circle.id, userId);
+        if (result.success) {
+          deletedCount++;
+          logger.info(`Deleted circle: ${circle.name}`);
+        } else {
+          errors.push(`Failed to delete ${circle.name}: ${result.message}`);
+        }
+      } catch (error) {
+        errors.push(`Error deleting ${circle.name}: ${error}`);
+      }
+    }
+    
+    return {
+      success: true,
+      deletedCount,
+      message: errors.length > 0 
+        ? `Deleted ${deletedCount} circles. Errors: ${errors.join(', ')}`
+        : `Successfully deleted ${deletedCount} circles`
+    };
+  } catch (error) {
+    logger.error('Failed to delete all user circles:', error);
+    return {
+      success: false,
+      deletedCount: 0,
+      message: `Failed to delete circles: ${error}`
+    };
+  }
+}

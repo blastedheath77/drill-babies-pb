@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, Settings, Mail, Crown, Shield, Eye, EyeOff, Plus } from 'lucide-react';
+import { Users, Settings, Mail, Crown, Shield, Eye, EyeOff, Plus, Trash2, Lock, Unlock } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useCircles } from '@/contexts/circle-context';
 import { getUserInvites } from '@/lib/circle-invites';
+import { deleteAllUserCircles } from '@/lib/circles';
+import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,14 +15,27 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { InvitationsTab } from './invitations-tab';
 import type { CircleInvite } from '@/lib/types';
 
 export function CirclesListClient() {
   const { user } = useAuth();
   const { availableCircles, isLoadingCircles, refreshCircles } = useCircles();
+  const { toast } = useToast();
   const [invites, setInvites] = useState<CircleInvite[]>([]);
   const [isLoadingInvites, setIsLoadingInvites] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Load user invites
   const loadInvites = async () => {
@@ -49,6 +64,34 @@ export function CirclesListClient() {
       loadInvites(),
       refreshCircles()
     ]);
+  };
+
+  const handleDeleteAllCircles = async () => {
+    if (!user) return;
+    
+    try {
+      setIsDeletingAll(true);
+      const result = await deleteAllUserCircles(user.id);
+      
+      toast({
+        title: result.success ? 'Circles deleted' : 'Error',
+        description: result.message,
+        variant: result.success ? 'default' : 'destructive',
+      });
+      
+      if (result.success && result.deletedCount > 0) {
+        await refreshCircles();
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete circles. Please try again.',
+        variant: 'destructive',
+      });
+      logger.error('Failed to delete all circles:', error);
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   if (isLoadingCircles) {
@@ -108,7 +151,45 @@ export function CirclesListClient() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <>
+              {/* Delete All Circles Button - Only show if user has circles */}
+              {availableCircles.length > 0 && (
+                <div className="flex justify-end mb-4">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        disabled={isDeletingAll}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {isDeletingAll ? 'Deleting...' : 'Delete All Circles'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete All Circles</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all circles where you are an admin ({availableCircles.length} circles). 
+                          This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteAllCircles}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {availableCircles.map((circle) => (
                 <Card key={circle.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
@@ -151,7 +232,8 @@ export function CirclesListClient() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </TabsContent>
 

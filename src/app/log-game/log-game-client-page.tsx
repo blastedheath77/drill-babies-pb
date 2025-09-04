@@ -17,12 +17,13 @@ import {
 } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import type { Player } from '@/lib/types';
 import { logGame } from '@/app/log-game/actions';
 import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
 import { ScoreSelector } from '@/components/ui/score-selector';
+import { useCircles } from '@/contexts/circle-context';
 
 interface LogGameClientPageProps {
   players: Player[];
@@ -36,10 +37,12 @@ const logGameSchema = z.object({
   team2Player1: z.string().min(1, 'Player is required'),
   team2Player2: z.string().optional(),
   team2Score: z.coerce.number().min(0),
+  circleId: z.string().nullable().optional(),
 });
 
 export function LogGameClientPage({ players }: LogGameClientPageProps) {
   const { toast } = useToast();
+  const { selectedCircleId, availableCircles } = useCircles();
   const [gameType, setGameType] = useState<'singles' | 'doubles'>('doubles');
   const [team1Player1, setTeam1Player1] = useState<Player | null>(null);
   const [team1Player2, setTeam1Player2] = useState<Player | null>(null);
@@ -241,6 +244,9 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       return;
     }
 
+    // Determine circle ID for game association
+    const circleId = selectedCircleId === 'all' ? null : selectedCircleId || null;
+    
     const values = {
       gameType,
       team1Player1: team1Player1.id,
@@ -249,6 +255,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       team2Player1: team2Player1.id,
       team2Player2: gameType === 'doubles' ? team2Player2?.id || '' : '',
       team2Score,
+      circleId,
     };
 
     try {
@@ -278,6 +285,28 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       <div className="space-y-6">
         <Card>
           <CardContent className="space-y-6 pt-6">
+            {/* Circle Context Info */}
+            {selectedCircleId && selectedCircleId !== 'all' && (
+              <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <div className="text-sm">
+                  <span className="font-medium text-blue-900 dark:text-blue-100">Circle:</span>
+                  <span className="ml-1 text-blue-700 dark:text-blue-300">
+                    {availableCircles.find(c => c.id === selectedCircleId)?.name || 'Selected Circle'}
+                  </span>
+                </div>
+              </div>
+            )}
+            {selectedCircleId === 'all' && (
+              <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-950/30 rounded-lg border border-gray-200 dark:border-gray-800">
+                <Users className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <div className="text-sm">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">Context:</span>
+                  <span className="ml-1 text-gray-700 dark:text-gray-300">All Circles (game will be unassigned)</span>
+                </div>
+              </div>
+            )}
+            
             {/* Game Type Selector with Submit Button */}
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-3">

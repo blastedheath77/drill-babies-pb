@@ -12,10 +12,13 @@ export function Header() {
         <span className="text-lg font-semibold">Pickleball Stats</span>
       </div>
       <div className="flex-1 flex items-center gap-4">
-        <CircleSelectorCompact className="hidden sm:flex" />
+        <div className="hidden md:block">
+          <span className="text-lg font-semibold">Pickleball Stats</span>
+        </div>
+        <CircleSelectorCompact />
       </div>
       <div className="flex items-center gap-2">
-        <CircleSelectorCompact className="sm:hidden" />
+        {/* Future: Add user menu, notifications, etc. */}
       </div>
     </header>
   );

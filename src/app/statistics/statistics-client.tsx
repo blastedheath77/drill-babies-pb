@@ -22,14 +22,8 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
   const allPlayersData = players || initialPlayers;
   
   // Filter out players who haven't played any games for rankings
+  // The circle filtering is now handled by the usePlayers hook
   let playersData = allPlayersData.filter(player => (player.wins + player.losses) > 0);
-
-  // TODO: Implement circle-based filtering when we have circle-player associations
-  // For now, show all players but indicate the filtering intent
-  if (isFilteringByCircle) {
-    // Placeholder: In real implementation, this would filter players by circle membership
-    // playersData = playersData.filter(player => player.circleIds?.includes(circleId));
-  }
 
   if (isError) {
     return (
@@ -86,13 +80,10 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Circle-based filtering is not yet fully implemented. Currently showing all players.
-                This feature will filter statistics to only show players from the selected circle.
-              </AlertDescription>
-            </Alert>
+            <p className="text-sm text-muted-foreground">
+              Statistics are filtered to show only players from {filterLabel.toLowerCase()}.
+              Rankings and win rates are calculated based on games within this context.
+            </p>
           </CardContent>
         </Card>
       )}

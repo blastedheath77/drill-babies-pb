@@ -29,8 +29,14 @@ import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './con
 import { handleDatabaseError, logError } from './errors';
 import { logger } from './logger';
 
-export async function getPlayers(): Promise<Player[]> {
+export async function getPlayers(circleId?: string | null): Promise<Player[]> {
   try {
+    if (circleId) {
+      // Get players who are members of the specific circle
+      return await getPlayersInCircle(circleId);
+    }
+    
+    // Get all players (existing behavior for backward compatibility)
     const playersCollection = collection(db, 'players');
     const q = query(playersCollection, orderBy('rating', 'desc'));
     
@@ -61,6 +67,129 @@ export async function getPlayers(): Promise<Player[]> {
       }
     }
     
+    return [];
+  }
+}
+
+/**
+ * Get players who are members of a specific circle
+ */
+export async function getPlayersInCircle(circleId: string): Promise<Player[]> {
+  try {
+    // First get all memberships for this circle
+    const membershipsQuery = query(
+      collection(db, 'circleMemberships'),
+      where('circleId', '==', circleId)
+    );
+    const membershipsSnapshot = await getDocs(membershipsQuery);
+    
+    if (membershipsSnapshot.empty) {
+      return [];
+    }
+    
+    // Extract player IDs from memberships
+    const playerIds = membershipsSnapshot.docs.map(doc => doc.data().userId);
+    
+    if (playerIds.length === 0) {
+      return [];
+    }
+    
+    // Get players in batches (Firebase 'in' limit is 10)
+    const players: Player[] = [];
+    const BATCH_SIZE = 10;
+    
+    for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+      const batch = playerIds.slice(i, i + BATCH_SIZE);
+      
+      const playersQuery = query(
+        collection(db, 'players'),
+        where(documentId(), 'in', batch),
+        orderBy('rating', 'desc')
+      );
+      
+      const playersSnapshot = await getDocs(playersQuery);
+      
+      const batchPlayers = playersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        const { createdAt, nameLower, ...cleanData } = data;
+        return { id: doc.id, ...cleanData } as Player;
+      });
+      
+      players.push(...batchPlayers);
+    }
+    
+    // Sort by rating descending (since we fetched in batches)
+    return players.sort((a, b) => b.rating - a.rating);
+    
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayersInCircle');
+    return [];
+  }
+}
+
+/**
+ * Get players from multiple circles ("All Circles" mode)
+ */
+export async function getPlayersInUserCircles(circleIds: string[]): Promise<Player[]> {
+  try {
+    if (circleIds.length === 0) {
+      return [];
+    }
+    
+    const uniquePlayerIds = new Set<string>();
+    
+    // Get memberships from all user's circles
+    const BATCH_SIZE = 10; // Firebase 'in' query limit
+    
+    for (let i = 0; i < circleIds.length; i += BATCH_SIZE) {
+      const batch = circleIds.slice(i, i + BATCH_SIZE);
+      
+      const membershipsQuery = query(
+        collection(db, 'circleMemberships'),
+        where('circleId', 'in', batch)
+      );
+      
+      const membershipsSnapshot = await getDocs(membershipsQuery);
+      
+      // Collect unique player IDs
+      membershipsSnapshot.docs.forEach(doc => {
+        uniquePlayerIds.add(doc.data().userId);
+      });
+    }
+    
+    if (uniquePlayerIds.size === 0) {
+      return [];
+    }
+    
+    // Get all unique players
+    const playerIds = Array.from(uniquePlayerIds);
+    const players: Player[] = [];
+    
+    for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
+      const batch = playerIds.slice(i, i + BATCH_SIZE);
+      
+      const playersQuery = query(
+        collection(db, 'players'),
+        where(documentId(), 'in', batch),
+        orderBy('rating', 'desc')
+      );
+      
+      const playersSnapshot = await getDocs(playersQuery);
+      
+      const batchPlayers = playersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        const { createdAt, nameLower, ...cleanData } = data;
+        return { id: doc.id, ...cleanData } as Player;
+      });
+      
+      players.push(...batchPlayers);
+    }
+    
+    // Sort by rating descending
+    return players.sort((a, b) => b.rating - a.rating);
+    
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayersInUserCircles');
     return [];
   }
 }
@@ -121,10 +250,33 @@ export async function getTotalGamesCount(): Promise<number> {
   }
 }
 
-export async function getRecentGames(count: number = 5): Promise<Game[]> {
+export async function getRecentGames(count: number = 5, circleId?: string | null): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    const q = query(gamesCollection, orderBy('date', 'desc'), limit(count));
+    
+    // Build query based on circle context
+    let q;
+    if (circleId) {
+      // Filter recent games for specific circle
+      q = query(
+        gamesCollection, 
+        where('circleId', '==', circleId),
+        orderBy('date', 'desc'), 
+        limit(count)
+      );
+    } else if (circleId === null) {
+      // Show only recent games without circle (legacy games)
+      q = query(
+        gamesCollection,
+        where('circleId', '==', null),
+        orderBy('date', 'desc'), 
+        limit(count)
+      );
+    } else {
+      // Show recent games from all (existing behavior for backward compatibility)
+      q = query(gamesCollection, orderBy('date', 'desc'), limit(count));
+    }
+    
     const snapshot = await getDocs(q);
 
     const allPlayerIds = new Set<string>();
@@ -161,10 +313,30 @@ export async function getRecentGames(count: number = 5): Promise<Game[]> {
   }
 }
 
-export async function getAllGames(): Promise<Game[]> {
+export async function getAllGames(circleId?: string | null): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    const q = query(gamesCollection, orderBy('date', 'desc'));
+    
+    // Build query based on circle context
+    let q;
+    if (circleId) {
+      // Filter games for specific circle
+      q = query(
+        gamesCollection, 
+        where('circleId', '==', circleId),
+        orderBy('date', 'desc')
+      );
+    } else if (circleId === null) {
+      // Show only games without circle (legacy games)
+      q = query(
+        gamesCollection,
+        where('circleId', '==', null),
+        orderBy('date', 'desc')
+      );
+    } else {
+      // Show all games (existing behavior for backward compatibility)
+      q = query(gamesCollection, orderBy('date', 'desc'));
+    }
     
     // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) => {
@@ -238,6 +410,101 @@ export async function getAllGames(): Promise<Game[]> {
     return games;
   } catch (error) {
     console.error('Error fetching all games: ', error);
+    return [];
+  }
+}
+
+/**
+ * Get games for user's circles ("All Circles" mode)
+ * Shows games from any circle the user belongs to
+ */
+export async function getGamesForUserCircles(userCircleIds: string[]): Promise<Game[]> {
+  try {
+    if (userCircleIds.length === 0) {
+      return [];
+    }
+
+    const gamesCollection = collection(db, 'games');
+    
+    // Firebase 'in' query supports max 10 values, so we might need multiple queries
+    const MAX_IN_VALUES = 10;
+    const allGames: Game[] = [];
+    
+    // Split into chunks if user has more than 10 circles
+    for (let i = 0; i < userCircleIds.length; i += MAX_IN_VALUES) {
+      const chunk = userCircleIds.slice(i, i + MAX_IN_VALUES);
+      
+      const q = query(
+        gamesCollection,
+        where('circleId', 'in', chunk),
+        orderBy('date', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+      
+      // Process games same as getAllGames
+      const allPlayerIds = new Set<string>();
+      gameDocsData.forEach((gameData) => {
+        if (gameData.playerIds) {
+          gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+        }
+      });
+
+      const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
+      
+      const gamesWithPlayers = gameDocsData.map((gameData) => {
+        const team1Players = gameData.team1.playerIds.map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
+
+        const team2Players = gameData.team2.playerIds.map((id: string) => {
+          const player = playerMap.get(id);
+          if (!player) {
+            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+            return {
+              id,
+              name: `Unknown Player (${id})`,
+              avatar: '',
+              rating: 1000,
+              wins: 0,
+              losses: 0,
+              pointsFor: 0,
+              pointsAgainst: 0,
+            } as Player;
+          }
+          return player;
+        });
+
+        return {
+          ...gameData,
+          team1: { ...gameData.team1, players: team1Players },
+          team2: { ...gameData.team2, players: team2Players },
+        } as Game;
+      });
+      
+      allGames.push(...gamesWithPlayers);
+    }
+    
+    // Sort all games by date descending
+    return allGames.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  } catch (error) {
+    console.error('Error fetching games for user circles: ', error);
     return [];
   }
 }
