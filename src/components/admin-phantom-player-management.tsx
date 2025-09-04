@@ -42,7 +42,8 @@ import {
   RefreshCw,
   Users,
   Database,
-  Calendar
+  Calendar,
+  Send
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -70,7 +71,7 @@ export function AdminPhantomPlayerManagement() {
   const [phantomPlayers, setPhantomPlayers] = useState<PlayerWithClaimStatus[]>([]);
   const [stats, setStats] = useState<PhantomPlayerStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('manage');
   const { toast } = useToast();
 
   // Create phantom player form
@@ -230,6 +231,67 @@ export function AdminPhantomPlayerManagement() {
     }
   };
 
+  const handleInvitePhantomPlayer = async (playerName: string, playerEmail: string) => {
+    try {
+      console.log(`📧 Sending invitation email to ${playerEmail} for phantom player "${playerName}"`);
+      
+      // Try Firebase Extension first, fallback to Resend API
+      // Change this endpoint to switch between Firebase and Resend:
+      // - '/api/send-phantom-invite-firebase' for Firebase Extension
+      // - '/api/send-phantom-invite' for Resend API
+      const useFirebase = false; // Set to false to use Resend API instead
+      
+      const endpoint = useFirebase 
+        ? '/api/send-phantom-invite-firebase' 
+        : '/api/send-phantom-invite';
+        
+      console.log(`🔥 Using ${useFirebase ? 'Firebase Extension' : 'Resend API'} for email sending`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerEmail,
+          playerName
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const serviceUsed = useFirebase ? 'Firebase Extension' : 'Resend API';
+        toast({
+          title: 'Invitation Sent! 📧',
+          description: `Registration invitation sent to ${playerEmail} for phantom player "${playerName}" using ${serviceUsed}. They'll receive an email with instructions to claim their profile.`
+        });
+        console.log(`✅ Invitation sent successfully to ${playerEmail} via ${serviceUsed}`);
+      } else {
+        throw new Error(result.error || 'Failed to send invitation');
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to send invitation:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      let description = 'Failed to send invitation email. Please try again or contact support.';
+      
+      if (errorMessage.includes('not configured')) {
+        description = 'Email service not configured. Please check FIREBASE_EMAIL_SETUP.md for setup instructions.';
+      } else if (errorMessage.includes('Firebase')) {
+        description = 'Firebase email service error. Check Firebase Console Extensions or try Resend API as fallback.';
+      }
+      
+      toast({
+        variant: 'destructive',
+        title: 'Failed to Send Invitation',
+        description
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'claimed': return 'text-green-600';
@@ -263,223 +325,253 @@ export function AdminPhantomPlayerManagement() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="players">Manage Players</TabsTrigger>
-              <TabsTrigger value="create">Create Player</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manage">Manage & Overview</TabsTrigger>
               <TabsTrigger value="bulk">Bulk Import</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
+            <TabsContent value="manage" className="space-y-6">
+              {/* Stats Overview */}
               {stats && <PhantomPlayerStatsCard stats={stats} />}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Recent Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {phantomPlayers.slice(0, 5).map((player) => (
-                        <div key={player.id} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-2">
-                            <PhantomPlayerBadge player={player} variant="compact" showTooltip={false} />
-                            <span>{player.name}</span>
+              {/* Create Player + Quick Actions */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Create Player Form */}
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Create Phantom Player</CardTitle>
+                      <CardDescription>
+                        Create a new phantom player that can optionally be claimed by users
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={handleCreatePhantomPlayer} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="phantomName">Player Name *</Label>
+                            <Input
+                              id="phantomName"
+                              value={newPhantomName}
+                              onChange={(e) => setNewPhantomName(e.target.value)}
+                              placeholder="Enter player name"
+                              required
+                              disabled={isCreatingPhantom}
+                            />
                           </div>
-                          <Badge variant="secondary" className={getStatusColor(player.claimStatus)}>
-                            {player.claimStatus}
-                          </Badge>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="phantomEmail">Email (Optional)</Label>
+                            <Input
+                              id="phantomEmail"
+                              type="email"
+                              value={newPhantomEmail}
+                              onChange={(e) => setNewPhantomEmail(e.target.value)}
+                              placeholder="Enter email to make claimable"
+                              disabled={isCreatingPhantom}
+                            />
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                        
+                        <p className="text-xs text-muted-foreground">
+                          If you provide an email, users can claim this phantom player during registration
+                        </p>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Button 
-                      onClick={() => setActiveTab('create')} 
-                      variant="outline" 
-                      className="w-full justify-start"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Phantom Player
-                    </Button>
-                    <Button 
-                      onClick={() => setShowBulkImport(true)} 
-                      variant="outline" 
-                      className="w-full justify-start"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Bulk Import Players
-                    </Button>
-                    <Button 
-                      onClick={loadData} 
-                      variant="outline" 
-                      className="w-full justify-start"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh Data
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="players" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">All Phantom Players ({phantomPlayers.length})</h3>
-                <Button onClick={loadData} variant="outline" size="sm">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
-              </div>
-
-              <div className="border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Games</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {phantomPlayers.map((player) => (
-                      <TableRow key={player.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center space-x-2">
-                            <span>{player.name}</span>
-                            <PhantomPlayerBadge player={player} variant="compact" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className={getStatusColor(player.claimStatus)}>
-                            {player.claimStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {player.email || '—'}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {player.createdAt && formatDistanceToNow(parseISO(player.createdAt)) + ' ago'}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {player.wins + player.losses}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-1">
-                            <Button
-                              onClick={() => handleEditPhantomPlayer(player)}
-                              size="sm"
-                              variant="outline"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            {player.claimStatus === 'anonymous' && (
-                              <Button
-                                onClick={() => handleMakeClaimable(player.id)}
-                                size="sm"
-                                variant="outline"
-                                className="text-blue-600"
-                              >
-                                <Mail className="h-3 w-3" />
-                              </Button>
-                            )}
-                            {player.claimStatus !== 'claimed' && (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="outline" className="text-red-600">
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Phantom Player</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete "{player.name}"? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeletePhantomPlayer(player.id, player.name)}
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {phantomPlayers.length === 0 && (
-                <div className="text-center py-8">
-                  <Ghost className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No phantom players found</p>
+                        <Button type="submit" disabled={isCreatingPhantom}>
+                          {isCreatingPhantom ? (
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Plus className="h-4 w-4 mr-2" />
+                          )}
+                          Create Phantom Player
+                        </Button>
+                      </form>
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
-            </TabsContent>
 
-            <TabsContent value="create" className="space-y-4">
+                {/* Quick Actions + Recent Activity */}
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Button 
+                        onClick={() => setActiveTab('bulk')} 
+                        variant="outline" 
+                        className="w-full justify-start"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Bulk Import Players
+                      </Button>
+                      <Button 
+                        onClick={loadData} 
+                        variant="outline" 
+                        className="w-full justify-start"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh Data
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Recent Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {phantomPlayers.slice(0, 5).map((player) => (
+                          <div key={player.id} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center space-x-2">
+                              <PhantomPlayerBadge player={player} variant="compact" showTooltip={false} />
+                              <span className="truncate">{player.name}</span>
+                            </div>
+                            <Badge variant="secondary" className={getStatusColor(player.claimStatus)}>
+                              {player.claimStatus}
+                            </Badge>
+                          </div>
+                        ))}
+                        {phantomPlayers.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No phantom players yet
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* All Players Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Create Phantom Player</CardTitle>
-                  <CardDescription>
-                    Create a new phantom player that can optionally be claimed by users
-                  </CardDescription>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle>All Phantom Players ({phantomPlayers.length})</CardTitle>
+                      <CardDescription>Manage existing phantom players and their claiming status</CardDescription>
+                    </div>
+                    <Button onClick={loadData} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleCreatePhantomPlayer} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phantomName">Player Name *</Label>
-                      <Input
-                        id="phantomName"
-                        value={newPhantomName}
-                        onChange={(e) => setNewPhantomName(e.target.value)}
-                        placeholder="Enter player name"
-                        required
-                        disabled={isCreatingPhantom}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="phantomEmail">Email (Optional)</Label>
-                      <Input
-                        id="phantomEmail"
-                        type="email"
-                        value={newPhantomEmail}
-                        onChange={(e) => setNewPhantomEmail(e.target.value)}
-                        placeholder="Enter email to make claimable"
-                        disabled={isCreatingPhantom}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        If you provide an email, users can claim this phantom player during registration
-                      </p>
-                    </div>
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Games</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {phantomPlayers.map((player) => (
+                          <TableRow key={player.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center space-x-2">
+                                <span>{player.name}</span>
+                                <PhantomPlayerBadge player={player} variant="compact" />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={getStatusColor(player.claimStatus)}>
+                                {player.claimStatus}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {player.email || '—'}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {player.createdAt && formatDistanceToNow(parseISO(player.createdAt)) + ' ago'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {player.wins + player.losses}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-1">
+                                <Button
+                                  onClick={() => handleEditPhantomPlayer(player)}
+                                  size="sm"
+                                  variant="outline"
+                                  title="Edit player details"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                {player.email && player.claimStatus !== 'claimed' && (
+                                  <Button
+                                    onClick={() => handleInvitePhantomPlayer(player.name, player.email!)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-600"
+                                    title={`Send registration invitation to ${player.email}`}
+                                  >
+                                    <Send className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                {player.claimStatus === 'anonymous' && (
+                                  <Button
+                                    onClick={() => handleMakeClaimable(player.id)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-blue-600"
+                                    title="Make this player claimable by adding an email"
+                                  >
+                                    <Mail className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                {player.claimStatus !== 'claimed' && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="text-red-600"
+                                        title="Delete this phantom player"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Phantom Player</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete "{player.name}"? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeletePhantomPlayer(player.id, player.name)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
 
-                    <Button type="submit" disabled={isCreatingPhantom} className="w-full">
-                      {isCreatingPhantom ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Plus className="h-4 w-4 mr-2" />
-                      )}
-                      Create Phantom Player
-                    </Button>
-                  </form>
+                  {phantomPlayers.length === 0 && (
+                    <div className="text-center py-8">
+                      <Ghost className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No phantom players found</p>
+                      <p className="text-sm text-muted-foreground mt-2">Create your first phantom player above</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

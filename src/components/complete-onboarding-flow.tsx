@@ -76,26 +76,37 @@ export function CompleteOnboardingFlow({
   };
 
   const handlePlayersSelected = (selectedPlayerIds: string[]) => {
-    setOnboardingState(prev => ({
-      ...prev,
-      selectedPlayers: selectedPlayerIds
-    }));
+    console.log('🎭 Players selected in onboarding flow:', selectedPlayerIds);
+    console.log('🔄 Current onboarding state before update:', onboardingState);
+    setOnboardingState(prev => {
+      const newState = {
+        ...prev,
+        selectedPlayers: selectedPlayerIds
+      };
+      console.log('📝 Updated onboarding state:', newState);
+      return newState;
+    });
     
     if (hasInvitations) {
+      console.log('📨 Moving to invitations step, players stored for later');
       setCurrentStep('invitations');
     } else {
-      handleComplete();
+      console.log('🏁 No invitations, completing immediately with selected players');
+      // Pass the selected players directly instead of relying on state
+      handleCompleteWithPlayers(selectedPlayerIds);
     }
   };
 
   const handleInvitationsHandled = (acceptedIds: string[], declinedIds: string[]) => {
+    console.log('📨 Invitations handled:', { acceptedIds, declinedIds });
     setOnboardingState(prev => ({
       ...prev,
       acceptedInvitations: acceptedIds,
       declinedInvitations: declinedIds
     }));
     
-    handleComplete();
+    // Use direct parameter passing to avoid state timing issues
+    handleCompleteWithData(undefined, acceptedIds, declinedIds);
   };
 
   const handleComplete = () => {
@@ -107,6 +118,41 @@ export function CompleteOnboardingFlow({
     );
   };
 
+  // Unified completion function that accepts all data directly to avoid state timing issues
+  const handleCompleteWithData = (
+    selectedPlayerIds?: string[],
+    acceptedInvitationIds?: string[],
+    declinedInvitationIds?: string[]
+  ) => {
+    console.log('🎯 handleCompleteWithData called with:', {
+      selectedPlayerIds,
+      acceptedInvitationIds, 
+      declinedInvitationIds,
+      currentState: onboardingState
+    });
+    
+    setCurrentStep('processing');
+    const finalSelectedPlayers = selectedPlayerIds ?? onboardingState.selectedPlayers;
+    const finalAcceptedInvitations = acceptedInvitationIds ?? onboardingState.acceptedInvitations;
+    const finalDeclinedInvitations = declinedInvitationIds ?? onboardingState.declinedInvitations;
+    
+    console.log('🏁 Final data being passed to onComplete:', {
+      selectedPlayers: finalSelectedPlayers,
+      acceptedInvitations: finalAcceptedInvitations,
+      declinedInvitations: finalDeclinedInvitations
+    });
+    
+    onComplete(
+      finalSelectedPlayers,
+      finalAcceptedInvitations,
+      finalDeclinedInvitations
+    );
+  };
+
+  const handleCompleteWithPlayers = (selectedPlayerIds: string[]) => {
+    handleCompleteWithData(selectedPlayerIds);
+  };
+
   const handleSkipPlayers = () => {
     if (hasInvitations) {
       setCurrentStep('invitations');
@@ -116,7 +162,9 @@ export function CompleteOnboardingFlow({
   };
 
   const handleSkipInvitations = () => {
-    handleComplete();
+    console.log('⏭️ Skipping invitations, completing with selected players only');
+    // When skipping invitations, use the current state but ensure we preserve selected players
+    handleCompleteWithData();
   };
 
   const getProgress = () => {

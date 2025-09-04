@@ -77,7 +77,7 @@ export async function createPhantomPlayer(
       isPhantom: true,
       createdBy: playerData.createdBy,
       createdAt: new Date().toISOString(),
-      email: playerData.email?.toLowerCase().trim(),
+      ...(playerData.email && { email: playerData.email.toLowerCase().trim() }),
       // claimedByUserId and claimedAt remain undefined until claimed
     };
 
@@ -397,16 +397,15 @@ export async function getAllPhantomPlayersWithStatus(): Promise<PlayerWithClaimS
   try {
     const phantomQuery = query(
       collection(db, 'players'),
-      where('isPhantom', '==', true),
-      orderBy('createdAt', 'desc')
+      where('isPhantom', '==', true)
     );
 
     const snapshot = await getDocs(phantomQuery);
     
-    return snapshot.docs.map(doc => {
+    const players = snapshot.docs.map(doc => {
       const data = doc.data();
       const { createdAt, nameLower, ...cleanData } = data;
-      const player = { id: doc.id, ...cleanData } as Player;
+      const player = { id: doc.id, ...cleanData, createdAt } as Player;
       
       // Compute claim status
       let claimStatus: 'claimed' | 'claimable' | 'anonymous';
@@ -423,6 +422,13 @@ export async function getAllPhantomPlayersWithStatus(): Promise<PlayerWithClaimS
         isClaimable: !!(player.isPhantom && player.email && !player.claimedByUserId),
         claimStatus
       } as PlayerWithClaimStatus;
+    });
+
+    // Sort by createdAt desc in JavaScript
+    return players.sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      return bTime - aTime;
     });
   } catch (error) {
     logger.error('Error fetching phantom players with status:', error);

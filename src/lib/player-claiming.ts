@@ -36,41 +36,62 @@ export async function claimPlayer(
   claimRequest: PlayerClaimRequest
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('🔍 CLAIM PLAYER START:', claimRequest);
     logger.info(`Attempting to claim player ${claimRequest.playerId} for user ${claimRequest.userId}`);
 
     // Validate claim request
+    console.log('⚡ Starting validation...');
     const validation = await validatePlayerClaim(
       claimRequest.userId,
       claimRequest.playerId,
       claimRequest.email
     );
+    console.log('🔒 Validation result:', validation);
 
     if (!validation.isValid) {
+      console.log('❌ Validation failed:', validation.error);
       return { success: false, error: validation.error };
     }
 
     // Perform atomic claim transaction
+    console.log('⚛️ Starting transaction...');
     const result = await runTransaction(db, async (transaction) => {
       // Re-fetch and verify player in transaction
       const playerRef = doc(db, 'players', claimRequest.playerId);
       const playerDoc = await transaction.get(playerRef);
 
       if (!playerDoc.exists()) {
+        console.error('❌ Player not found in transaction:', claimRequest.playerId);
         throw new Error('Player not found');
       }
 
       const playerData = playerDoc.data() as Player;
+      console.log('📄 Player data in transaction:', { 
+        id: claimRequest.playerId, 
+        name: playerData.name,
+        email: playerData.email,
+        isPhantom: playerData.isPhantom,
+        claimedByUserId: playerData.claimedByUserId 
+      });
 
       // Double-check claiming conditions in transaction
       if (!playerData.isPhantom) {
+        console.error('❌ Player is not phantom:', { playerId: claimRequest.playerId, isPhantom: playerData.isPhantom });
         throw new Error('Player is not a phantom player');
       }
 
       if (playerData.claimedByUserId) {
+        console.error('❌ Player already claimed:', { playerId: claimRequest.playerId, claimedBy: playerData.claimedByUserId });
         throw new Error('Player has already been claimed');
       }
 
-      if (!playerData.email || playerData.email !== claimRequest.email.toLowerCase().trim()) {
+      const requestEmail = claimRequest.email.toLowerCase().trim();
+      if (!playerData.email || playerData.email !== requestEmail) {
+        console.error('❌ Email mismatch:', { 
+          playerId: claimRequest.playerId,
+          playerEmail: playerData.email, 
+          requestEmail: requestEmail 
+        });
         throw new Error('Email does not match phantom player email');
       }
 
@@ -84,19 +105,27 @@ export async function claimPlayer(
 
       const userData = userDoc.data() as any;
 
-      // Update player with claim information
+      // Update player with claim information and consolidate name
       const claimUpdate = {
         claimedByUserId: claimRequest.userId,
         claimedAt: new Date().toISOString(),
         isPhantom: false, // Player is no longer phantom once claimed
+        name: userData.name || userData.email.split('@')[0], // Consolidate to user's name
       };
 
+      console.log('💾 Updating player with claim data and name consolidation:', { 
+        playerId: claimRequest.playerId, 
+        claimUpdate,
+        originalPhantomName: playerData.name,
+        newConsolidatedName: userData.name,
+        nameChanged: playerData.name !== userData.name
+      });
       transaction.update(playerRef, claimUpdate);
 
       // Create audit log entry
       const auditLog: Omit<PlayerClaimLog, 'id'> = {
         playerId: claimRequest.playerId,
-        playerName: playerData.name,
+        playerName: userData.name || userData.email.split('@')[0], // Use consolidated name
         claimedByUserId: claimRequest.userId,
         claimedByUserName: userData.name || userData.email,
         claimedAt: new Date().toISOString(),
@@ -113,17 +142,24 @@ export async function claimPlayer(
       };
     });
 
+    console.log('🎉 CLAIM TRANSACTION COMPLETED:', { playerId: claimRequest.playerId, userId: claimRequest.userId, success: result.success });
     logger.info(`Player ${claimRequest.playerId} successfully claimed by user ${claimRequest.userId}`);
     
     // Log audit event after successful transaction
     if (result.success && result.playerData && result.userData) {
-      await logPhantomPlayerClaimed(
-        claimRequest.playerId,
-        result.playerData.name,
-        claimRequest.userId,
-        result.playerData.email || claimRequest.email,
-        result.playerData.wins + result.playerData.losses
-      );
+      try {
+        await logPhantomPlayerClaimed(
+          claimRequest.playerId,
+          result.playerData.name,
+          claimRequest.userId,
+          result.playerData.email || claimRequest.email,
+          result.playerData.wins + result.playerData.losses
+        );
+        console.log('✅ Audit event logged successfully');
+      } catch (auditError) {
+        console.warn('⚠️ Failed to log audit event (non-critical):', auditError);
+        // Don't throw - audit logging failure shouldn't affect claiming
+      }
     }
     
     return { success: result.success };
@@ -343,38 +379,48 @@ export async function bulkClaimPlayers(
   };
 
   try {
+    console.log('🚀 BULK CLAIM START:', { userId, email, playerIds, playerCount: playerIds.length });
     logger.info(`Bulk claiming ${playerIds.length} players for user ${userId}`);
 
     // Validate user exists
+    console.log('👤 Checking if user exists:', userId);
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
+      console.error('❌ User not found in Firestore:', userId);
       return {
         ...result,
         success: false,
         errors: ['User not found']
       };
     }
+    console.log('✅ User found in Firestore:', { userId, userData: userDoc.data() });
 
     // Process each player claim
     for (const playerId of playerIds) {
       try {
+        console.log('🎭 Processing claim for player:', playerId);
         const claimRequest: PlayerClaimRequest = {
           userId,
           playerId,
           email
         };
 
+        console.log('📋 Claim request details:', claimRequest);
         const claimResult = await claimPlayer(claimRequest);
+        console.log('🎯 Claim result:', claimResult);
         
         if (claimResult.success) {
           result.claimedCount++;
+          console.log('✅ Player claimed successfully:', playerId);
         } else {
           result.failed.push({
             playerId,
             error: claimResult.error || 'Unknown error'
           });
+          console.log('❌ Player claim failed:', { playerId, error: claimResult.error });
         }
       } catch (error) {
+        console.error('💥 Exception during player claim:', { playerId, error });
         result.failed.push({
           playerId,
           error: error instanceof Error ? error.message : 'Claim failed'
@@ -386,6 +432,12 @@ export async function bulkClaimPlayers(
       result.success = false;
     }
 
+    console.log('📊 BULK CLAIM COMPLETED:', { 
+      claimedCount: result.claimedCount, 
+      failedCount: result.failed.length, 
+      success: result.success,
+      failed: result.failed 
+    });
     logger.info(`Bulk claim completed: ${result.claimedCount} claimed, ${result.failed.length} failed`);
     
   } catch (error) {

@@ -770,3 +770,30 @@ export function subscribeTournamentsRealtime(
     return () => {}; // Return empty unsubscribe function
   }
 }
+
+/**
+ * Get the current user's player profile
+ */
+export async function getUserPlayerProfile(userId: string): Promise<Player | null> {
+  try {
+    const userPlayerQuery = query(
+      collection(db, 'players'),
+      where('claimedByUserId', '==', userId)
+    );
+    
+    const snapshot = await getDocs(userPlayerQuery);
+    
+    if (snapshot.empty) {
+      return null;
+    }
+    
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    const { createdAt, nameLower, ...cleanData } = data;
+    
+    return { id: doc.id, ...cleanData } as Player;
+  } catch (error) {
+    logger.error('Error fetching user player profile:', error);
+    return null;
+  }
+}

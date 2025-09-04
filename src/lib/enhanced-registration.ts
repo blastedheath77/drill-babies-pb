@@ -61,9 +61,11 @@ export async function checkClaimablePlayersForEmail(
   error?: string;
 }> {
   try {
+    console.log('🔍 Checking for claimable phantom players for email:', email);
     logger.info(`Checking for claimable phantom players for email: ${email}`);
     
     const result = await findClaimablePlayersForUser(email);
+    console.log('🎭 Found claimable players result:', result);
     
     logger.info(`Found ${result.totalFound} claimable players for ${email}`);
     
@@ -73,12 +75,20 @@ export async function checkClaimablePlayersForEmail(
       totalFound: result.totalFound
     };
   } catch (error) {
+    console.error('💥 Error checking claimable players:', error);
     logger.error('Error checking claimable players for email:', error);
+    
+    // Check if it's a network error
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isNetworkError = errorMessage.includes('network') || 
+                          errorMessage.includes('offline') || 
+                          errorMessage.includes('connection');
+    
     return {
       success: false,
       players: [],
       totalFound: 0,
-      error: 'Failed to check for claimable players'
+      error: isNetworkError ? 'Network connection lost. Please check your internet connection and try again.' : 'Failed to check for claimable players'
     };
   }
 }

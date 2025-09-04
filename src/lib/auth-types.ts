@@ -29,12 +29,39 @@ export interface AuthState {
   isInitialized: boolean;
 }
 
+export interface ClaimablePlayer {
+  id: string;
+  name: string;
+  email?: string;
+  avatar: string;
+  rating: number;
+  wins: number;
+  losses: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  isPhantom?: boolean;
+  canClaim: boolean;
+  claimError?: string;
+  gamesPlayed: number;
+  currentRating: number;
+}
+
+export interface EnhancedRegistrationResult {
+  success: boolean;
+  user?: User;
+  claimablePhantomPlayers?: ClaimablePlayer[];
+  requiresOnboarding?: boolean;
+  error?: string;
+}
+
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isInitialized: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  registerWithPhantomCheck: (email: string, password: string, name: string) => Promise<EnhancedRegistrationResult>;
+  checkPhantomPlayers: (email: string) => Promise<{ success: boolean; players: ClaimablePlayer[]; error?: string }>;
   logout: () => void;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   resendEmailVerification: () => Promise<{ success: boolean; error?: string }>;

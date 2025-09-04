@@ -7,6 +7,7 @@ import { Menu, LogOut, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getUserPlayerProfile } from '@/lib/data';
 import { 
   getVisibleNavItems, 
   getBottomNavItems, 
@@ -29,11 +30,22 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
   const pathname = usePathname();
   const { user, isAdmin, logout, isLoading } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
+  const [userPlayerId, setUserPlayerId] = React.useState<string | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
     setIsClient(true);
   }, []);
+
+  React.useEffect(() => {
+    async function loadUserPlayer() {
+      if (user?.id) {
+        const playerProfile = await getUserPlayerProfile(user.id);
+        setUserPlayerId(playerProfile?.id || null);
+      }
+    }
+    loadUserPlayer();
+  }, [user?.id]);
 
   const mainItems = getNavItemsByCategory('main', user?.role);
   const actionItems = getNavItemsByCategory('action', user?.role);
@@ -163,38 +175,71 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex justify-center">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage
-                            src={user?.avatar || 'https://placehold.co/100x100.png'}
-                            alt={user?.name || 'User'}
-                          />
-                          <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                        </Avatar>
-                      </div>
+                      {userPlayerId ? (
+                        <Link href={`/players/${userPlayerId}`} className="flex justify-center">
+                          <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all cursor-pointer">
+                            <AvatarImage
+                              src={user?.avatar || 'https://placehold.co/100x100.png'}
+                              alt={user?.name || 'User'}
+                            />
+                            <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                          </Avatar>
+                        </Link>
+                      ) : (
+                        <div className="flex justify-center">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage
+                              src={user?.avatar || 'https://placehold.co/100x100.png'}
+                              alt={user?.name || 'User'}
+                            />
+                            <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                          </Avatar>
+                        </div>
+                      )}
                     </TooltipTrigger>
                     <TooltipContent side="right">
                       <p>{user?.name || 'User'}</p>
                       <p className="text-xs opacity-70">{user?.role === 'admin' ? 'Administrator' : 'Player'}</p>
+                      {userPlayerId && <p className="text-xs opacity-70">Click to view profile</p>}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={user?.avatar || 'https://placehold.co/100x100.png'}
-                      alt={user?.name || 'User'}
-                    />
-                    <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-sm">
-                    <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                    </p>
+                userPlayerId ? (
+                  <Link href={`/players/${userPlayerId}`} className="block">
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={user?.avatar || 'https://placehold.co/100x100.png'}
+                          alt={user?.name || 'User'}
+                        />
+                        <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-sm">
+                        <p className="font-semibold truncate hover:text-primary">{user?.name || 'User'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={user?.avatar || 'https://placehold.co/100x100.png'}
+                        alt={user?.name || 'User'}
+                      />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )
               )}
               
               {/* Logout Button */}
@@ -351,11 +396,22 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
   const { user, isAdmin, logout, isLoading } = useAuth();
   const [isClient, setIsClient] = React.useState(false);
+  const [userPlayerId, setUserPlayerId] = React.useState<string | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
     setIsClient(true);
   }, []);
+
+  React.useEffect(() => {
+    async function loadUserPlayer() {
+      if (user?.id) {
+        const playerProfile = await getUserPlayerProfile(user.id);
+        setUserPlayerId(playerProfile?.id || null);
+      }
+    }
+    loadUserPlayer();
+  }, [user?.id]);
 
   const visibleItems = getVisibleNavItems(user?.role, true);
   
@@ -447,21 +503,41 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
             user ? (
               <div className="space-y-2">
                 {/* User Info Card */}
-                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={user?.avatar || 'https://placehold.co/100x100.png'}
-                      alt={user?.name || 'User'}
-                    />
-                    <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-sm">
-                    <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                    </p>
+                {userPlayerId ? (
+                  <Link href={`/players/${userPlayerId}`} className="block" onClick={onClose}>
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={user?.avatar || 'https://placehold.co/100x100.png'}
+                          alt={user?.name || 'User'}
+                        />
+                        <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-sm">
+                        <p className="font-semibold truncate hover:text-primary">{user?.name || 'User'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={user?.avatar || 'https://placehold.co/100x100.png'}
+                        alt={user?.name || 'User'}
+                      />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 {/* Logout Button */}
                 <Button 

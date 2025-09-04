@@ -37,13 +37,20 @@ export function PhantomPlayerClaiming({
 }: PhantomPlayerClaimingProps) {
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   
+  console.log('🎭 PhantomPlayerClaiming props:', { 
+    claimablePlayersCount: claimablePlayers.length,
+    claimablePlayers: claimablePlayers.map(p => ({ id: p.id, name: p.name, canClaim: p.canClaim, email: p.email }))
+  });
+  
   const handlePlayerSelection = (playerId: string, checked: boolean) => {
+    console.log('🔄 Player selection changed:', { playerId, checked, currentSelection: Array.from(selectedPlayers) });
     const newSelection = new Set(selectedPlayers);
     if (checked) {
       newSelection.add(playerId);
     } else {
       newSelection.delete(playerId);
     }
+    console.log('✅ New selection:', Array.from(newSelection));
     setSelectedPlayers(newSelection);
   };
 
@@ -59,7 +66,9 @@ export function PhantomPlayerClaiming({
   };
 
   const handleConfirmSelection = () => {
-    onPlayersSelected(Array.from(selectedPlayers));
+    const selectedArray = Array.from(selectedPlayers);
+    console.log('🎯 Confirming selection:', selectedArray);
+    onPlayersSelected(selectedArray);
   };
 
   const totalGames = claimablePlayers.reduce((sum, player) => sum + player.gamesPlayed, 0);
