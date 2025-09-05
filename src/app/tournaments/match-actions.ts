@@ -1,6 +1,6 @@
 'use server';
 
-import { collection, doc, updateDoc, addDoc, serverTimestamp, writeBatch, getDocs, query, where, documentId } from 'firebase/firestore';
+import { collection, doc, updateDoc, addDoc, serverTimestamp, writeBatch, getDocs, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { revalidatePath } from 'next/cache';
 import { validateData, scoreSchema } from '@/lib/validations';
@@ -8,7 +8,7 @@ import { getTournamentMatchById } from '@/lib/data';
 import { logger } from '@/lib/logger';
 import { RATING_K_FACTOR, DEFAULT_RATING, MIN_RATING, MAX_RATING } from '@/lib/constants';
 import { z } from 'zod';
-import type { Player } from '@/lib/types';
+import type { Player, Tournament } from '@/lib/types';
 
 const matchResultSchema = z.object({
   matchId: z.string().min(1, 'Match ID is required'),
@@ -226,9 +226,8 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
     await batch.commit();
     logger.info('Updated match status to completed and player stats', { matchId, gameId: gameRef.id });
 
-    // Check if this completes a round and if we need to generate next round matches
-    // This is a simplified version - in a full implementation, you'd need more complex bracket logic
-    await checkAndGenerateNextRoundMatches(tournamentId, match.round);
+    // Check if the tournament is now complete
+    await checkTournamentCompletionInternal(tournamentId);
 
     // Revalidate the tournament page and related pages
     revalidatePath(`/tournaments/${tournamentId}`);
@@ -248,17 +247,80 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
   }
 }
 
-// Helper function to check if we need to generate next round matches
-async function checkAndGenerateNextRoundMatches(tournamentId: string, currentRound: number) {
-  // This is a simplified implementation
-  // In a full tournament system, you'd need to:
-  // 1. Check if all matches in current round are completed
-  // 2. Determine winners and advance them to next round
-  // 3. Generate new matches for the next round
-  // 4. Handle different tournament types (single-elimination, double-elimination, etc.)
-  
-  logger.info('Checking for next round generation', { tournamentId, currentRound });
-  
-  // For now, we'll just log that this functionality needs to be implemented
-  // This would be a complex feature requiring bracket management logic
+// Helper function to check if tournament is complete and update status accordingly
+async function checkTournamentCompletionInternal(tournamentId: string) {
+  try {
+    // Get tournament details
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+    const tournamentSnap = await getDoc(tournamentRef);
+    
+    if (!tournamentSnap.exists()) {
+      logger.error('Tournament not found for completion check', { tournamentId });
+      return;
+    }
+    
+    const tournament = { id: tournamentId, ...tournamentSnap.data() } as Tournament;
+    
+    // Skip if already completed
+    if (tournament.status === 'completed') {
+      return;
+    }
+    
+    // Get all matches for this tournament
+    const matchesQuery = query(
+      collection(db, 'tournamentMatches'),
+      where('tournamentId', '==', tournamentId)
+    );
+    const matchesSnapshot = await getDocs(matchesQuery);
+    
+    if (matchesSnapshot.empty) {
+      logger.info('No matches found for tournament', { tournamentId });
+      return;
+    }
+    
+    // Check if all matches are completed
+    const matches = matchesSnapshot.docs.map(doc => doc.data());
+    const totalMatches = matches.length;
+    const completedMatches = matches.filter(match => match.status === 'completed').length;
+    const pendingMatches = matches.filter(match => match.status === 'pending').length;
+    const inProgressMatches = matches.filter(match => match.status === 'in-progress').length;
+    
+    logger.info('Tournament completion check', {
+      tournamentId,
+      totalMatches,
+      completedMatches,
+      pendingMatches,
+      inProgressMatches
+    });
+    
+    // Tournament is complete if:
+    // 1. All matches are completed OR
+    // 2. There are no pending or in-progress matches (only completed and potentially bye matches)
+    const isComplete = (completedMatches === totalMatches) || (pendingMatches === 0 && inProgressMatches === 0);
+    
+    if (isComplete) {
+      logger.info('Tournament is complete, updating status', { tournamentId });
+      
+      await updateDoc(tournamentRef, {
+        status: 'completed',
+        completedDate: serverTimestamp(),
+      });
+      
+      logger.info('Tournament status updated to completed', { tournamentId });
+    } else {
+      logger.info('Tournament not yet complete', {
+        tournamentId,
+        remainingPendingMatches: pendingMatches,
+        remainingInProgressMatches: inProgressMatches
+      });
+    }
+    
+  } catch (error) {
+    logger.error('Error checking tournament completion', { tournamentId, error });
+  }
+}
+
+// Export the completion checker for use in other places
+export async function checkTournamentCompletion(tournamentId: string) {
+  return checkTournamentCompletionInternal(tournamentId);
 }

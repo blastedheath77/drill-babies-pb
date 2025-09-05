@@ -3,6 +3,7 @@
 import { collection, doc, addDoc, writeBatch, getDocs, query, where, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { revalidatePath } from 'next/cache';
+import { checkTournamentCompletion } from './match-actions';
 import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
@@ -385,6 +386,103 @@ function calculateQuickPlayMatchScore(
   });
   
   return score;
+}
+
+// Delete Round functionality for Quick Play tournaments
+export async function deleteQuickPlayRound(tournamentId: string, roundNumber: number) {
+  try {
+    // Check authentication and permissions
+    const currentUser = await getCurrentUser();
+    requireAuthentication(currentUser);
+    requirePermission(currentUser, 'canModifyTournaments');
+    
+    // Get tournament details
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+    const tournamentSnap = await getDoc(tournamentRef);
+    
+    if (!tournamentSnap.exists()) {
+      throw new Error('Tournament not found');
+    }
+    
+    const tournament = { id: tournamentId, ...tournamentSnap.data() } as Tournament;
+    
+    if (!tournament.isQuickPlay) {
+      throw new Error('Delete Round is only available for Quick Play tournaments');
+    }
+    
+    // Get all matches in this round
+    const matchesQuery = query(
+      collection(db, 'tournamentMatches'),
+      where('tournamentId', '==', tournamentId),
+      where('round', '==', roundNumber)
+    );
+    const matchesSnapshot = await getDocs(matchesQuery);
+    
+    // Check if any matches in this round have been completed
+    const hasCompletedMatches = matchesSnapshot.docs.some(doc => {
+      const match = doc.data();
+      return match.status === 'completed';
+    });
+    
+    if (hasCompletedMatches) {
+      throw new Error('Cannot delete round with completed matches');
+    }
+    
+    // Check if any matches have been started (in-progress)
+    const hasInProgressMatches = matchesSnapshot.docs.some(doc => {
+      const match = doc.data();
+      return match.status === 'in-progress';
+    });
+    
+    if (hasInProgressMatches) {
+      throw new Error('Cannot delete round with matches in progress');
+    }
+    
+    // Check if this is the only round (prevent deleting all rounds)
+    const allMatchesQuery = query(
+      collection(db, 'tournamentMatches'),
+      where('tournamentId', '==', tournamentId)
+    );
+    const allMatchesSnapshot = await getDocs(allMatchesQuery);
+    
+    const uniqueRounds = new Set(allMatchesSnapshot.docs.map(doc => doc.data().round));
+    if (uniqueRounds.size <= 1) {
+      throw new Error('Cannot delete the only remaining round');
+    }
+    
+    // Delete all matches in this round
+    const batch = writeBatch(db);
+    matchesSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    // Update tournament currentRound if we're deleting the highest round
+    const remainingRounds = Array.from(uniqueRounds).filter(r => r !== roundNumber);
+    const newCurrentRound = Math.max(...remainingRounds);
+    
+    if (tournament.currentRound === roundNumber || tournament.currentRound > newCurrentRound) {
+      batch.update(tournamentRef, {
+        currentRound: newCurrentRound,
+      });
+    }
+    
+    await batch.commit();
+    
+    // Check if tournament is now complete after round deletion
+    await checkTournamentCompletion(tournamentId);
+    
+    revalidatePath(`/tournaments/${tournamentId}`);
+    revalidatePath('/tournaments');
+    
+    return { success: true, deletedRound: roundNumber };
+    
+  } catch (error) {
+    logger.error('Error deleting Quick Play round', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to delete round');
+  }
 }
 
 // Add Round functionality for Quick Play tournaments

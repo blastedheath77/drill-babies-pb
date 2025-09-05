@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Trophy, Calendar, Users, Target, Edit, Plus, Zap } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, Users, Target, Edit, Plus, Zap, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { MatchResultDialog } from '@/components/match-result-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { addQuickPlayRound } from '../quick-play-actions';
+import { addQuickPlayRound, deleteQuickPlayRound } from '../quick-play-actions';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import type { Tournament, TournamentMatch, TournamentStanding, Player } from '@/lib/types';
@@ -163,6 +163,7 @@ function MatchCard({ match, players, tournamentId, canCreateTournaments }: Match
 
 export function TournamentClient({ tournament, matches, standings, playerMap }: TournamentClientProps) {
   const [isAddingRound, setIsAddingRound] = useState(false);
+  const [deletingRounds, setDeletingRounds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const router = useRouter();
   const { canCreateTournaments } = useAuth();
@@ -202,6 +203,49 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
     } finally {
       setIsAddingRound(false);
     }
+  };
+
+  const handleDeleteRound = async (roundNumber: number) => {
+    if (deletingRounds.has(roundNumber)) return;
+
+    setDeletingRounds(prev => new Set(prev).add(roundNumber));
+    try {
+      const result = await deleteQuickPlayRound(tournament.id, roundNumber);
+      
+      if (result.success) {
+        toast({
+          title: 'Round Deleted!',
+          description: `Round ${roundNumber} has been removed from the tournament.`,
+        });
+        
+        // Refresh the page to show updated matches
+        router.refresh();
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete round.',
+      });
+    } finally {
+      setDeletingRounds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(roundNumber);
+        return newSet;
+      });
+    }
+  };
+
+  const canDeleteRound = (roundNumber: number, roundMatches: TournamentMatch[]) => {
+    if (!tournament.isQuickPlay || !canCreateTournaments()) return false;
+    
+    // Can't delete if it's the only round
+    if (Object.keys(matchesByRound).length <= 1) return false;
+    
+    // Can't delete if any matches are completed or in progress
+    return !roundMatches.some(match => 
+      match.status === 'completed' || match.status === 'in-progress'
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -326,11 +370,25 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                 .map(([round, roundMatches]) => (
                   <Card key={round}>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        Round {round}
-                        <Badge variant="outline">
-                          {roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}
-                        </Badge>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          Round {round}
+                          <Badge variant="outline">
+                            {roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}
+                          </Badge>
+                        </div>
+                        {canDeleteRound(parseInt(round), roundMatches) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteRound(parseInt(round))}
+                            disabled={deletingRounds.has(parseInt(round))}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            {deletingRounds.has(parseInt(round)) ? 'Deleting...' : 'Delete Round'}
+                          </Button>
+                        )}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
