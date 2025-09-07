@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { usePlayers } from '@/hooks/use-players';
+import { usePlayersInCircles } from '@/hooks/use-players';
 import { usePartnershipsData } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
 import { PlusCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, ArrowUpRight, ArrowDownRight, Users2, Swords } from 'lucide-react';
@@ -106,7 +106,7 @@ function usePlayerStats(players: Player[], games: Game[]) {
 }
 
 export default function PlayersPage() {
-  const { data: players, isLoading, error, isError } = usePlayers();
+  const { data: players, isLoading, error, isError } = usePlayersInCircles();
   const { games, isLoading: gamesLoading } = usePartnershipsData();
   const { canManagePlayers } = useAuth();
   

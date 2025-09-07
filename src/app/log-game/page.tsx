@@ -1,12 +1,12 @@
 'use client';
 
 import { LogGameClientPage } from './log-game-client-page';
-import { usePlayers } from '@/hooks/use-players';
+import { usePlayersInCircles } from '@/hooks/use-players';
 import { PageHeader } from '@/components/page-header';
 import { AuthWrapper } from '@/components/auth-wrapper';
 
 function LogGameContent() {
-  const { data: players, isLoading, error } = usePlayers();
+  const { data: players, isLoading, error } = usePlayersInCircles();
 
   if (isLoading) {
     return (

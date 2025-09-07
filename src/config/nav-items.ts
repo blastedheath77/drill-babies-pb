@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Circle } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, Calendar, Circle, Settings } from 'lucide-react';
 import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
@@ -95,17 +95,6 @@ export const mainNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Player leaderboards'
-  },
-  { 
-    title: 'Test', 
-    href: '/test', 
-    icon: TestTube, 
-    category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
-    mobileVisible: false,
-    desktopVisible: true,
-    description: 'Testing page'
   },
 ];
 

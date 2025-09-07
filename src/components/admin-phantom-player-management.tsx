@@ -489,7 +489,17 @@ export function AdminPhantomPlayerManagement() {
                               {player.email || '—'}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {player.createdAt && formatDistanceToNow(parseISO(player.createdAt)) + ' ago'}
+                              {player.createdAt && typeof player.createdAt === 'string' && player.createdAt.trim() ? (
+                                (() => {
+                                  try {
+                                    return formatDistanceToNow(parseISO(player.createdAt)) + ' ago';
+                                  } catch (error) {
+                                    return 'Invalid date';
+                                  }
+                                })()
+                              ) : (
+                                '—'
+                              )}
                             </TableCell>
                             <TableCell className="text-sm">
                               {player.wins + player.losses}

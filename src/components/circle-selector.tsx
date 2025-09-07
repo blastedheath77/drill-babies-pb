@@ -74,7 +74,7 @@ export function CircleSelector({
   }
 
   const displayText = selectedCircleId === 'all' 
-    ? 'All Players' 
+    ? 'All Circles' 
     : selectedCircle?.name || 'Unknown Circle';
   
   const displayIcon = selectedCircleId === 'all' ? Globe : Users;
@@ -106,7 +106,7 @@ export function CircleSelector({
             >
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4" />
-                <span>All Players</span>
+                <span>All Circles</span>
               </div>
               {selectedCircleId === 'all' && <Check className="h-4 w-4" />}
             </DropdownMenuItem>
@@ -183,9 +183,9 @@ export function CircleSelector({
             <div className="flex items-center gap-3">
               <Globe className="h-4 w-4" />
               <div>
-                <div className="font-medium">All Players</div>
+                <div className="font-medium">All Circles</div>
                 <div className="text-xs text-muted-foreground">
-                  View all players and games
+                  View data from all your circles
                 </div>
               </div>
             </div>
@@ -270,10 +270,10 @@ export function useCircleDisplay() {
   
   return {
     displayText: selectedCircleId === 'all' 
-      ? 'All Players' 
+      ? 'All Circles' 
       : selectedCircle?.name || 'Unknown Circle',
     displayIcon: selectedCircleId === 'all' ? Globe : Users,
-    isAllPlayers: selectedCircleId === 'all',
+    isAllCircles: selectedCircleId === 'all',
     memberCount: selectedCircle?.memberCount || 0,
   };
 }

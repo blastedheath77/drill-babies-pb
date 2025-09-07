@@ -29,7 +29,7 @@ import {
   Zap
 } from 'lucide-react';
 import Link from 'next/link';
-import { useAllGames } from '@/hooks/use-games';
+import { useAllGames, useInvalidateGames } from '@/hooks/use-games';
 import type { Game } from '@/lib/types';
 import {
   Select,
@@ -41,6 +41,7 @@ import {
 
 export function GamesClient() {
   const { data: allGames, isLoading, error } = useAllGames();
+  const { clearAndRefetch } = useInvalidateGames();
   const [timeFilter, setTimeFilter] = React.useState<string>('14');
   const [typeFilter, setTypeFilter] = React.useState<string>('all');
 
@@ -253,6 +254,15 @@ export function GamesClient() {
                   <SelectItem value="doubles">Doubles</SelectItem>
                 </SelectContent>
               </Select>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => clearAndRefetch()}
+                title="Clear cache and refetch games data"
+              >
+                🔄 Refresh
+              </Button>
             </div>
           </div>
           {filteredGames.length > 0 && (

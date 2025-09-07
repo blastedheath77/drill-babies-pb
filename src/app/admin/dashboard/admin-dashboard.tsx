@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings, Ghost, FileText } from 'lucide-react';
+import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings, Ghost, FileText, UserPlus } from 'lucide-react';
 import { 
   deletePlayer, 
   createPlayer, 
@@ -42,6 +42,7 @@ import { syncAllPlayerStats } from '@/lib/sync-all-player-stats';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import { AdminPhantomPlayerManagement } from '@/components/admin-phantom-player-management';
 import { AdminAuditTrailViewer } from '@/components/admin-audit-trail-viewer';
+import { PlayerClaimingClient } from '@/app/admin/player-claiming/player-claiming-client';
 import type { Player, Game } from '@/lib/types';
 
 type PlayerWithGameCount = Player & { gameCount: number };
@@ -274,7 +275,7 @@ export function AdminDashboard() {
       )}
 
       <Tabs defaultValue="players" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="players" className="flex items-center gap-1 text-xs sm:text-sm">
             <Users className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Players</span>
@@ -289,6 +290,11 @@ export function AdminDashboard() {
             <Ghost className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Phantom</span>
             <span className="xs:hidden">Ph</span>
+          </TabsTrigger>
+          <TabsTrigger value="claiming" className="flex items-center gap-1 text-xs sm:text-sm">
+            <UserPlus className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Claiming</span>
+            <span className="xs:hidden">C</span>
           </TabsTrigger>
           <TabsTrigger value="audit" className="flex items-center gap-1 text-xs sm:text-sm">
             <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -580,6 +586,10 @@ export function AdminDashboard() {
 
         <TabsContent value="phantom" className="space-y-6">
           <AdminPhantomPlayerManagement />
+        </TabsContent>
+
+        <TabsContent value="claiming" className="space-y-6">
+          <PlayerClaimingClient />
         </TabsContent>
 
         <TabsContent value="audit" className="space-y-6">

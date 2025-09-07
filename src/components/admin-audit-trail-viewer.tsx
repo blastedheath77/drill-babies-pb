@@ -302,7 +302,13 @@ export function AdminAuditTrailViewer() {
                                 </Badge>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(parseISO(event.timestamp))} ago
+                                {(() => {
+                                  try {
+                                    return formatDistanceToNow(parseISO(event.timestamp)) + ' ago';
+                                  } catch (error) {
+                                    return 'Recently';
+                                  }
+                                })()} 
                               </div>
                             </div>
                           ))}
@@ -460,7 +466,13 @@ export function AdminAuditTrailViewer() {
                     {events.map((event) => (
                       <TableRow key={event.id}>
                         <TableCell className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(parseISO(event.timestamp))} ago
+                          {(() => {
+                            try {
+                              return formatDistanceToNow(parseISO(event.timestamp)) + ' ago';
+                            } catch (error) {
+                              return 'Recently';
+                            }
+                          })()} 
                         </TableCell>
                         <TableCell>
                           <span className="text-sm font-medium">
@@ -519,7 +531,13 @@ export function AdminAuditTrailViewer() {
             <CardHeader>
               <CardTitle>Event Details</CardTitle>
               <CardDescription>
-                {getEventTypeDisplay(selectedEvent.eventType)} - {formatDistanceToNow(parseISO(selectedEvent.timestamp))} ago
+                {getEventTypeDisplay(selectedEvent.eventType)} - {(() => {
+                  try {
+                    return formatDistanceToNow(parseISO(selectedEvent.timestamp)) + ' ago';
+                  } catch (error) {
+                    return 'Recently';
+                  }
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

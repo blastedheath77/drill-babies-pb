@@ -8,7 +8,8 @@ import {
   registerUser, 
   onAuthStateChange,
   resetPassword,
-  resendEmailVerification
+  resendEmailVerification,
+  updateUserProfile as updateUserProfileFunction
 } from '@/lib/user-management';
 import { 
   checkClaimablePlayersForEmail, 
@@ -25,18 +26,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Debug: Log whenever AuthProvider is rendered
+  logger.info(`[AuthProvider] 🔄 COMPONENT RENDER - user: ${user?.id || 'null'}, isLoading: ${isLoading}, isInitialized: ${isInitialized}`);
+
   useEffect(() => {
+    logger.info(`[AuthProvider] 🔥 AUTH USEEFFECT STARTING - initial state - user: ${user?.id || 'null'}, isLoading: ${isLoading}, isInitialized: ${isInitialized}`);
+    
     // Use Firebase Auth only - no localStorage fallback
     const unsubscribe = onAuthStateChange((firebaseUser) => {
+      logger.info(`[AuthProvider] 🚨 AUTH STATE CHANGE CALLBACK - firebaseUser: ${firebaseUser?.id || 'null'}, email: ${firebaseUser?.email || 'null'}`);
+      
       setUser(firebaseUser);
       if (firebaseUser) {
         logger.info('User signed in via Firebase', { uid: firebaseUser.id, email: firebaseUser.email });
+      } else {
+        logger.info('User signed out via Firebase');
       }
       
       setIsLoading(false);
       setIsInitialized(true);
+      
+      logger.info(`[AuthProvider] ✅ AUTH STATE UPDATED - user: ${firebaseUser?.id || 'null'}, isLoading: false, isInitialized: true`);
     });
 
+    logger.info(`[AuthProvider] 🔗 AUTH LISTENER REGISTERED`);
     return unsubscribe;
   }, []);
 
@@ -78,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const registerWithPhantomCheck = async (email: string, password: string, name: string) => {
+  const registerWithPhantomCheck = async (email: string, password: string, name: string, profileData?: any) => {
     setIsLoading(true);
     
     try {
@@ -96,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Step 2: Create user account regardless of phantom player status
-      const userResult = await registerUser(email, password, name);
+      const userResult = await registerUser(email, password, name, 'player', profileData);
       console.log('👤 User creation result:', userResult);
       
       if (!userResult.success) {
@@ -184,6 +197,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await resendEmailVerification();
   };
 
+  const handleUpdateUserProfile = async (updates: {
+    name?: string;
+    bio?: string;
+    location?: { city: string; country: string };
+    gender?: 'Male' | 'Female' | 'Other';
+    dateOfBirth?: string;
+    duprId?: string;
+    avatar?: string;
+  }) => {
+    if (!user?.id) {
+      return { success: false, error: 'No user is currently signed in.' };
+    }
+
+    const result = await updateUserProfileFunction(user.id, updates);
+    
+    if (result.success && result.user) {
+      setUser(result.user);
+    }
+    
+    return result;
+  };
+
   const isAdmin = () => user?.role === 'admin';
   const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
   const isViewer = () => user?.role === 'viewer';
@@ -202,6 +237,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         registerWithPhantomCheck,
         checkPhantomPlayers,
+        updateUserProfile: handleUpdateUserProfile,
         logout, 
         resetPassword: handlePasswordReset,
         resendEmailVerification: handleResendEmailVerification,

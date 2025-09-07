@@ -101,43 +101,65 @@ export async function createCircle(
 // Get all circles a user is a member of
 export async function getUserCircles(userId: string): Promise<Circle[]> {
   try {
+    logger.info(`[getUserCircles] Starting query for user ${userId}`);
+    
     // Get user's memberships
+    logger.info(`[getUserCircles] Querying circleMemberships collection for userId: ${userId}`);
     const membershipsQuery = query(
       collection(db, 'circleMemberships'),
       where('userId', '==', userId)
     );
+    
     const membershipsSnapshot = await getDocs(membershipsQuery);
+    logger.info(`[getUserCircles] Found ${membershipsSnapshot.size} memberships for user ${userId}`);
     
     if (membershipsSnapshot.empty) {
+      logger.warn(`[getUserCircles] No memberships found for user ${userId}, returning empty array`);
       return [];
     }
     
     // Get circle IDs
-    const circleIds = membershipsSnapshot.docs.map(doc => doc.data().circleId);
+    const circleIds = membershipsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      logger.info(`[getUserCircles] Membership document: ${doc.id}, circleId: ${data.circleId}, joinedAt: ${data.joinedAt}`);
+      return data.circleId;
+    });
+    logger.info(`[getUserCircles] Circle IDs to fetch:`, circleIds);
     
     // Get circles
     const circles: Circle[] = [];
     for (const circleId of circleIds) {
-      const circleDoc = await getDoc(doc(db, 'circles', circleId));
-      if (circleDoc.exists()) {
-        const circleData = circleDoc.data();
-        circles.push({
-          id: circleDoc.id,
-          name: circleData.name,
-          description: circleData.description,
-          createdBy: circleData.createdBy,
-          createdAt: circleData.createdAt?.toDate?.()?.toISOString() || circleData.createdAt,
-          updatedAt: circleData.updatedAt?.toDate?.()?.toISOString() || circleData.updatedAt,
-          isPrivate: circleData.isPrivate,
-          memberCount: circleData.memberCount || 0,
-          settings: circleData.settings
-        });
+      logger.info(`[getUserCircles] Fetching circle details for circleId: ${circleId}`);
+      try {
+        const circleDoc = await getDoc(doc(db, 'circles', circleId));
+        if (circleDoc.exists()) {
+          const circleData = circleDoc.data();
+          logger.info(`[getUserCircles] Circle found: ${circleData.name} (${circleId})`);
+          circles.push({
+            id: circleDoc.id,
+            name: circleData.name,
+            description: circleData.description,
+            createdBy: circleData.createdBy,
+            createdAt: circleData.createdAt?.toDate?.()?.toISOString() || circleData.createdAt,
+            updatedAt: circleData.updatedAt?.toDate?.()?.toISOString() || circleData.updatedAt,
+            isPrivate: circleData.isPrivate,
+            memberCount: circleData.memberCount || 0,
+            settings: circleData.settings
+          });
+        } else {
+          logger.warn(`[getUserCircles] Circle document ${circleId} does not exist`);
+        }
+      } catch (circleError) {
+        logger.error(`[getUserCircles] Error fetching circle ${circleId}:`, circleError);
       }
     }
     
-    return circles.sort((a, b) => a.name.localeCompare(b.name));
+    const sortedCircles = circles.sort((a, b) => a.name.localeCompare(b.name));
+    logger.info(`[getUserCircles] Returning ${sortedCircles.length} circles for user ${userId}:`, sortedCircles.map(c => ({id: c.id, name: c.name})));
+    
+    return sortedCircles;
   } catch (error) {
-    logger.error('Failed to get user circles:', error);
+    logger.error(`[getUserCircles] Failed to get user circles for ${userId}:`, error);
     return [];
   }
 }
@@ -329,8 +351,7 @@ export async function getCircleMembers(circleId: string): Promise<{
   try {
     const membershipsQuery = query(
       collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId),
-      orderBy('joinedAt', 'asc')
+      where('circleId', '==', circleId)
     );
     const membershipsSnapshot = await getDocs(membershipsQuery);
     
@@ -350,10 +371,11 @@ export async function getCircleMembers(circleId: string): Promise<{
       userIds.push(data.userId);
     });
     
-    // Get user details (assuming we have a users collection)
+    // Get user details (check both users and players collections)
     const users: User[] = [];
     for (const userId of userIds) {
       try {
+        // First try to get from users collection
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
           const userData = userDoc.data();
@@ -366,9 +388,26 @@ export async function getCircleMembers(circleId: string): Promise<{
             createdAt: userData.createdAt?.toDate?.()?.toISOString() || userData.createdAt,
             updatedAt: userData.updatedAt?.toDate?.()?.toISOString() || userData.updatedAt
           });
+        } else {
+          // If not found in users, try players collection (for phantom players)
+          const playerDoc = await getDoc(doc(db, 'players', userId));
+          if (playerDoc.exists()) {
+            const playerData = playerDoc.data();
+            users.push({
+              id: playerDoc.id,
+              name: playerData.name,
+              email: playerData.email || '',
+              role: 'phantom' as any, // Mark as phantom
+              avatar: playerData.avatar || '',
+              createdAt: playerData.createdAt?.toDate?.()?.toISOString() || playerData.createdAt,
+              updatedAt: new Date().toISOString(), // Use current time as updatedAt
+              location: playerData.location,
+              gender: playerData.gender
+            });
+          }
         }
       } catch (error) {
-        logger.warn(`Failed to get user details for ${userId}:`, error);
+        logger.warn(`Failed to get user/player details for ${userId}:`, error);
       }
     }
     
@@ -541,5 +580,78 @@ export async function deleteAllUserCircles(
       deletedCount: 0,
       message: `Failed to delete circles: ${error}`
     };
+  }
+}
+
+// Check if user can invite others to circle
+export async function canUserInviteToCircle(circleId: string, userId: string): Promise<boolean> {
+  try {
+    logger.info(`Checking if user ${userId} can invite to circle ${circleId}`);
+    
+    // Get the circle to check its settings
+    const circle = await getCircle(circleId);
+    if (!circle) {
+      return false;
+    }
+    
+    // Check if user is a member of the circle
+    const isMember = await isCircleMember(circleId, userId);
+    if (!isMember) {
+      return false;
+    }
+    
+    // Check if user is admin (admins can always invite)
+    const isAdmin = await isCircleAdmin(circleId, userId);
+    if (isAdmin) {
+      return true;
+    }
+    
+    // Check circle settings - if allowMemberInvites is true, any member can invite
+    // Default to true if not specified for backwards compatibility
+    const allowMemberInvites = circle.settings?.allowMemberInvites ?? true;
+    
+    return allowMemberInvites;
+  } catch (error) {
+    logger.error('Error checking user invite permission:', error);
+    return false;
+  }
+}
+
+// Add user to circle
+export async function addUserToCircle(
+  circleId: string, 
+  userId: string, 
+  role: 'admin' | 'member' = 'member',
+  addedBy?: string
+): Promise<boolean> {
+  try {
+    logger.info(`Adding user ${userId} to circle ${circleId} as ${role}`);
+    
+    // Check if user is already a member
+    const isAlreadyMember = await isCircleMember(circleId, userId);
+    if (isAlreadyMember) {
+      logger.info(`User ${userId} is already a member of circle ${circleId}`);
+      return true; // Not an error, just already exists
+    }
+    
+    // Create membership document
+    const membershipData = {
+      circleId,
+      userId,
+      role,
+      joinedAt: serverTimestamp(),
+      addedBy: addedBy || null
+    };
+    
+    await addDoc(collection(db, 'circleMemberships'), membershipData);
+    
+    // Update circle member count
+    await updateCircleMemberCount(circleId);
+    
+    logger.info(`Successfully added user ${userId} to circle ${circleId}`);
+    return true;
+  } catch (error) {
+    logger.error('Error adding user to circle:', error);
+    return false;
   }
 }

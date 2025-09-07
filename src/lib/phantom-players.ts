@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
+import { addPlayerToCircle } from './admin-circle-management';
 import { db } from './firebase';
 import { logger } from './logger';
 import { DEFAULT_RATING, DEFAULT_AVATAR_URL } from './constants';
@@ -78,12 +79,26 @@ export async function createPhantomPlayer(
       createdBy: playerData.createdBy,
       createdAt: new Date().toISOString(),
       ...(playerData.email && { email: playerData.email.toLowerCase().trim() }),
+      ...(playerData.circleId && { circleId: playerData.circleId }),
       // claimedByUserId and claimedAt remain undefined until claimed
     };
 
     const docRef = await addDoc(collection(db, 'players'), newPhantomPlayer);
     
-    logger.info(`Phantom player created successfully: ${docRef.id}`);
+    logger.info(`Phantom player created successfully: ${docRef.id}${playerData.circleId ? ` in circle ${playerData.circleId}` : ''}`);
+    
+    // If created with a circle context, add to circle membership
+    if (playerData.circleId) {
+      logger.info(`Adding phantom player ${docRef.id} to circle ${playerData.circleId}`);
+      const membershipResult = await addPlayerToCircle(docRef.id, playerData.circleId, playerData.createdBy);
+      
+      if (!membershipResult.success) {
+        logger.warn(`Failed to add phantom player to circle membership: ${membershipResult.message}`);
+        // Don't fail the whole operation - phantom player is still created with circleId
+      } else {
+        logger.info(`Successfully added phantom player to circle membership`);
+      }
+    }
     
     // Log audit event
     await logPhantomPlayerCreated(

@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { AuthWrapper } from '@/components/auth-wrapper';
-import { usePlayers } from '@/hooks/use-players';
+import { usePlayersInCircles } from '@/hooks/use-players';
 
 function CreateTournamentContent() {
-  const { data: players, isLoading, error } = usePlayers();
+  const { data: players, isLoading, error } = usePlayersInCircles();
 
   if (isLoading) {
     return (

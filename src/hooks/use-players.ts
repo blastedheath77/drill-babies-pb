@@ -14,18 +14,42 @@ export const playerKeys = {
   detail: (id: string) => [...playerKeys.details(), id] as const,
 };
 
-// Circle-aware hook to get players with caching
-export function usePlayers() {
+// Hook to get players with optional circle filtering
+export function usePlayers(circleId?: string | null) {
+  const { selectedCircleId, availableCircles } = useCircles();
+  
+  // Use provided circleId or fall back to context, but default to showing ALL players
+  const effectiveCircleId = circleId !== undefined ? circleId : 
+    (selectedCircleId === 'all' ? null : selectedCircleId);
+  
+  return useQuery({
+    queryKey: playerKeys.list(effectiveCircleId),
+    queryFn: () => getPlayers(effectiveCircleId),
+    staleTime: 10 * 1000, // Players list stays fresh for 10 seconds
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Always refetch when component mounts
+  });
+}
+
+// Circle-aware hook that respects circle filtering (for pages that need it)
+export function usePlayersInCircles() {
   const { selectedCircleId, availableCircles } = useCircles();
   
   // Determine query parameters based on circle context
   const getQueryParams = () => {
+    console.log(`[usePlayersInCircles] 🔍 DEBUGGING CIRCLE CONTEXT:`);
+    console.log(`[usePlayersInCircles] - selectedCircleId: ${selectedCircleId}`);
+    console.log(`[usePlayersInCircles] - availableCircles:`, availableCircles);
+    console.log(`[usePlayersInCircles] - availableCircles.length: ${availableCircles.length}`);
+    
     if (selectedCircleId === 'all') {
       // For "All Circles" mode, get players from user's circles
       const userCircleIds = availableCircles.map(circle => circle.id);
+      console.log(`[usePlayersInCircles] ✅ Mode: userCircles, circleIds:`, userCircleIds);
       return { mode: 'userCircles', circleIds: userCircleIds };
     } else {
       // For specific circle, get players for that circle
+      console.log(`[usePlayersInCircles] ✅ Mode: circle, circleId: ${selectedCircleId}`);
       return { mode: 'circle', circleId: selectedCircleId };
     }
   };
@@ -36,16 +60,48 @@ export function usePlayers() {
     queryKey: mode === 'userCircles' 
       ? playerKeys.userCircles(circleIds || [])
       : playerKeys.list(circleId),
-    queryFn: () => {
-      if (mode === 'userCircles' && circleIds) {
-        return getPlayersInUserCircles(circleIds);
-      } else {
-        return getPlayers(circleId);
+    queryFn: async ({ queryKey }) => {
+      try {
+        // Extract parameters from closure, not from React Query parameters
+        const currentMode = mode;
+        const currentCircleId = circleId;
+        const currentCircleIds = circleIds;
+        
+        console.log(`[usePlayersInCircles] QueryFn called - mode: ${currentMode}, circleId: ${currentCircleId}, circleIds:`, currentCircleIds);
+        
+        if (currentMode === 'userCircles' && currentCircleIds) {
+          const result = await getPlayersInUserCircles(currentCircleIds);
+          console.log(`[usePlayersInCircles] Retrieved ${result.length} players for circles:`, currentCircleIds);
+          return result;
+        } else if (currentMode === 'circle' && currentCircleId) {
+          const result = await getPlayers(currentCircleId);
+          console.log(`[usePlayersInCircles] Retrieved ${result.length} players for circle:`, currentCircleId);
+          return result;
+        } else {
+          // Fallback: get all players when no valid circle context
+          console.log(`[usePlayersInCircles] No valid circle context, getting all players`);
+          const result = await getPlayers();
+          return result;
+        }
+      } catch (error) {
+        console.error('[usePlayersInCircles] Query failed:', error);
+        // Return empty array instead of throwing to prevent UI crashes
+        return [];
       }
     },
-    staleTime: 10 * 1000, // Players list stays fresh for 10 seconds (shorter for consistency)
+    staleTime: 10 * 1000, // Players list stays fresh for 10 seconds
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: true, // Always refetch when component mounts
+    retry: (failureCount, error) => {
+      // Retry up to 2 times for network errors, but not for Firebase index errors
+      if (failureCount >= 2) return false;
+      if (error && error.toString().includes('requires an index')) {
+        console.warn('[usePlayersInCircles] Firebase index missing, not retrying');
+        return false;
+      }
+      return true;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 }
 
@@ -81,9 +137,19 @@ export function useInvalidatePlayers() {
     invalidateList: () => queryClient.invalidateQueries({ queryKey: playerKeys.lists() }),
     invalidatePlayer: (playerId: string) =>
       queryClient.invalidateQueries({ queryKey: playerKeys.detail(playerId) }),
+    // Invalidate circle-specific caches
+    invalidateCircle: (circleId: string) => 
+      queryClient.invalidateQueries({ queryKey: playerKeys.circle(circleId) }),
+    invalidateUserCircles: (circleIds: string[]) =>
+      queryClient.invalidateQueries({ queryKey: playerKeys.userCircles(circleIds) }),
     // Add refetch methods that return promises
     refetchAll: () => queryClient.refetchQueries({ queryKey: playerKeys.all }),
     refetchList: () => queryClient.refetchQueries({ queryKey: playerKeys.lists() }),
+    // Clear all circle-related caches (useful when circle membership changes)
+    clearCircleCaches: () => {
+      queryClient.removeQueries({ queryKey: playerKeys.lists() });
+      console.log('[useInvalidatePlayers] Cleared all circle-related player caches');
+    },
   };
 }
 

@@ -13,21 +13,30 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { usePlayers } from '@/hooks/use-players';
+import { usePlayersInCircles } from '@/hooks/use-players';
 import { useRecentGames } from '@/hooks/use-games';
 import { BarChart, Trophy, Users, Swords, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
+import { WelcomeScreen, useShowWelcomeScreen } from '@/components/welcome-screen';
+import { useCircles } from '@/contexts/circle-context';
 
 export default function Home() {
-  const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers();
+  const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayersInCircles();
   const { data: recentGames, isLoading: gamesLoading, error: gamesError } = useRecentGames(5);
+  const { shouldShowWelcome, isLoading: welcomeLoading } = useShowWelcomeScreen();
+  const { selectedCircleId, availableCircles } = useCircles();
 
   // Filter out players with no games played
   const players = allPlayers?.filter(player => (player.wins + player.losses) > 0) || [];
 
   const isLoading = playersLoading || gamesLoading;
   const hasError = playersError || gamesError;
+
+  // Show welcome screen for new users without circles
+  if (shouldShowWelcome) {
+    return <WelcomeScreen />;
+  }
 
   if (hasError) {
     return (
@@ -100,6 +109,23 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* All Circles Indicator */}
+      {selectedCircleId === 'all' && availableCircles.length > 1 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 text-blue-800">
+              <Users className="h-5 w-5" />
+              <span className="font-medium">
+                Viewing data from all {availableCircles.length} circles
+              </span>
+              <span className="text-sm text-blue-600">
+                ({players.length} active players across all circles)
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Enhanced Top Ranked Player Section */}
       <div className="w-full">
         {players.length > 0 ? (

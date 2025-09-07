@@ -24,8 +24,9 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import type { User, UserDocument, UserRole } from './auth-types';
+import type { User, UserDocument, UserRole, RegistrationData } from './auth-types';
 import { logger } from './logger';
+import { createConnectedPlayerForUser } from './user-player-connection';
 
 const USERS_COLLECTION = 'users';
 
@@ -34,7 +35,7 @@ const USERS_COLLECTION = 'users';
  */
 export async function createUserDocument(
   firebaseUser: FirebaseUser,
-  additionalData: { name: string; role?: UserRole }
+  additionalData: { name: string; role?: UserRole; location?: { city: string; country: string }; gender?: 'Male' | 'Female' | 'Other'; dateOfBirth?: string; duprId?: string; }
 ): Promise<User> {
   try {
     console.log('💾 Creating user document in Firestore for:', firebaseUser.uid);
@@ -48,6 +49,11 @@ export async function createUserDocument(
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
       ...(firebaseUser.photoURL && { avatar: firebaseUser.photoURL }), // Only include avatar if it exists
+      // New profile fields
+      ...(additionalData.location && { location: additionalData.location }),
+      ...(additionalData.gender && { gender: additionalData.gender }),
+      ...(additionalData.dateOfBirth && { dateOfBirth: additionalData.dateOfBirth }),
+      ...(additionalData.duprId && { duprId: additionalData.duprId }),
     };
 
     console.log('📝 Writing user document to Firestore...', userData);
@@ -63,6 +69,11 @@ export async function createUserDocument(
       role: additionalData.role || 'player',
       createdAt: new Date().toISOString(),
       ...(firebaseUser.photoURL && { avatar: firebaseUser.photoURL }), // Only include avatar if it exists
+      // New profile fields
+      ...(additionalData.location && { location: additionalData.location }),
+      ...(additionalData.gender && { gender: additionalData.gender }),
+      ...(additionalData.dateOfBirth && { dateOfBirth: additionalData.dateOfBirth }),
+      ...(additionalData.duprId && { duprId: additionalData.duprId }),
     };
     
     console.log('🎯 Returning user object:', user);
@@ -95,8 +106,15 @@ export async function getUserDocument(uid: string): Promise<User | null> {
       name: userData.name,
       role: userData.role,
       avatar: userData.avatar,
+      bio: userData.bio,
       createdAt: userData.createdAt.toDate().toISOString(),
       updatedAt: userData.updatedAt?.toDate().toISOString(),
+      // New profile fields
+      location: userData.location,
+      gender: userData.gender,
+      dateOfBirth: userData.dateOfBirth,
+      duprId: userData.duprId,
+      connectedPlayerId: userData.connectedPlayerId,
     };
   } catch (error) {
     logger.error('Error fetching user document', error);
@@ -109,7 +127,7 @@ export async function getUserDocument(uid: string): Promise<User | null> {
  */
 export async function updateUserDocument(
   uid: string,
-  updates: Partial<Pick<UserDocument, 'name' | 'avatar' | 'role'>>
+  updates: Partial<Pick<UserDocument, 'name' | 'avatar' | 'role' | 'location' | 'gender' | 'dateOfBirth' | 'duprId'>>
 ): Promise<boolean> {
   try {
     const userDoc = doc(db, USERS_COLLECTION, uid);
@@ -132,7 +150,8 @@ export async function registerUser(
   email: string,
   password: string,
   name: string,
-  role: UserRole = 'player'
+  role: UserRole = 'player',
+  profileData?: { location?: { city: string; country: string }; gender?: 'Male' | 'Female' | 'Other'; dateOfBirth?: string; duprId?: string; }
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     console.log('🔥 Starting user registration with Firebase Auth');
@@ -162,9 +181,36 @@ export async function registerUser(
 
     // Create user document in Firestore
     console.log('💾 Creating user document in Firestore...');
-    const user = await createUserDocument(firebaseUser, { name, role });
+    const user = await createUserDocument(firebaseUser, { 
+      name, 
+      role,
+      ...profileData
+    });
     console.log('✅ User document created successfully');
     logger.info('User document created successfully', { uid: firebaseUser.uid });
+
+    // Step 3: Create connected Player record for the new user
+    console.log('👤 Creating connected player for user...');
+    const playerResult = await createConnectedPlayerForUser(user);
+    
+    if (playerResult.success && playerResult.playerId) {
+      console.log('✅ Connected player created successfully:', playerResult.playerId);
+      logger.info('Connected player created for user', { 
+        userId: user.id, 
+        playerId: playerResult.playerId 
+      });
+      
+      // Update the user object with the connected player ID
+      user.connectedPlayerId = playerResult.playerId;
+    } else {
+      console.warn('⚠️ Failed to create connected player:', playerResult.error);
+      logger.warn('Failed to create connected player for user', { 
+        userId: user.id, 
+        error: playerResult.error 
+      });
+      // Don't fail the entire registration if player creation fails
+      // The user can still use the app, and we can create the player later
+    }
 
     return { success: true, user };
   } catch (error: any) {
@@ -380,6 +426,73 @@ export async function resendEmailVerification(): Promise<{ success: boolean; err
     return { 
       success: false, 
       error: getAuthErrorMessage(error.code) 
+    };
+  }
+}
+
+/**
+ * Updates user profile information
+ */
+export async function updateUserProfile(
+  uid: string,
+  updates: {
+    name?: string;
+    bio?: string;
+    location?: { city: string; country: string };
+    gender?: 'Male' | 'Female' | 'Other';
+    dateOfBirth?: string;
+    duprId?: string;
+    avatar?: string;
+  }
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    console.log('🔄 Updating user profile for:', uid, updates);
+    
+    // Get current user document
+    const currentUser = await getUserDocument(uid);
+    if (!currentUser) {
+      return { success: false, error: 'User not found' };
+    }
+
+    // Prepare the updates, including bio which is stored in the user document
+    const userDocUpdates: any = {
+      updatedAt: serverTimestamp(),
+    };
+
+    // Add fields that go to the user document
+    if (updates.name !== undefined) userDocUpdates.name = updates.name;
+    if (updates.location !== undefined) userDocUpdates.location = updates.location;
+    if (updates.gender !== undefined) userDocUpdates.gender = updates.gender;
+    if (updates.dateOfBirth !== undefined) userDocUpdates.dateOfBirth = updates.dateOfBirth;
+    if (updates.duprId !== undefined) userDocUpdates.duprId = updates.duprId;
+    if (updates.avatar !== undefined) userDocUpdates.avatar = updates.avatar;
+    
+    // Store bio in the user document as well
+    if (updates.bio !== undefined) userDocUpdates.bio = updates.bio;
+
+    // Update the user document in Firestore
+    const userDoc = doc(db, USERS_COLLECTION, uid);
+    await updateDoc(userDoc, userDocUpdates);
+    
+    // Get updated user document
+    const updatedUser = await getUserDocument(uid);
+    if (updatedUser) {
+      // Add bio from the update if it was provided (since getUserDocument might not return bio)
+      if (updates.bio !== undefined) {
+        (updatedUser as any).bio = updates.bio;
+      }
+    }
+    
+    console.log('✅ User profile updated successfully');
+    logger.info('User profile updated', { uid, updates });
+    
+    return { success: true, user: updatedUser || currentUser };
+  } catch (error: any) {
+    console.error('❌ User profile update error:', error);
+    logger.error('User profile update error', { errorCode: error.code, errorMessage: error.message, uid });
+    return { 
+      success: false, 
+      error: error.message || 'Failed to update profile'
     };
   }
 }

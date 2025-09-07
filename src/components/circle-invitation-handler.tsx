@@ -242,7 +242,13 @@ function CircleInvitationCard({
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-3 w-3" />
                   <span>
-                    Invited {formatDistanceToNow(parseISO(invitation.createdAt))} ago
+                    Invited {(() => {
+                      try {
+                        return formatDistanceToNow(parseISO(invitation.createdAt)) + ' ago';
+                      } catch (error) {
+                        return 'recently';
+                      }
+                    })()}
                   </span>
                 </div>
               </div>
@@ -310,7 +316,13 @@ function CircleInvitationCard({
                 <div className="flex items-center space-x-1">
                   <Clock className="h-3 w-3" />
                   <span>
-                    {formatDistanceToNow(parseISO(invitation.expiresAt))}
+                    {(() => {
+                      try {
+                        return formatDistanceToNow(parseISO(invitation.expiresAt));
+                      } catch (error) {
+                        return 'Soon';
+                      }
+                    })()}
                   </span>
                 </div>
               ) : (

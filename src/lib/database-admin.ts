@@ -117,6 +117,9 @@ export async function safeAddPlayer(playerData: {
   losses?: number;
   pointsFor?: number;
   pointsAgainst?: number;
+  createdBy?: string;
+  email?: string;
+  circleId?: string; // Circle context for phantom players
 }): Promise<{ success: boolean; playerId?: string; message: string }> {
   try {
     const normalizedName = playerData.name.toLowerCase().trim();
@@ -141,9 +144,10 @@ export async function safeAddPlayer(playerData: {
       pointsAgainst: playerData.pointsAgainst ?? 0,
       createdAt: serverTimestamp(),
       // Enhanced fields for phantom player support
-      isPhantom: false, // Regular players are not phantom players
-      createdBy: undefined,
-      email: undefined,
+      isPhantom: true, // All new players created by users are phantom (claimable)
+      createdBy: playerData.createdBy, // User who created this phantom player
+      email: playerData.email, // Optional email for invitations
+      circleId: playerData.circleId, // Circle context for organizing phantom players
       claimedByUserId: undefined,
       claimedAt: undefined,
     });

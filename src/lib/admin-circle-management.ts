@@ -6,6 +6,7 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
   query,
   where,
   serverTimestamp,
@@ -137,10 +138,16 @@ export async function addPlayerToCircle(
       invitedBy: adminUserId // Track that admin added them
     });
 
+    // ALSO update the player document with circleId for fast queries
+    const playerRef = doc(db, 'players', playerId);
+    await updateDoc(playerRef, {
+      circleId: circleId
+    });
+
     // Update circle member count
     await updateCircleMemberCount(circleId);
 
-    logger.info(`Player ${playerId} added to circle ${circleId} by admin`);
+    logger.info(`Player ${playerId} added to circle ${circleId} by admin (updated both membership and player.circleId)`);
     return {
       success: true,
       message: 'Player added to circle successfully'
@@ -182,10 +189,16 @@ export async function removePlayerFromCircle(
     const membershipDoc = membershipSnapshot.docs[0];
     await deleteDoc(membershipDoc.ref);
 
+    // ALSO remove the circleId from the player document
+    const playerRef = doc(db, 'players', playerId);
+    await updateDoc(playerRef, {
+      circleId: null
+    });
+
     // Update circle member count
     await updateCircleMemberCount(circleId);
 
-    logger.info(`Player ${playerId} removed from circle ${circleId} by admin`);
+    logger.info(`Player ${playerId} removed from circle ${circleId} by admin (removed both membership and player.circleId)`);
     return {
       success: true,
       message: 'Player removed from circle successfully'

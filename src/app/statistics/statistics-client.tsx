@@ -1,6 +1,6 @@
 'use client';
 
-import { usePlayers } from '@/hooks/use-players';
+import { usePlayersInCircles } from '@/hooks/use-players';
 import { useCircleFilter } from '@/contexts/circle-context';
 import { SortableStatisticsTable } from '@/components/sortable-statistics-table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ interface StatisticsClientProps {
 }
 
 export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
-  const { data: players, isLoading, error, isError } = usePlayers();
+  const { data: players, isLoading, error, isError } = usePlayersInCircles();
   const { isFilteringByCircle, circleName, filterLabel } = useCircleFilter();
 
   // Use React Query data if available, otherwise fall back to initial data

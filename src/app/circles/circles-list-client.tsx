@@ -152,9 +152,16 @@ export function CirclesListClient() {
             </Card>
           ) : (
             <>
-              {/* Delete All Circles Button - Only show if user has circles */}
+              {/* Action Buttons - Only show if user has circles */}
               {availableCircles.length > 0 && (
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-between items-center mb-4">
+                  <Link href="/circles/create">
+                    <Button variant="outline">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Another Circle
+                    </Button>
+                  </Link>
+                  
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button 

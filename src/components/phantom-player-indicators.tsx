@@ -48,7 +48,13 @@ export function PhantomPlayerBadge({
         icon: UserCheck,
         label: 'Claimed',
         color: 'bg-green-100 text-green-800 border-green-200',
-        tooltip: `This player was claimed ${player.claimedAt ? formatDistanceToNow(parseISO(player.claimedAt)) + ' ago' : 'recently'}`
+        tooltip: `This player was claimed ${player.claimedAt && typeof player.claimedAt === 'string' && player.claimedAt.trim() ? (() => {
+          try {
+            return formatDistanceToNow(parseISO(player.claimedAt)) + ' ago';
+          } catch (error) {
+            return 'recently';
+          }
+        })() : 'recently'}`
       };
     }
     
@@ -176,10 +182,16 @@ export function PhantomPlayerListItem({
           {player.claimStatus}
         </Badge>
         
-        {player.createdAt && (
+        {player.createdAt && typeof player.createdAt === 'string' && player.createdAt.trim() && (
           <div className="text-xs text-muted-foreground flex items-center space-x-1">
             <Calendar className="h-3 w-3" />
-            <span>Created {formatDistanceToNow(parseISO(player.createdAt))} ago</span>
+            <span>Created {(() => {
+              try {
+                return formatDistanceToNow(parseISO(player.createdAt)) + ' ago';
+              } catch (error) {
+                return 'recently';
+              }
+            })()}</span>
           </div>
         )}
 

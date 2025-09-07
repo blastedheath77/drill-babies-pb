@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, LogOut, LogIn } from 'lucide-react';
+import { Menu, LogOut, LogIn, Users, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
+import { useCircles } from '@/contexts/circle-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getUserPlayerProfile } from '@/lib/data';
 import { 
@@ -20,6 +21,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { NotificationCenter } from '@/components/notification-center';
 
 interface UnifiedNavigationProps {
   className?: string;
@@ -29,6 +32,7 @@ interface UnifiedNavigationProps {
 function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapsed?: boolean; onToggleCollapsed: () => void }) {
   const pathname = usePathname();
   const { user, isAdmin, logout, isLoading } = useAuth();
+  const { selectedCircleId, availableCircles, selectCircle } = useCircles();
   const [isClient, setIsClient] = React.useState(false);
   const [userPlayerId, setUserPlayerId] = React.useState<string | null>(null);
   const router = useRouter();
@@ -51,6 +55,11 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
   const actionItems = getNavItemsByCategory('action', user?.role);
   const specialItems = getNavItemsByCategory('special', user?.role);
   const adminItems = getNavItemsByCategory('admin', user?.role);
+
+  // Find current circle name
+  const currentCircle = selectedCircleId === 'all' 
+    ? { name: 'All Circles', description: 'Viewing data from all your circles' }
+    : availableCircles.find(c => c.id === selectedCircleId);
 
   const renderNavItem = (item: NavItem) => {
     const isActive = pathname === item.href;
@@ -107,6 +116,82 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
           <Menu className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Circle Selector */}
+      {user && availableCircles.length > 0 && (
+        <div className="border-b px-3 py-2">
+          {isCollapsed ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" className="w-full">
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="right">
+                      <DropdownMenuItem onClick={() => selectCircle('all')}>
+                        <Users className="h-4 w-4 mr-2" />
+                        All Circles
+                      </DropdownMenuItem>
+                      {availableCircles.map((circle) => (
+                        <DropdownMenuItem 
+                          key={circle.id} 
+                          onClick={() => selectCircle(circle.id)}
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          {circle.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{currentCircle?.name || 'Select Circle'}</p>
+                  <p className="text-xs opacity-70">Click to switch circles</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    <span className="truncate">{currentCircle?.name || 'Select Circle'}</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                <DropdownMenuItem 
+                  onClick={() => selectCircle('all')}
+                  className={selectedCircleId === 'all' ? 'bg-accent' : ''}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  All Circles
+                </DropdownMenuItem>
+                {availableCircles.map((circle) => (
+                  <DropdownMenuItem 
+                    key={circle.id} 
+                    onClick={() => selectCircle(circle.id)}
+                    className={selectedCircleId === circle.id ? 'bg-accent' : ''}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{circle.name}</div>
+                      {circle.description && (
+                        <div className="text-xs text-muted-foreground truncate">{circle.description}</div>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      )}
 
       {/* Main Navigation */}
       <div className="flex-1 overflow-y-auto p-2 space-y-4">
@@ -172,42 +257,65 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
             <div className="space-y-2">
               {/* User Info - Collapsed shows avatar only */}
               {isCollapsed ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {userPlayerId ? (
-                        <Link href={`/players/${userPlayerId}`} className="flex justify-center">
-                          <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all cursor-pointer">
-                            <AvatarImage
-                              src={user?.avatar || 'https://placehold.co/100x100.png'}
-                              alt={user?.name || 'User'}
-                            />
-                            <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                        </Link>
-                      ) : (
-                        <div className="flex justify-center">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={user?.avatar || 'https://placehold.co/100x100.png'}
-                              alt={user?.name || 'User'}
-                            />
-                            <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                        </div>
-                      )}
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{user?.name || 'User'}</p>
-                      <p className="text-xs opacity-70">{user?.role === 'admin' ? 'Administrator' : 'Player'}</p>
-                      {userPlayerId && <p className="text-xs opacity-70">Click to view profile</p>}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="space-y-1">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {userPlayerId ? (
+                          <Link href={`/players/${userPlayerId}`} className="flex justify-center">
+                            <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all cursor-pointer">
+                              <AvatarImage
+                                src={user?.avatar || 'https://placehold.co/100x100.png'}
+                                alt={user?.name || 'User'}
+                              />
+                              <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                          </Link>
+                        ) : (
+                          <div className="flex justify-center">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage
+                                src={user?.avatar || 'https://placehold.co/100x100.png'}
+                                alt={user?.name || 'User'}
+                              />
+                              <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                          </div>
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{user?.name || 'User'}</p>
+                        <p className="text-xs opacity-70">{user?.role === 'admin' ? 'Administrator' : 'Player'}</p>
+                        {userPlayerId && <p className="text-xs opacity-70">Click to view profile</p>}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {/* Profile Settings Button - Collapsed */}
+                  <div className="flex justify-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link href="/profile">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>Profile Settings</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
               ) : (
-                userPlayerId ? (
-                  <Link href={`/players/${userPlayerId}`} className="block">
-                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer">
+                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                  {userPlayerId ? (
+                    <Link href={`/players/${userPlayerId}`} className="flex items-center gap-2 flex-1 hover:opacity-80 transition-opacity">
                       <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={user?.avatar || 'https://placehold.co/100x100.png'}
@@ -215,32 +323,51 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
                         />
                         <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-sm min-w-0">
                         <p className="font-semibold truncate hover:text-primary">{user?.name || 'User'}</p>
                         <p className="text-xs text-muted-foreground">
                           {user?.role === 'admin' ? 'Administrator' : 'Player'}
                         </p>
                       </div>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={user?.avatar || 'https://placehold.co/100x100.png'}
+                          alt={user?.name || 'User'}
+                        />
+                        <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-sm min-w-0">
+                        <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                        </p>
+                      </div>
                     </div>
+                  )}
+                  {/* Profile Settings Button */}
+                  <Link href="/profile">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 hover:bg-muted/70"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                   </Link>
-                ) : (
-                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={user?.avatar || 'https://placehold.co/100x100.png'}
-                        alt={user?.name || 'User'}
-                      />
-                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 text-sm">
-                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                      </p>
-                    </div>
-                  </div>
-                )
+                </div>
               )}
+              
+              {/* Notification Center */}
+              <div className="flex justify-center">
+                <NotificationCenter 
+                  className={isCollapsed ? "w-8" : "w-full"} 
+                  showBadge={true}
+                  variant="dropdown"
+                />
+              </div>
               
               {/* Logout Button */}
               <TooltipProvider>
@@ -395,6 +522,7 @@ function MobileBottomNav() {
 function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
   const { user, isAdmin, logout, isLoading } = useAuth();
+  const { selectedCircleId, availableCircles, selectCircle } = useCircles();
   const [isClient, setIsClient] = React.useState(false);
   const [userPlayerId, setUserPlayerId] = React.useState<string | null>(null);
   const router = useRouter();
@@ -423,6 +551,11 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
   const regularMenuItems = allMenuItems.filter(item => item.category !== 'admin');
   const adminMenuItems = allMenuItems.filter(item => item.category === 'admin');
 
+  // Find current circle name
+  const currentCircle = selectedCircleId === 'all' 
+    ? { name: 'All Circles', description: 'Viewing data from all your circles' }
+    : availableCircles.find(c => c.id === selectedCircleId);
+
   return (
     <div className="flex flex-col h-full py-6">
       {/* Header */}
@@ -432,6 +565,50 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
           Menu
         </SheetTitle>
       </SheetHeader>
+
+      {/* Circle Selector */}
+      {user && availableCircles.length > 0 && (
+        <div className="mt-4 px-3">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Current Circle
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  <span className="truncate">{currentCircle?.name || 'Select Circle'}</span>
+                </div>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              <DropdownMenuItem 
+                onClick={() => selectCircle('all')}
+                className={selectedCircleId === 'all' ? 'bg-accent' : ''}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                All Circles
+              </DropdownMenuItem>
+              {availableCircles.map((circle) => (
+                <DropdownMenuItem 
+                  key={circle.id} 
+                  onClick={() => selectCircle(circle.id)}
+                  className={selectedCircleId === circle.id ? 'bg-accent' : ''}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{circle.name}</div>
+                    {circle.description && (
+                      <div className="text-xs text-muted-foreground truncate">{circle.description}</div>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       
       {/* Navigation Items */}
       <div className="flex-1 mt-6 overflow-auto">
@@ -503,9 +680,9 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
             user ? (
               <div className="space-y-2">
                 {/* User Info Card */}
-                {userPlayerId ? (
-                  <Link href={`/players/${userPlayerId}`} className="block" onClick={onClose}>
-                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer">
+                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                  {userPlayerId ? (
+                    <Link href={`/players/${userPlayerId}`} className="flex items-center gap-2 flex-1 hover:opacity-80 transition-opacity" onClick={onClose}>
                       <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={user?.avatar || 'https://placehold.co/100x100.png'}
@@ -513,31 +690,48 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
                         />
                         <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-sm min-w-0">
                         <p className="font-semibold truncate hover:text-primary">{user?.name || 'User'}</p>
                         <p className="text-xs text-muted-foreground">
                           {user?.role === 'admin' ? 'Administrator' : 'Player'}
                         </p>
                       </div>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={user?.avatar || 'https://placehold.co/100x100.png'}
+                          alt={user?.name || 'User'}
+                        />
+                        <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-sm min-w-0">
+                        <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                        </p>
+                      </div>
                     </div>
+                  )}
+                  {/* Profile Settings Button */}
+                  <Link href="/profile" onClick={onClose}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 hover:bg-muted/70"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                   </Link>
-                ) : (
-                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={user?.avatar || 'https://placehold.co/100x100.png'}
-                        alt={user?.name || 'User'}
-                      />
-                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 text-sm">
-                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                </div>
+                
+                {/* Notification Center */}
+                <NotificationCenter 
+                  className="w-full" 
+                  showBadge={true}
+                  variant="dropdown"
+                />
                 
                 {/* Logout Button */}
                 <Button 

@@ -12,7 +12,8 @@ import {
   UserPlus, 
   ArrowLeft,
   Trash2,
-  Edit
+  Edit,
+  Ghost
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useCircles } from '@/contexts/circle-context';
@@ -43,7 +44,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { InviteMemberDialogTemp } from '@/components/invite-member-dialog';
+import { InviteMemberDialog } from '@/components/invite-member-dialog';
+import { BulkInviteMemberDialog } from '@/components/bulk-invite-member-dialog';
 import type { Circle, CircleMembership, CircleInvite, User } from '@/lib/types';
 
 interface CircleManagementClientProps {
@@ -342,11 +344,18 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Circle Members</h3>
             {userIsAdmin && (
-              <InviteMemberDialogTemp
-                circleId={circle.id}
-                circleName={circle.name}
-                onInviteSent={loadCircleData}
-              />
+              <div className="flex gap-2">
+                <InviteMemberDialog
+                  circleId={circle.id}
+                  circleName={circle.name}
+                  onInviteSent={loadCircleData}
+                />
+                <BulkInviteMemberDialog
+                  circleId={circle.id}
+                  circleName={circle.name}
+                  onInvitesSent={loadCircleData}
+                />
+              </div>
             )}
           </div>
 
@@ -370,6 +379,12 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {member.role === 'phantom' && (
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Ghost className="h-3 w-3" />
+                          Phantom
+                        </Badge>
+                      )}
                       <Badge variant={membership.role === 'admin' ? 'default' : 'secondary'}>
                         {membership.role === 'admin' ? (
                           <>
@@ -377,7 +392,7 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
                             Admin
                           </>
                         ) : (
-                          'Member'
+                          member.role === 'phantom' ? 'Player' : 'Member'
                         )}
                       </Badge>
                       {userIsAdmin && membership.userId !== user?.id && (
@@ -397,16 +412,23 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
           <TabsContent value="invitations" className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">Pending Invitations</h3>
-              <InviteMemberDialogTemp
-                circleId={circle.id}
-                circleName={circle.name}
-                onInviteSent={loadCircleData}
-              >
-                <Button size="sm">
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Send Invitation
-                </Button>
-              </InviteMemberDialogTemp>
+              <div className="flex gap-2">
+                <InviteMemberDialog
+                  circleId={circle.id}
+                  circleName={circle.name}
+                  onInviteSent={loadCircleData}
+                >
+                  <Button size="sm">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Send Invitation
+                  </Button>
+                </InviteMemberDialog>
+                <BulkInviteMemberDialog
+                  circleId={circle.id}
+                  circleName={circle.name}
+                  onInvitesSent={loadCircleData}
+                />
+              </div>
             </div>
 
             {invites.length === 0 ? (

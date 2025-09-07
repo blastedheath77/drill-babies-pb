@@ -23,29 +23,67 @@ export function useAllGames() {
     if (selectedCircleId === 'all') {
       // For "All Circles" mode, get games from user's circles
       const userCircleIds = availableCircles.map(circle => circle.id);
+      console.log('[useAllGames] All Circles mode - userCircleIds:', userCircleIds);
       return { mode: 'userCircles', circleIds: userCircleIds };
     } else {
       // For specific circle, get games for that circle
+      console.log('[useAllGames] Specific circle mode - circleId:', selectedCircleId);
       return { mode: 'circle', circleId: selectedCircleId };
     }
   };
   
   const { mode, circleId, circleIds } = getQueryParams();
   
+  // Debug logging
+  console.log('[useAllGames] Query parameters:', { 
+    mode, 
+    circleId, 
+    circleIds, 
+    selectedCircleId,
+    availableCirclesCount: availableCircles.length 
+  });
+  
   return useQuery({
     queryKey: mode === 'userCircles' 
       ? gameKeys.userCircles(circleIds || [])
       : gameKeys.allGames(circleId),
-    queryFn: () => {
+    queryFn: async () => {
+      console.log('[useAllGames] Executing query function with:', { mode, circleId, circleIds });
+      
+      let result;
       if (mode === 'userCircles' && circleIds) {
-        return getGamesForUserCircles(circleIds);
+        console.log('[useAllGames] Calling getGamesForUserCircles with:', circleIds);
+        result = await getGamesForUserCircles(circleIds);
       } else {
-        return getAllGames(circleId);
+        console.log('[useAllGames] Calling getAllGames with circleId:', circleId);
+        result = await getAllGames(circleId);
       }
+      
+      console.log('[useAllGames] Query result:', {
+        gameCount: result.length,
+        firstGame: result[0] ? {
+          id: result[0].id,
+          date: result[0].date,
+          circleId: result[0].circleId || 'NO_CIRCLE_ID',
+          type: result[0].type
+        } : 'NO_GAMES'
+      });
+      
+      return result;
     },
-    staleTime: 5 * 60 * 1000, // All games stay fresh for 5 minutes
+    staleTime: 2 * 60 * 1000, // Reduced for debugging - games stay fresh for 2 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+    onError: (error) => {
+      console.error('[useAllGames] Query error:', error);
+    },
+    onSuccess: (data) => {
+      console.log('[useAllGames] Query success:', {
+        gameCount: data.length,
+        hasCircleId: data.filter(g => g.circleId).length,
+        noCircleId: data.filter(g => !g.circleId).length
+      });
+    }
   });
 }
 
@@ -95,6 +133,12 @@ export function useInvalidateGames() {
     // Add refetch methods that return promises
     refetchAll: () => queryClient.refetchQueries({ queryKey: gameKeys.all }),
     refetchAllGames: () => queryClient.refetchQueries({ queryKey: gameKeys.allGames() }),
+    // Force clear all game-related cache and refetch
+    clearAndRefetch: () => {
+      console.log('[useInvalidateGames] Clearing all game caches and forcing refetch');
+      queryClient.removeQueries({ queryKey: gameKeys.all });
+      return queryClient.refetchQueries({ queryKey: gameKeys.all });
+    },
   };
 }
 

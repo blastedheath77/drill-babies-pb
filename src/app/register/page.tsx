@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Icons } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
 import { CompleteOnboardingFlow } from '@/components/complete-onboarding-flow';
@@ -23,6 +24,12 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirmPassword: '',
+    // New profile fields
+    city: '',
+    country: '',
+    gender: '' as 'Male' | 'Female' | 'Other' | '',
+    dateOfBirth: '',
+    duprId: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -61,10 +68,33 @@ export default function RegisterPage() {
     try {
       console.log('Attempting enhanced registration with:', { 
         email: formData.email, 
-        name: formData.name.trim() 
+        name: formData.name.trim(),
+        hasLocation: !!(formData.city && formData.country),
+        hasGender: !!formData.gender,
+        hasDateOfBirth: !!formData.dateOfBirth,
+        hasDuprId: !!formData.duprId
       });
       
-      const result = await registerWithPhantomCheck(formData.email, formData.password, formData.name.trim());
+      // Prepare registration data with new profile fields
+      const registrationData = {
+        email: formData.email,
+        password: formData.password,
+        name: formData.name.trim(),
+        location: (formData.city && formData.country) ? {
+          city: formData.city.trim(),
+          country: formData.country.trim()
+        } : undefined,
+        gender: formData.gender || undefined,
+        dateOfBirth: formData.dateOfBirth || undefined,
+        duprId: formData.duprId.trim() || undefined,
+      };
+      
+      const result = await registerWithPhantomCheck(
+        registrationData.email, 
+        registrationData.password, 
+        registrationData.name,
+        registrationData
+      );
       
       console.log('🎯 Enhanced registration result:', { 
         success: result.success, 
@@ -124,6 +154,10 @@ export default function RegisterPage() {
 
   const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleGenderChange = (value: string) => {
+    setFormData(prev => ({ ...prev, gender: value as 'Male' | 'Female' | 'Other' }));
   };
 
   const handleOnboardingComplete = async (selectedPlayers: string[], acceptedInvitations: string[], declinedInvitations: string[]) => {
@@ -288,6 +322,88 @@ export default function RegisterPage() {
                 placeholder="Confirm your password"
                 minLength={6}
               />
+            </div>
+
+            {/* Profile Information Section */}
+            <div className="pt-4">
+              <div className="mb-4">
+                <h3 className="text-lg font-medium">Profile Information</h3>
+                <p className="text-sm text-muted-foreground">Optional details to help connect with other players</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    type="text"
+                    value={formData.city}
+                    onChange={handleInputChange('city')}
+                    disabled={isLoading}
+                    placeholder="e.g., San Francisco"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    type="text"
+                    value={formData.country}
+                    onChange={handleInputChange('country')}
+                    disabled={isLoading}
+                    placeholder="e.g., United States"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select 
+                    value={formData.gender} 
+                    onValueChange={handleGenderChange}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange('dateOfBirth')}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="duprId">DUPR ID (Optional)</Label>
+                  <Input
+                    id="duprId"
+                    type="text"
+                    value={formData.duprId}
+                    onChange={handleInputChange('duprId')}
+                    disabled={isLoading}
+                    placeholder="e.g., 12345678"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your DUPR (Dynamic Universal Pickleball Rating) ID if you have one
+                  </p>
+                </div>
+              </div>
             </div>
 
             {error && (

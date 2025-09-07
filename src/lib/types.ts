@@ -1,3 +1,6 @@
+// Re-export User types for consistency
+export type { User, UserRole, UserDocument, RegistrationData } from './auth-types';
+
 export interface Player {
   id: string;
   name: string;
@@ -12,6 +15,7 @@ export interface Player {
   email?: string;            // Email for phantom players (enables claiming)
   isPhantom?: boolean;       // True for phantom players, false for claimed/direct players
   createdBy?: string;        // User ID who created this phantom player
+  circleId?: string;         // Circle context for organizing phantom players
   createdAt?: string;        // When phantom player was created
   claimedAt?: string;        // When player was claimed by user
 }
@@ -157,6 +161,7 @@ export interface PhantomPlayerCreationData {
   email?: string;          // Optional - makes player claimable if provided
   avatar?: string;
   createdBy: string;       // User ID who created this phantom player
+  circleId?: string;       // Optional - assigns player to circle upon creation
 }
 
 export interface PlayerClaimRequest {
@@ -214,5 +219,60 @@ export interface CircleInvitationResponse {
   success: boolean;
   message: string;
   inviteId?: string;
-  inviteType?: 'user' | 'email';
+  inviteType?: 'user' | 'email' | 'phantom_instant';
+}
+
+// Notification System Types
+export type NotificationType = 
+  | 'circle_invite'
+  | 'circle_invite_accepted' 
+  | 'circle_invite_declined'
+  | 'game_result'
+  | 'rating_change'
+  | 'tournament_update'
+  | 'system_announcement'
+  | 'profile_update';
+
+export interface UserNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data?: Record<string, any>; // Additional data specific to notification type
+  read: boolean;
+  createdAt: string;
+  expiresAt?: string; // Optional expiry date
+  actionUrl?: string; // Optional URL to navigate to
+  actions?: NotificationAction[]; // Available actions (accept, decline, etc.)
+}
+
+export interface NotificationAction {
+  id: string;
+  label: string;
+  type: 'primary' | 'secondary' | 'destructive';
+  action: string; // Action identifier (e.g., 'accept_invite', 'decline_invite')
+  data?: Record<string, any>; // Additional data for the action
+}
+
+export interface NotificationPreferences {
+  userId: string;
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  circleInvites: boolean;
+  gameResults: boolean;
+  ratingChanges: boolean;
+  systemAnnouncements: boolean;
+  updatedAt: string;
+}
+
+export interface CreateNotificationRequest {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  expiresAt?: string;
+  actionUrl?: string;
+  actions?: NotificationAction[];
 }

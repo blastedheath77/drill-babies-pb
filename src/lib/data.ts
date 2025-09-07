@@ -31,8 +31,10 @@ import { logger } from './logger';
 
 export async function getPlayers(circleId?: string | null): Promise<Player[]> {
   try {
+    logger.info(`[getPlayers] Called with circleId: ${circleId}`);
     if (circleId) {
-      // Get players who are members of the specific circle
+      // Get players who are members of the specific circle AND phantom players created in this circle
+      logger.info(`[getPlayers] Delegating to getPlayersInCircle for circleId: ${circleId}`);
       return await getPlayersInCircle(circleId);
     }
     
@@ -53,8 +55,8 @@ export async function getPlayers(circleId?: string | null): Promise<Player[]> {
     // Clean data to remove Firestore-specific objects that cause hydration issues
     return snapshot.docs.map((doc) => {
       const data = doc.data();
-      // Remove problematic fields like createdAt that have toJSON methods
-      const { createdAt, nameLower, ...cleanData } = data;
+      // Remove problematic fields that have toJSON methods or cause serialization issues
+      const { createdAt, updatedAt, nameLower, ...cleanData } = data;
       return { id: doc.id, ...cleanData } as Player;
     });
   } catch (error) {
@@ -72,54 +74,145 @@ export async function getPlayers(circleId?: string | null): Promise<Player[]> {
 }
 
 /**
- * Get players who are members of a specific circle
+ * Get players who are members of a specific circle AND phantom players created in this circle
+ * Uses a robust triple-query approach to handle potential inconsistencies between
+ * circleMemberships collection and player.circleId fields
  */
 export async function getPlayersInCircle(circleId: string): Promise<Player[]> {
   try {
-    // First get all memberships for this circle
-    const membershipsQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId)
-    );
-    const membershipsSnapshot = await getDocs(membershipsQuery);
-    
-    if (membershipsSnapshot.empty) {
-      return [];
-    }
-    
-    // Extract player IDs from memberships
-    const playerIds = membershipsSnapshot.docs.map(doc => doc.data().userId);
-    
-    if (playerIds.length === 0) {
-      return [];
-    }
-    
-    // Get players in batches (Firebase 'in' limit is 10)
+    logger.info(`[getPlayersInCircle] Starting robust triple-query for circle: ${circleId}`);
+    const playerIds = new Set<string>();
     const players: Player[] = [];
-    const BATCH_SIZE = 10;
     
-    for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
-      const batch = playerIds.slice(i, i + BATCH_SIZE);
+    // STRATEGY 1: Query via circleMemberships collection (authoritative source)
+    const membershipUserIds = new Set<string>();
+    try {
+      const membershipsQuery = query(
+        collection(db, 'circleMemberships'),
+        where('circleId', '==', circleId)
+      );
+      const membershipsSnapshot = await getDocs(membershipsQuery);
+      logger.info(`[getPlayersInCircle] Found ${membershipsSnapshot.size} memberships in circle ${circleId}`);
       
-      const playersQuery = query(
+      // Store all user IDs from memberships for Strategy 3
+      membershipsSnapshot.docs.forEach(doc => {
+        membershipUserIds.add(doc.data().userId);
+      });
+      
+      // Extract user IDs from memberships (these are claimed players)
+      const userIds = Array.from(membershipUserIds);
+      
+      // Get claimed players (players with claimedByUserId matching circle members)
+      if (userIds.length > 0) {
+        const BATCH_SIZE = 10; // Firebase 'in' limit is 10
+        
+        for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+          const batch = userIds.slice(i, i + BATCH_SIZE);
+          
+          const claimedPlayersQuery = query(
+            collection(db, 'players'),
+            where('claimedByUserId', 'in', batch),
+            orderBy('rating', 'desc')
+          );
+          
+          const claimedPlayersSnapshot = await getDocs(claimedPlayersQuery);
+          
+          claimedPlayersSnapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+            const player = { id: doc.id, ...cleanData } as Player;
+            
+            if (!playerIds.has(player.id)) {
+              playerIds.add(player.id);
+              players.push(player);
+              logger.info(`[getPlayersInCircle] Added claimed player via memberships: ${player.name} (${player.id})`);
+            }
+          });
+        }
+      }
+    } catch (membershipsError) {
+      logger.warn(`[getPlayersInCircle] Error querying memberships for circle ${circleId}:`, membershipsError);
+    }
+    
+    // STRATEGY 2: Direct query by circleId field (backup/fallback approach)
+    // This catches players who have circleId but no membership record, or phantom players
+    try {
+      logger.info(`[getPlayersInCircle] Querying players with direct circleId for circle ${circleId}`);
+      const directCircleQuery = query(
         collection(db, 'players'),
-        where(documentId(), 'in', batch),
+        where('circleId', '==', circleId),
         orderBy('rating', 'desc')
       );
       
-      const playersSnapshot = await getDocs(playersQuery);
+      const directCircleSnapshot = await getDocs(directCircleQuery);
+      logger.info(`[getPlayersInCircle] Found ${directCircleSnapshot.size} players with direct circleId in circle ${circleId}`);
       
-      const batchPlayers = playersSnapshot.docs.map((doc) => {
+      directCircleSnapshot.docs.forEach((doc) => {
         const data = doc.data();
-        const { createdAt, nameLower, ...cleanData } = data;
-        return { id: doc.id, ...cleanData } as Player;
+        const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+        const player = { id: doc.id, ...cleanData } as Player;
+        
+        if (!playerIds.has(player.id)) {
+          playerIds.add(player.id);
+          players.push(player);
+          logger.info(`[getPlayersInCircle] Added player via direct circleId: ${player.name} (${player.id}) - isPhantom: ${player.isPhantom}`);
+        }
       });
-      
-      players.push(...batchPlayers);
+    } catch (directError) {
+      logger.warn(`[getPlayersInCircle] Error querying direct circleId for circle ${circleId}:`, directError);
     }
     
-    // Sort by rating descending (since we fetched in batches)
-    return players.sort((a, b) => b.rating - a.rating);
+    // STRATEGY 3: Find phantom players by querying all phantoms and checking membership IDs
+    // This is a fallback for phantom players that have memberships but missing circleId
+    try {
+      if (membershipUserIds.size > 0) {
+        logger.info(`[getPlayersInCircle] Strategy 3: Looking for phantom players with membership userIds`);
+        
+        // Query all phantom players that could be linked to membership userIds
+        const userIdArray = Array.from(membershipUserIds);
+        const BATCH_SIZE = 10;
+        
+        for (let i = 0; i < userIdArray.length; i += BATCH_SIZE) {
+          const batch = userIdArray.slice(i, i + BATCH_SIZE);
+          
+          try {
+            // Look for phantom players where the user ID in memberships matches the player ID
+            // (This handles cases where phantom players are referenced by their player ID in memberships)
+            const phantomByIdQuery = query(
+              collection(db, 'players'),
+              where(documentId(), 'in', batch),
+              where('isPhantom', '==', true)
+            );
+            
+            const phantomByIdSnapshot = await getDocs(phantomByIdQuery);
+            
+            phantomByIdSnapshot.docs.forEach((doc) => {
+              const data = doc.data();
+              const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+              const player = { id: doc.id, ...cleanData } as Player;
+              
+              if (!playerIds.has(player.id)) {
+                playerIds.add(player.id);
+                players.push(player);
+                logger.info(`[getPlayersInCircle] Added phantom player via membership ID match: ${player.name} (${player.id})`);
+              }
+            });
+          } catch (phantomError) {
+            logger.warn(`[getPlayersInCircle] Error in phantom player lookup batch:`, phantomError);
+          }
+        }
+      }
+    } catch (phantomLookupError) {
+      logger.warn(`[getPlayersInCircle] Error in Strategy 3 phantom lookup for circle ${circleId}:`, phantomLookupError);
+    }
+    
+    // Sort by rating descending
+    const sortedPlayers = players.sort((a, b) => b.rating - a.rating);
+    
+    logger.info(`[getPlayersInCircle] Returning ${sortedPlayers.length} total players for circle ${circleId} (${players.filter(p => p.isPhantom).length} phantoms, ${players.filter(p => !p.isPhantom).length} claimed)`);
+    logger.info(`[getPlayersInCircle] Players found: ${players.map(p => `${p.name}(${p.id}${p.isPhantom ? ',phantom' : ''})`).join(', ')}`);
+    
+    return sortedPlayers;
     
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayersInCircle');
@@ -129,66 +222,162 @@ export async function getPlayersInCircle(circleId: string): Promise<Player[]> {
 
 /**
  * Get players from multiple circles ("All Circles" mode)
+ * Uses a robust dual-query approach to handle potential inconsistencies
  */
 export async function getPlayersInUserCircles(circleIds: string[]): Promise<Player[]> {
   try {
+    logger.info(`[getPlayersInUserCircles] Starting robust query for circles: ${circleIds.join(', ')}`);
+    
     if (circleIds.length === 0) {
+      logger.warn('[getPlayersInUserCircles] No circle IDs provided, returning empty array');
       return [];
     }
     
-    const uniquePlayerIds = new Set<string>();
-    
-    // Get memberships from all user's circles
+    const playerIds = new Set<string>();
+    const players: Player[] = [];
     const BATCH_SIZE = 10; // Firebase 'in' query limit
+    
+    // STRATEGY 1: Query via circleMemberships collection (authoritative source)
+    const userIds = new Set<string>();
     
     for (let i = 0; i < circleIds.length; i += BATCH_SIZE) {
       const batch = circleIds.slice(i, i + BATCH_SIZE);
+      logger.info(`[getPlayersInUserCircles] Querying memberships for batch: ${batch.join(', ')}`);
       
-      const membershipsQuery = query(
-        collection(db, 'circleMemberships'),
-        where('circleId', 'in', batch)
-      );
-      
-      const membershipsSnapshot = await getDocs(membershipsQuery);
-      
-      // Collect unique player IDs
-      membershipsSnapshot.docs.forEach(doc => {
-        uniquePlayerIds.add(doc.data().userId);
-      });
+      try {
+        const membershipsQuery = query(
+          collection(db, 'circleMemberships'),
+          where('circleId', 'in', batch)
+        );
+        
+        const membershipsSnapshot = await getDocs(membershipsQuery);
+        logger.info(`[getPlayersInUserCircles] Found ${membershipsSnapshot.size} memberships in batch`);
+        
+        // Collect unique user IDs
+        membershipsSnapshot.docs.forEach(doc => {
+          const userId = doc.data().userId;
+          userIds.add(userId);
+        });
+      } catch (error) {
+        logger.error(`[getPlayersInUserCircles] Error querying memberships for batch ${batch.join(', ')}:`, error);
+      }
     }
     
-    if (uniquePlayerIds.size === 0) {
-      return [];
+    logger.info(`[getPlayersInUserCircles] Found ${userIds.size} unique user IDs from memberships`);
+    
+    // Get claimed players from memberships
+    if (userIds.size > 0) {
+      const userIdArray = Array.from(userIds);
+      
+      for (let i = 0; i < userIdArray.length; i += BATCH_SIZE) {
+        const batch = userIdArray.slice(i, i + BATCH_SIZE);
+        
+        try {
+          const playersQuery = query(
+            collection(db, 'players'),
+            where('claimedByUserId', 'in', batch),
+            orderBy('rating', 'desc')
+          );
+          
+          const playersSnapshot = await getDocs(playersQuery);
+          
+          playersSnapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+            const player = { id: doc.id, ...cleanData } as Player;
+            
+            if (!playerIds.has(player.id)) {
+              playerIds.add(player.id);
+              players.push(player);
+            }
+          });
+        } catch (error) {
+          logger.error(`[getPlayersInUserCircles] Error querying claimed players for batch:`, error);
+        }
+      }
     }
     
-    // Get all unique players
-    const playerIds = Array.from(uniquePlayerIds);
-    const players: Player[] = [];
-    
-    for (let i = 0; i < playerIds.length; i += BATCH_SIZE) {
-      const batch = playerIds.slice(i, i + BATCH_SIZE);
+    // STRATEGY 2: Direct query by circleId field (catches any players missed by memberships)
+    for (let i = 0; i < circleIds.length; i += BATCH_SIZE) {
+      const batch = circleIds.slice(i, i + BATCH_SIZE);
       
-      const playersQuery = query(
-        collection(db, 'players'),
-        where(documentId(), 'in', batch),
-        orderBy('rating', 'desc')
-      );
-      
-      const playersSnapshot = await getDocs(playersQuery);
-      
-      const batchPlayers = playersSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        const { createdAt, nameLower, ...cleanData } = data;
-        return { id: doc.id, ...cleanData } as Player;
-      });
-      
-      players.push(...batchPlayers);
+      try {
+        const directCircleQuery = query(
+          collection(db, 'players'),
+          where('circleId', 'in', batch),
+          orderBy('rating', 'desc')
+        );
+        
+        const directCircleSnapshot = await getDocs(directCircleQuery);
+        logger.info(`[getPlayersInUserCircles] Found ${directCircleSnapshot.size} players with direct circleId in batch`);
+        
+        directCircleSnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+          const player = { id: doc.id, ...cleanData } as Player;
+          
+          if (!playerIds.has(player.id)) {
+            playerIds.add(player.id);
+            players.push(player);
+            logger.info(`[getPlayersInUserCircles] Added player via direct circleId: ${player.name} (${player.id}) - isPhantom: ${player.isPhantom}`);
+          }
+        });
+      } catch (error) {
+        logger.warn(`[getPlayersInUserCircles] Error querying direct circleId for batch ${batch.join(', ')}:`, error);
+      }
     }
+    
+    // STRATEGY 3: Find phantom players by querying all phantoms and checking membership IDs
+    // This is a fallback for phantom players that have memberships but missing circleId
+    try {
+      if (userIds.size > 0) {
+        logger.info(`[getPlayersInUserCircles] Strategy 3: Looking for phantom players with membership userIds`);
+        
+        // Query all phantom players that could be linked to membership userIds
+        const userIdArray = Array.from(userIds);
+        
+        for (let i = 0; i < userIdArray.length; i += BATCH_SIZE) {
+          const batch = userIdArray.slice(i, i + BATCH_SIZE);
+          
+          try {
+            // Look for phantom players where the user ID in memberships matches the player ID
+            // (This handles cases where phantom players are referenced by their player ID in memberships)
+            const phantomByIdQuery = query(
+              collection(db, 'players'),
+              where(documentId(), 'in', batch),
+              where('isPhantom', '==', true)
+            );
+            
+            const phantomByIdSnapshot = await getDocs(phantomByIdQuery);
+            
+            phantomByIdSnapshot.docs.forEach((doc) => {
+              const data = doc.data();
+              const { createdAt, updatedAt, nameLower, ...cleanData } = data;
+              const player = { id: doc.id, ...cleanData } as Player;
+              
+              if (!playerIds.has(player.id)) {
+                playerIds.add(player.id);
+                players.push(player);
+                logger.info(`[getPlayersInUserCircles] Added phantom player via Strategy 3: ${player.name} (${player.id})`);
+              }
+            });
+            
+          } catch (batchError) {
+            logger.warn(`[getPlayersInUserCircles] Error in Strategy 3 batch ${batch.join(', ')}:`, batchError);
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('[getPlayersInUserCircles] Strategy 3 failed:', error);
+    }
+    
+    logger.info(`[getPlayersInUserCircles] Returning ${players.length} unique players (${players.filter(p => p.isPhantom).length} phantoms, ${players.filter(p => !p.isPhantom).length} claimed)`);
     
     // Sort by rating descending
     return players.sort((a, b) => b.rating - a.rating);
     
   } catch (error) {
+    logger.error('[getPlayersInUserCircles] Function failed:', error);
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayersInUserCircles');
     return [];
   }
@@ -200,7 +389,7 @@ export async function getPlayerById(id: string): Promise<Player | undefined> {
     if (playerDoc.exists()) {
       const data = playerDoc.data();
       // Remove problematic fields that cause hydration issues
-      const { createdAt, nameLower, ...cleanData } = data;
+      const { createdAt, updatedAt, nameLower, ...cleanData } = data;
       return { id: playerDoc.id, ...cleanData } as Player;
     }
     return undefined;
@@ -230,7 +419,7 @@ async function fetchPlayersByIds(playerIds: string[]): Promise<Map<string, Playe
       playersSnapshot.forEach((doc) => {
         const data = doc.data();
         // Remove problematic fields that cause hydration issues
-        const { createdAt, nameLower, ...cleanData } = data;
+        const { createdAt, updatedAt, nameLower, ...cleanData } = data;
         playerMap.set(doc.id, { id: doc.id, ...cleanData } as Player);
       });
     })
@@ -321,21 +510,22 @@ export async function getAllGames(circleId?: string | null): Promise<Game[]> {
     let q;
     if (circleId) {
       // Filter games for specific circle
+      // Note: This requires a Firebase index on circleId + date
       q = query(
         gamesCollection, 
         where('circleId', '==', circleId),
         orderBy('date', 'desc')
       );
+      logger.info(`[getAllGames] Querying games for circle: ${circleId}`);
     } else if (circleId === null) {
       // Show only games without circle (legacy games)
-      q = query(
-        gamesCollection,
-        where('circleId', '==', null),
-        orderBy('date', 'desc')
-      );
+      // This will include games that don't have the circleId field at all
+      q = query(gamesCollection, orderBy('date', 'desc'));
+      logger.info('[getAllGames] Querying all games, will filter out circled games client-side');
     } else {
       // Show all games (existing behavior for backward compatibility)
       q = query(gamesCollection, orderBy('date', 'desc'));
+      logger.info('[getAllGames] Querying all games (no circle filter)');
     }
     
     // Add timeout to prevent hanging requests
@@ -343,10 +533,25 @@ export async function getAllGames(circleId?: string | null): Promise<Game[]> {
       setTimeout(() => reject(new Error('Firebase request timeout')), 15000); // 15 second timeout for games
     });
     
-    const snapshot = await Promise.race([
-      getDocs(q),
-      timeoutPromise
-    ]) as any;
+    let snapshot;
+    try {
+      logger.info(`[getAllGames] Executing Firebase query...`);
+      snapshot = await Promise.race([
+        getDocs(q),
+        timeoutPromise
+      ]) as any;
+      logger.info(`[getAllGames] Firebase query completed - found ${snapshot.docs.length} games`);
+    } catch (error: any) {
+      logger.error('[getAllGames] Firebase query failed:', error);
+      
+      // Check if it's an index error and provide helpful message
+      if (error.message?.includes('index') || error.message?.includes('Index')) {
+        logger.error('[getAllGames] This appears to be a Firebase index error. The compound index (circleId + date) may still be building.');
+        throw new Error(`Games query requires Firebase index. Please wait a few minutes for index to build, or check Firebase Console. Original error: ${error.message}`);
+      }
+      
+      throw error;
+    }
 
     const allPlayerIds = new Set<string>();
     const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
@@ -407,7 +612,13 @@ export async function getAllGames(circleId?: string | null): Promise<Game[]> {
       } as Game;
     });
 
-    return games;
+    // Apply client-side filtering for null circleId (legacy games)
+    const filteredGames = circleId === null 
+      ? games.filter(game => !game.circleId) // Only games without circleId
+      : games;
+
+    logger.info(`[getAllGames] Returning ${filteredGames.length} games (filtered from ${games.length})`);
+    return filteredGames;
   } catch (error) {
     console.error('Error fetching all games: ', error);
     return [];
@@ -1056,7 +1267,7 @@ export async function getUserPlayerProfile(userId: string): Promise<Player | nul
     
     const doc = snapshot.docs[0];
     const data = doc.data();
-    const { createdAt, nameLower, ...cleanData } = data;
+    const { createdAt, updatedAt, nameLower, ...cleanData } = data;
     
     return { id: doc.id, ...cleanData } as Player;
   } catch (error) {

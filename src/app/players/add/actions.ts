@@ -6,7 +6,7 @@ import { createPlayerSchema, validateData } from '@/lib/validations';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
 
-export async function addPlayer(values: { name: string; email?: string }) {
+export async function addPlayer(values: { name: string; email?: string; circleId?: string }) {
   // Check authentication and permissions
   const currentUser = await getCurrentUser();
   requireAuthentication(currentUser);
@@ -17,7 +17,12 @@ export async function addPlayer(values: { name: string; email?: string }) {
 
   try {
     // Use the safe add method that checks for duplicates
-    const result = await safeAddPlayer({ name });
+    const result = await safeAddPlayer({ 
+      name,
+      createdBy: currentUser.id,
+      email: values.email, // Allow optional email for phantom player invitations
+      circleId: values.circleId // Circle context for organizing phantom players
+    });
     
     if (result.success) {
       // Invalidate server-side caches

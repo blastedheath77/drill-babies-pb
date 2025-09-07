@@ -16,8 +16,9 @@ import {
 import { db } from './firebase';
 import { logger } from './logger';
 import { getUserDocument } from './user-management';
-import { isCircleMember, isCircleAdmin, canUserInviteToCircle, addUserToCircle } from './circles';
+import { isCircleMember, isCircleAdmin, canUserInviteToCircle, addUserToCircle, getCircle } from './circles';
 import { logCircleInviteSent } from './audit-trail';
+import { createNotification } from './notifications';
 import type { 
   CircleInvitationRequest, 
   CircleInvitationResponse,
@@ -32,7 +33,98 @@ import type {
  * 
  * This module extends the circle invitation system to support email-based invites
  * for users who haven't signed up yet, with automatic conversion when they register.
+ * Also supports instant addition of phantom players to circles.
  */
+
+/**
+ * Check if a player ID represents a phantom player (no claimed user)
+ */
+async function isPhantomPlayer(playerId: string): Promise<boolean> {
+  try {
+    const playerDoc = await getDoc(doc(db, 'players', playerId));
+    if (!playerDoc.exists()) {
+      return false;
+    }
+    
+    const playerData = playerDoc.data();
+    return playerData.isPhantom === true && !playerData.claimedByUserId;
+  } catch (error) {
+    logger.error('Error checking if player is phantom:', error);
+    return false;
+  }
+}
+
+/**
+ * Add a phantom player directly to a circle (no invitation needed)
+ */
+async function addPhantomPlayerToCircle(
+  circleId: string, 
+  playerId: string, 
+  addedBy: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    logger.info(`Adding phantom player ${playerId} to circle ${circleId} by ${addedBy}`);
+    
+    // Check if player is already a member by checking for existing circleMemberships
+    const membershipQuery = query(
+      collection(db, 'circleMemberships'),
+      where('circleId', '==', circleId),
+      where('userId', '==', playerId), // For phantom players, userId is the playerId
+      limit(1)
+    );
+    
+    const membershipSnapshot = await getDocs(membershipQuery);
+    if (!membershipSnapshot.empty) {
+      return {
+        success: false,
+        message: 'Phantom player is already a member of this circle'
+      };
+    }
+    
+    // Add phantom player to circle membership
+    const membershipData = {
+      circleId,
+      userId: playerId, // For phantom players, we use playerId as userId
+      role: 'member' as const,
+      joinedAt: serverTimestamp(),
+      addedBy,
+      isPhantomPlayer: true // Flag to identify this as a phantom player membership
+    };
+    
+    const membershipRef = doc(collection(db, 'circleMemberships'));
+    const circleRef = doc(db, 'circles', circleId);
+    
+    await runTransaction(db, async (transaction) => {
+      // All reads must happen first
+      const circleDoc = await transaction.get(circleRef);
+      
+      // Then all writes
+      transaction.set(membershipRef, membershipData);
+      
+      // Update circle member count
+      if (circleDoc.exists()) {
+        const currentCount = circleDoc.data().memberCount || 0;
+        transaction.update(circleRef, { 
+          memberCount: currentCount + 1 
+        });
+      }
+    });
+    
+    logger.info(`Phantom player ${playerId} successfully added to circle ${circleId}`);
+    
+    return {
+      success: true,
+      message: 'Phantom player added to circle successfully'
+    };
+    
+  } catch (error) {
+    logger.error('Error adding phantom player to circle:', error);
+    return {
+      success: false,
+      message: 'Failed to add phantom player to circle'
+    };
+  }
+}
 
 /**
  * Universal circle invitation function - handles both user and email invites
@@ -92,6 +184,7 @@ export async function sendCircleInvitation(
 
 /**
  * Send invitation to existing user by user ID (existing functionality)
+ * Now also handles phantom players by instantly adding them to the circle
  */
 export async function sendUserCircleInvite(
   circleId: string,
@@ -102,7 +195,28 @@ export async function sendUserCircleInvite(
   try {
     logger.info(`Sending user circle invite: ${invitedBy} -> ${invitedUserId} for circle ${circleId}`);
     
-    // Check if user exists
+    // First check if this is a phantom player
+    const isPhantom = await isPhantomPlayer(invitedUserId);
+    if (isPhantom) {
+      logger.info(`${invitedUserId} is a phantom player - adding directly to circle`);
+      
+      const result = await addPhantomPlayerToCircle(circleId, invitedUserId, invitedBy);
+      
+      if (result.success) {
+        return {
+          success: true,
+          message: 'Phantom player added to circle instantly',
+          inviteType: 'phantom_instant'
+        };
+      } else {
+        return {
+          success: false,
+          message: result.message
+        };
+      }
+    }
+    
+    // Check if user exists (for regular users)
     const invitedUser = await getUserDocument(invitedUserId);
     if (!invitedUser) {
       return {
@@ -174,6 +288,50 @@ export async function sendUserCircleInvite(
     const inviteRef = await addDoc(collection(db, 'circleInvites'), inviteData);
     
     logger.info(`User circle invite sent successfully: ${inviteRef.id}`);
+    
+    // Create notification for the invited user
+    try {
+      const circle = await getCircle(circleId);
+      const inviterUser = await getUserDocument(invitedBy);
+      
+      if (circle && inviterUser) {
+        await createNotification({
+          userId: invitedUserId,
+          type: 'circle_invite',
+          title: `Circle Invitation`,
+          message: `${inviterUser.name} invited you to join "${circle.name}"`,
+          data: {
+            circleId: circleId,
+            circleName: circle.name,
+            inviterId: invitedBy,
+            inviterName: inviterUser.name,
+            inviteId: inviteRef.id,
+            message: message
+          },
+          expiresAt: expiresAt.toISOString(),
+          actionUrl: `/circles/${circleId}`,
+          actions: [
+            {
+              id: 'accept',
+              label: 'Accept',
+              type: 'primary',
+              action: 'accept_circle_invite',
+              data: { inviteId: inviteRef.id }
+            },
+            {
+              id: 'decline',
+              label: 'Decline',
+              type: 'secondary',
+              action: 'decline_circle_invite',
+              data: { inviteId: inviteRef.id }
+            }
+          ]
+        });
+      }
+    } catch (notificationError) {
+      logger.warn('Failed to create notification for circle invite:', notificationError);
+      // Don't fail the entire invitation if notification creation fails
+    }
     
     // Log audit event
     await logCircleInviteSent(
@@ -285,7 +443,7 @@ export async function sendEmailCircleInvite(
       circleId,
       invitedBy,
       undefined,
-      email.toLowerCase().trim()
+      normalizedEmail
     );
     
     return {

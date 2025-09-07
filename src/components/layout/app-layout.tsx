@@ -3,6 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { useCircles } from '@/contexts/circle-context';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { InstallPrompt } from '@/components/install-prompt';
 import { UpdateNotification, CompactUpdateNotification } from '@/components/update-notification';
@@ -13,15 +14,27 @@ import { useIsMobile } from '@/hooks/use-mobile';
 // Simplified Header Component for Mobile
 function SimpleHeader() {
   const isMobile = useIsMobile();
+  const { selectedCircleId, availableCircles } = useCircles();
   
   if (!isMobile) return null;
+
+  // Find current circle name
+  const currentCircle = selectedCircleId === 'all' 
+    ? { name: 'All Circles' }
+    : availableCircles.find(c => c.id === selectedCircleId);
   
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm lg:hidden">
       <div className="flex items-center gap-2">
         <span className="text-lg font-semibold">Pickleball Stats</span>
       </div>
-      <div className="flex-1">{/* Can add page title or breadcrumbs here */}</div>
+      <div className="flex-1 flex items-center justify-end">
+        {availableCircles.length > 0 && (
+          <div className="text-sm text-muted-foreground">
+            {currentCircle?.name || 'No Circle'}
+          </div>
+        )}
+      </div>
     </header>
   );
 }
