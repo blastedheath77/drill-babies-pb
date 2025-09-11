@@ -245,70 +245,143 @@ export async function getAllGames(): Promise<Game[]> {
 export async function getGamesForPlayer(playerId: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    const q = query(
-      gamesCollection,
-      where('playerIds', 'array-contains', playerId),
-      orderBy('date', 'desc')
-    );
-    const gamesSnapshot = await getDocs(q);
+    
+    // First, try the optimized query with index (if available)
+    try {
+      const q = query(
+        gamesCollection,
+        where('playerIds', 'array-contains', playerId),
+        orderBy('date', 'desc')
+      );
+      const gamesSnapshot = await getDocs(q);
 
-    const allPlayerIds = new Set<string>([playerId]);
-    const gameDocsData = gamesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
+      const allPlayerIds = new Set<string>([playerId]);
+      const gameDocsData = gamesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
 
-    gameDocsData.forEach((gameData) => {
-      gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
-    });
+      gameDocsData.forEach((gameData) => {
+        gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+      });
 
-    const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
+      const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
 
-    const games = gameDocsData.map((gameData) => {
-      const team1Players = gameData.team1.playerIds
-        .map((id: string) => {
-          const player = playerMap.get(id);
-          if (!player) {
-            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
-            return {
-              id,
-              name: `Unknown Player (${id})`,
-              avatar: '',
-              rating: 1000,
-              wins: 0,
-              losses: 0,
-              pointsFor: 0,
-              pointsAgainst: 0,
-            } as Player;
-          }
-          return player;
-        });
+      const games = gameDocsData.map((gameData) => {
+        const team1Players = gameData.team1.playerIds
+          .map((id: string) => {
+            const player = playerMap.get(id);
+            if (!player) {
+              console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+              return {
+                id,
+                name: `Unknown Player (${id})`,
+                avatar: '',
+                rating: 1000,
+                wins: 0,
+                losses: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+              } as Player;
+            }
+            return player;
+          });
+        
+        const team2Players = gameData.team2.playerIds
+          .map((id: string) => {
+            const player = playerMap.get(id);
+            if (!player) {
+              console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+              return {
+                id,
+                name: `Unknown Player (${id})`,
+                avatar: '',
+                rating: 1000,
+                wins: 0,
+                losses: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+              } as Player;
+            }
+            return player;
+          });
+
+        return {
+          ...gameData,
+          date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+          team1: { ...gameData.team1, players: team1Players },
+          team2: { ...gameData.team2, players: team2Players },
+        } as Game;
+      });
+
+      return games;
+    } catch (indexError) {
+      // If the indexed query fails (missing index), fall back to getting all games and filtering
+      console.warn(`Indexed query failed for player ${playerId}, falling back to client-side filtering:`, indexError);
       
-      const team2Players = gameData.team2.playerIds
-        .map((id: string) => {
-          const player = playerMap.get(id);
-          if (!player) {
-            console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
-            return {
-              id,
-              name: `Unknown Player (${id})`,
-              avatar: '',
-              rating: 1000,
-              wins: 0,
-              losses: 0,
-              pointsFor: 0,
-              pointsAgainst: 0,
-            } as Player;
-          }
-          return player;
-        });
+      // Fallback: Get all games and filter client-side
+      const allGamesSnapshot = await getDocs(query(gamesCollection, orderBy('date', 'desc')));
+      
+      const allPlayerIds = new Set<string>([playerId]);
+      const filteredGameDocsData: any[] = [];
+      
+      // Filter games that contain the player
+      allGamesSnapshot.docs.forEach((doc) => {
+        const gameData = { id: doc.id, ...doc.data() } as any;
+        if (gameData.playerIds && gameData.playerIds.includes(playerId)) {
+          filteredGameDocsData.push(gameData);
+          gameData.playerIds.forEach((id: string) => allPlayerIds.add(id));
+        }
+      });
 
-      return {
-        ...gameData,
-        date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-        team1: { ...gameData.team1, players: team1Players },
-        team2: { ...gameData.team2, players: team2Players },
-      } as Game;
-    });
+      const playerMap = await fetchPlayersByIds(Array.from(allPlayerIds));
 
-    return games;
+      const games = filteredGameDocsData.map((gameData) => {
+        const team1Players = gameData.team1.playerIds
+          .map((id: string) => {
+            const player = playerMap.get(id);
+            if (!player) {
+              console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+              return {
+                id,
+                name: `Unknown Player (${id})`,
+                avatar: '',
+                rating: 1000,
+                wins: 0,
+                losses: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+              } as Player;
+            }
+            return player;
+          });
+        
+        const team2Players = gameData.team2.playerIds
+          .map((id: string) => {
+            const player = playerMap.get(id);
+            if (!player) {
+              console.warn(`Player ${id} not found for game ${gameData.id}, using placeholder`);
+              return {
+                id,
+                name: `Unknown Player (${id})`,
+                avatar: '',
+                rating: 1000,
+                wins: 0,
+                losses: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+              } as Player;
+            }
+            return player;
+          });
+
+        return {
+          ...gameData,
+          date: (gameData.date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+          team1: { ...gameData.team1, players: team1Players },
+          team2: { ...gameData.team2, players: team2Players },
+        } as Game;
+      });
+
+      return games;
+    }
   } catch (error) {
     console.error(`Error fetching games for player ${playerId}:`, error);
     return [];
