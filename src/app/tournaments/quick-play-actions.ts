@@ -8,6 +8,7 @@ import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
+import { getNextOptimalRound, calculateMaxUniqueRounds } from '@/lib/pairing-algorithms';
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -109,7 +110,7 @@ function calculateQuickPlayRoundDuration(
   }
 }
 
-// Generate a single round for Quick Play with smart player rotation
+// Generate a single round for Quick Play with optimal pairing rotation
 async function generateQuickPlayRound(
   tournamentId: string,
   format: Tournament['format'],
@@ -120,13 +121,76 @@ async function generateQuickPlayRound(
   const batch = writeBatch(db);
   let matchNumber = 1;
   
-  // Get existing matches to track who has played together/against
+  // Get existing matches to use for optimal pairing
   const existingMatchesQuery = query(
     collection(db, 'tournamentMatches'),
     where('tournamentId', '==', tournamentId)
   );
   const existingMatchesSnapshot = await getDocs(existingMatchesQuery);
   
+  const existingMatches = existingMatchesSnapshot.docs.map(doc => doc.data());
+
+  logger.debug(`Generating Quick Play round ${roundNumber} for ${format} with ${playerIds.length} players`);
+
+  // Try to use optimal pairing algorithm first
+  try {
+    const optimalResult = getNextOptimalRound(playerIds, format, existingMatches, courtsAvailable);
+    
+    if (optimalResult.matches.length > 0) {
+      logger.info(`Using optimal pairing algorithm: ${optimalResult.matches.length} matches, ${optimalResult.restingPlayers.length} players resting`);
+      
+      // Create tournament match documents from optimal pairing
+      for (const match of optimalResult.matches) {
+        if (format === 'singles') {
+          const tournamentMatch: Omit<TournamentMatch, 'id'> = {
+            tournamentId,
+            round: roundNumber,
+            matchNumber: matchNumber++,
+            player1Id: match.team1[0],
+            player2Id: match.team2[0],
+            status: 'pending',
+          };
+          
+          const matchRef = doc(collection(db, 'tournamentMatches'));
+          batch.set(matchRef, tournamentMatch);
+        } else {
+          const tournamentMatch: Omit<TournamentMatch, 'id'> = {
+            tournamentId,
+            round: roundNumber,
+            matchNumber: matchNumber++,
+            team1PlayerIds: match.team1,
+            team2PlayerIds: match.team2,
+            status: 'pending',
+          };
+          
+          const matchRef = doc(collection(db, 'tournamentMatches'));
+          batch.set(matchRef, tournamentMatch);
+        }
+      }
+      
+      await batch.commit();
+      return;
+    }
+  } catch (error) {
+    logger.warn(`Optimal pairing failed, falling back to legacy algorithm: ${error}`);
+  }
+  
+  // Fallback to legacy algorithm if optimal pairing fails
+  await generateLegacyQuickPlayRound(batch, tournamentId, format, playerIds, roundNumber, courtsAvailable, existingMatches, matchNumber);
+  await batch.commit();
+}
+
+// Legacy algorithm as fallback
+async function generateLegacyQuickPlayRound(
+  batch: any,
+  tournamentId: string,
+  format: Tournament['format'],
+  playerIds: string[],
+  roundNumber: number,
+  courtsAvailable: number,
+  existingMatches: any[],
+  startingMatchNumber: number
+) {
   // Track partnerships and oppositions from previous rounds
   const partnershipCount = new Map<string, number>();
   const oppositionCount = new Map<string, number>();
@@ -136,8 +200,7 @@ async function generateQuickPlayRound(
   playerIds.forEach(playerId => playerGameCount.set(playerId, 0));
   
   // Analyze existing matches to understand current state
-  existingMatchesSnapshot.docs.forEach(doc => {
-    const match = doc.data();
+  existingMatches.forEach(match => {
     if (format === 'singles' && match.player1Id && match.player2Id) {
       // Singles match
       const oppKey = [match.player1Id, match.player2Id].sort().join('-');
@@ -170,15 +233,11 @@ async function generateQuickPlayRound(
     }
   });
 
-  logger.debug(`Generating Quick Play round ${roundNumber} for ${format} with ${playerIds.length} players`);
-
   if (format === 'singles') {
-    await generateQuickPlaySinglesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, oppositionCount, playerGameCount, matchNumber);
+    await generateQuickPlaySinglesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, oppositionCount, playerGameCount, startingMatchNumber);
   } else {
-    await generateQuickPlayDoublesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, partnershipCount, oppositionCount, playerGameCount, matchNumber);
+    await generateQuickPlayDoublesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, partnershipCount, oppositionCount, playerGameCount, startingMatchNumber);
   }
-
-  await batch.commit();
 }
 
 // Generate singles round with smart opponent selection

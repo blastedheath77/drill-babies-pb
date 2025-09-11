@@ -28,9 +28,10 @@ import { isOnline, offlineQueue } from '@/lib/offline-queue';
 import { useQuery } from '@tanstack/react-query';
 import { getPlayers } from '@/lib/data';
 import { PageHeader } from '@/components/page-header';
-import { ArrowLeft, Zap, Users, Clock } from 'lucide-react';
+import { ArrowLeft, Zap, Users, Clock, Target } from 'lucide-react';
 import Link from 'next/link';
 import type { Player } from '@/lib/types';
+import { calculateMaxUniqueRounds } from '@/lib/pairing-algorithms';
 
 // Quick Play schema - simplified validation
 const quickPlaySchema = z.object({
@@ -170,10 +171,22 @@ export function QuickPlayForm() {
       matchesThisRound: 0, 
       playersPerRound: 0, 
       playersOffCourt: 0,
-      estimatedTime: 0
+      estimatedTime: 0,
+      maxUniqueRounds: 0,
+      canUseOptimalPairing: false
     };
 
     const courts = watchedCourts || 2;
+    let maxUniqueRounds = 0;
+    let canUseOptimalPairing = false;
+
+    try {
+      maxUniqueRounds = calculateMaxUniqueRounds(n, watchedFormat);
+      canUseOptimalPairing = maxUniqueRounds > 0;
+    } catch (error) {
+      // Fallback if calculation fails
+      canUseOptimalPairing = false;
+    }
 
     if (watchedFormat === 'singles') {
       // Singles: pair up players for matches
@@ -186,7 +199,9 @@ export function QuickPlayForm() {
         matchesThisRound,
         playersPerRound,
         playersOffCourt,
-        estimatedTime
+        estimatedTime,
+        maxUniqueRounds,
+        canUseOptimalPairing
       };
     } else {
       // Doubles: create matches with 4 players each
@@ -200,7 +215,9 @@ export function QuickPlayForm() {
         matchesThisRound,
         playersPerRound,
         playersOffCourt,
-        estimatedTime
+        estimatedTime,
+        maxUniqueRounds,
+        canUseOptimalPairing
       };
     }
   };
@@ -398,6 +415,21 @@ export function QuickPlayForm() {
                         }
                       </div>
                     </div>
+                    
+                    {preview.canUseOptimalPairing && (
+                      <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                        <div className="font-medium text-emerald-700 text-sm flex items-center">
+                          <Target className="h-4 w-4 mr-1" />
+                          Optimal Pairing Available
+                        </div>
+                        <div className="text-emerald-600 text-xs">
+                          {preview.maxUniqueRounds} unique round{preview.maxUniqueRounds !== 1 ? 's' : ''} possible before repetition
+                          {watchedFormat === 'doubles' && selectedPlayers.length % 4 === 0 && 
+                            ' - everyone will play with/against everyone!'
+                          }
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
