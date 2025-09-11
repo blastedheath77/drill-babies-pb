@@ -8,7 +8,7 @@ import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
-import { getNextOptimalRound, calculateMaxUniqueRounds } from '@/lib/pairing-algorithms';
+import { getOptimalRound, calculateMaxUniqueRounds } from '@/lib/pairing-algorithms';
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -134,10 +134,10 @@ async function generateQuickPlayRound(
 
   // Try to use optimal pairing algorithm first
   try {
-    const optimalResult = getNextOptimalRound(playerIds, format, existingMatches, courtsAvailable);
+    const optimalResult = getOptimalRound(playerIds, format, roundNumber, courtsAvailable);
     
     if (optimalResult.matches.length > 0) {
-      logger.info(`Using optimal pairing algorithm: ${optimalResult.matches.length} matches, ${optimalResult.restingPlayers.length} players resting`);
+      logger.info(`Using optimal pairing algorithm for round ${roundNumber}: ${optimalResult.matches.length} matches, ${optimalResult.restingPlayers.length} players resting`);
       
       // Create tournament match documents from optimal pairing
       for (const match of optimalResult.matches) {
@@ -172,7 +172,7 @@ async function generateQuickPlayRound(
       return;
     }
   } catch (error) {
-    logger.warn(`Optimal pairing failed, falling back to legacy algorithm: ${error}`);
+    logger.warn(`Optimal pairing failed for round ${roundNumber}, falling back to legacy algorithm: ${error}`);
   }
   
   // Fallback to legacy algorithm if optimal pairing fails

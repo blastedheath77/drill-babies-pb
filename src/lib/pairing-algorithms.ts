@@ -71,121 +71,149 @@ export function generateAllDoublesPairings(players: string[]): DoublesMatch[][] 
     throw new Error(`Perfect doubles pairing requires multiples of 4 players, got ${n}`);
   }
   
-  // RANDOMIZE the player order to ensure different starting points
-  const randomizedPlayers = shuffleArray(players);
+  // Create a randomized mapping from positions to players
+  const shuffledPlayers = shuffleArray(players);
+  const playerMapping = new Map<number, string>();
+  shuffledPlayers.forEach((player, index) => {
+    playerMapping.set(index, player);
+  });
   
-  const allPairings: DoublesMatch[][] = [];
-  const usedPartnershipCombos = new Set<string>();
-  
-  // Generate all possible team combinations (partnerships)
-  const allTeams = combinations(randomizedPlayers, 2).map(team => team.sort()) as [string, string][];
-  
-  // Create a systematic approach for complete permutations
+  // Generate optimal schedule using abstract positions, then apply player mapping
   function generateCompleteRotation(): DoublesMatch[][] {
-    const rotations: DoublesMatch[][] = [];
-    const totalMatches = n / 4;
-    
-    // Use round-robin tournament theory for systematic pairing
-    // For doubles, we adapt the round-robin approach
-    
     if (n === 4) {
-      // Special case: only 1 match possible per round, 3 different partnerships
-      const teams = allTeams;
-      const possibleMatches: DoublesMatch[] = [];
-      
-      // Generate all possible matches between different teams
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          const team1 = teams[i];
-          const team2 = teams[j];
-          
-          // Check if teams don't overlap (different players)
-          if (!team1.some(p => team2.includes(p))) {
-            possibleMatches.push({ team1, team2 });
-          }
-        }
-      }
-      
-      // Shuffle the possible matches for random starting round
-      const shuffledMatches = shuffleArray(possibleMatches);
-      
-      // Each match is a complete round for 4 players
-      return shuffledMatches.map(match => [match]);
+      return generateFourPlayerOptimalRotation(playerMapping);
     }
     
     if (n === 8) {
-      // 8 players = 2 matches per round, systematic rotation
-      return generateEightPlayerRotation(randomizedPlayers);
+      return generateEightPlayerOptimalRotation(playerMapping);
     }
     
     if (n >= 12) {
-      // For larger groups, use systematic approach
-      return generateLargeGroupRotation(randomizedPlayers);
+      return generateLargeGroupOptimalRotation(playerMapping, n);
     }
     
-    return rotations;
+    return [];
   }
   
   return generateCompleteRotation();
 }
 
 /**
- * Specialized algorithm for 8 players (2 courts)
+ * Generate optimal 4-player rotation with player mapping
  */
-function generateEightPlayerRotation(players: string[]): DoublesMatch[][] {
-  const rotations: DoublesMatch[][] = [];
-  const partnerships = new Set<string>();
-  const oppositions = new Set<string>();
+function generateFourPlayerOptimalRotation(playerMapping: Map<number, string>): DoublesMatch[][] {
+  // All possible matches for 4 players (positions 0,1,2,3)
+  const abstractSchedule = [
+    [[[0, 1], [2, 3]]],  // Round 1: (0,1) vs (2,3)
+    [[[0, 2], [1, 3]]],  // Round 2: (0,2) vs (1,3)  
+    [[[0, 3], [1, 2]]]   // Round 3: (0,3) vs (1,2)
+  ];
   
-  // For 8 players, we can ensure everyone plays with everyone exactly once as a partner
-  // and against everyone exactly twice
+  return abstractSchedule.map(round => 
+    round.map(match => {
+      const [team1Positions, team2Positions] = match;
+      return {
+        team1: [playerMapping.get(team1Positions[0])!, playerMapping.get(team1Positions[1])!] as [string, string],
+        team2: [playerMapping.get(team2Positions[0])!, playerMapping.get(team2Positions[1])!] as [string, string]
+      };
+    })
+  );
+}
+
+/**
+ * Generate optimal 8-player rotation with player mapping  
+ */
+function generateEightPlayerOptimalRotation(playerMapping: Map<number, string>): DoublesMatch[][] {
+  // Use the proven 8-player schedule with abstract positions
+  const abstractSchedule = [
+    [[[0, 1], [2, 3]], [[4, 5], [6, 7]]],  // Round 1
+    [[[0, 2], [1, 7]], [[3, 4], [5, 6]]],  // Round 2  
+    [[[0, 3], [1, 6]], [[2, 4], [5, 7]]],  // Round 3
+    [[[0, 4], [1, 5]], [[2, 6], [3, 7]]],  // Round 4
+    [[[0, 5], [2, 7]], [[1, 4], [3, 6]]],  // Round 5
+    [[[0, 6], [3, 5]], [[1, 2], [4, 7]]],  // Round 6
+    [[[0, 7], [2, 5]], [[1, 3], [4, 6]]]   // Round 7
+  ];
   
-  // Generate rounds systematically
+  return abstractSchedule.map(round => 
+    round.map(match => {
+      const [team1Positions, team2Positions] = match;
+      return {
+        team1: [playerMapping.get(team1Positions[0])!, playerMapping.get(team1Positions[1])!] as [string, string],
+        team2: [playerMapping.get(team2Positions[0])!, playerMapping.get(team2Positions[1])!] as [string, string]
+      };
+    })
+  );
+}
+
+/**
+ * Generate rotation for larger groups with player mapping
+ */
+function generateLargeGroupOptimalRotation(playerMapping: Map<number, string>, n: number): DoublesMatch[][] {
   const rounds: DoublesMatch[][] = [];
+  const numRounds = Math.min(n - 1, 14);
   
-  // Round 1: A,B vs C,D and E,F vs G,H
-  rounds.push([
-    { team1: [players[0], players[1]], team2: [players[2], players[3]] },
-    { team1: [players[4], players[5]], team2: [players[6], players[7]] }
-  ]);
+  // Add some randomness to the rotation starting points
+  const randomOffset = Math.floor(Math.random() * n);
   
-  // Round 2: A,C vs B,D and E,G vs F,H  
-  rounds.push([
-    { team1: [players[0], players[2]], team2: [players[1], players[3]] },
-    { team1: [players[4], players[6]], team2: [players[5], players[7]] }
-  ]);
-  
-  // Round 3: A,D vs B,C and E,H vs F,G
-  rounds.push([
-    { team1: [players[0], players[3]], team2: [players[1], players[2]] },
-    { team1: [players[4], players[7]], team2: [players[5], players[6]] }
-  ]);
-  
-  // Round 4: A,E vs F,G and B,H vs C,D
-  rounds.push([
-    { team1: [players[0], players[4]], team2: [players[5], players[6]] },
-    { team1: [players[1], players[7]], team2: [players[2], players[3]] }
-  ]);
-  
-  // Round 5: A,F vs E,G and B,C vs D,H
-  rounds.push([
-    { team1: [players[0], players[5]], team2: [players[4], players[6]] },
-    { team1: [players[1], players[2]], team2: [players[3], players[7]] }
-  ]);
-  
-  // Round 6: A,G vs E,F and B,D vs C,H
-  rounds.push([
-    { team1: [players[0], players[6]], team2: [players[4], players[5]] },
-    { team1: [players[1], players[3]], team2: [players[2], players[7]] }
-  ]);
-  
-  // Round 7: A,H vs B,E and C,F vs D,G
-  rounds.push([
-    { team1: [players[0], players[7]], team2: [players[1], players[4]] },
-    { team1: [players[2], players[5]], team2: [players[3], players[6]] }
-  ]);
+  for (let round = 0; round < numRounds; round++) {
+    const roundMatches: DoublesMatch[] = [];
+    const usedPositions = new Set<number>();
+    
+    // Rotate positions systematically with random offset
+    const rotationIndex = (round + randomOffset) % n;
+    const rotatedPositions = [];
+    for (let i = 0; i < n; i++) {
+      rotatedPositions.push((rotationIndex + i) % n);
+    }
+    
+    // Create matches from rotated positions
+    for (let i = 0; i < rotatedPositions.length && usedPositions.size <= rotatedPositions.length - 4; i += 4) {
+      if (i + 3 < rotatedPositions.length) {
+        const pos1 = rotatedPositions[i];
+        const pos2 = rotatedPositions[i + 1];
+        const pos3 = rotatedPositions[i + 2];
+        const pos4 = rotatedPositions[i + 3];
+        
+        // Only add if none of these positions are already used this round
+        if (![pos1, pos2, pos3, pos4].some(p => usedPositions.has(p))) {
+          roundMatches.push({
+            team1: [playerMapping.get(pos1)!, playerMapping.get(pos2)!] as [string, string],
+            team2: [playerMapping.get(pos3)!, playerMapping.get(pos4)!] as [string, string]
+          });
+          [pos1, pos2, pos3, pos4].forEach(p => usedPositions.add(p));
+        }
+      }
+    }
+    
+    if (roundMatches.length > 0) {
+      rounds.push(roundMatches);
+    }
+  }
   
   return rounds;
+}
+
+/**
+ * Validate that a schedule has perfect partnership distribution
+ */
+function validateSchedule(schedule: DoublesMatch[][], players: string[]): boolean {
+  const partnerships = new Map<string, number>();
+  
+  // Count each partnership
+  schedule.forEach(round => {
+    round.forEach(match => {
+      const partnership1 = match.team1.slice().sort().join('-');
+      const partnership2 = match.team2.slice().sort().join('-');
+      partnerships.set(partnership1, (partnerships.get(partnership1) || 0) + 1);
+      partnerships.set(partnership2, (partnerships.get(partnership2) || 0) + 1);
+    });
+  });
+  
+  // Check that each possible partnership appears exactly once
+  const expectedPartnerships = players.length * (players.length - 1) / 2;
+  return partnerships.size === expectedPartnerships && 
+         Array.from(partnerships.values()).every(count => count === 1);
 }
 
 /**
@@ -259,38 +287,42 @@ export function generateAllSinglesPairings(players: string[]): SinglesMatch[][] 
  */
 function generateEvenSinglesRotation(players: string[]): SinglesMatch[][] {
   const n = players.length;
+  
+  // Create randomized player mapping
+  const shuffledPlayers = shuffleArray(players);
+  const playerMapping = new Map<number, string>();
+  shuffledPlayers.forEach((player, index) => {
+    playerMapping.set(index, player);
+  });
+  
   const rounds: SinglesMatch[][] = [];
   
-  // RANDOMIZE the player order first
-  const randomizedPlayers = shuffleArray(players);
-  
-  // Use round-robin tournament algorithm
-  // Fix the first player, rotate others
-  const fixed = randomizedPlayers[0];
-  const rotating = randomizedPlayers.slice(1);
+  // Use round-robin tournament algorithm with abstract positions
+  // Fix position 0, rotate positions 1,2,3...n-1
+  const rotating = Array.from({length: n - 1}, (_, i) => i + 1);
   
   for (let round = 0; round < n - 1; round++) {
     const roundMatches: SinglesMatch[] = [];
     
-    // First match: fixed player vs first rotating player
+    // First match: fixed position (0) vs first rotating position
     roundMatches.push({
-      player1: fixed,
-      player2: rotating[0]
+      player1: playerMapping.get(0)!,
+      player2: playerMapping.get(rotating[0])!
     });
     
-    // Remaining matches: pair up remaining rotating players
+    // Remaining matches: pair up remaining rotating positions
     for (let i = 1; i < rotating.length; i += 2) {
       if (i + 1 < rotating.length) {
         roundMatches.push({
-          player1: rotating[i],
-          player2: rotating[rotating.length - i]
+          player1: playerMapping.get(rotating[i])!,
+          player2: playerMapping.get(rotating[rotating.length - i])!
         });
       }
     }
     
     rounds.push(roundMatches);
     
-    // Rotate the rotating players for next round
+    // Rotate the rotating positions for next round
     rotating.unshift(rotating.pop()!);
   }
   
@@ -302,37 +334,30 @@ function generateEvenSinglesRotation(players: string[]): SinglesMatch[][] {
  */
 function generateOddSinglesRotation(players: string[]): SinglesMatch[][] {
   const n = players.length;
-  const rounds: SinglesMatch[][] = [];
   
-  // RANDOMIZE the player order first
-  const randomizedPlayers = shuffleArray(players);
-  
-  // Add a "bye" player to make it even
-  const playersWithBye = [...randomizedPlayers, 'BYE'];
+  // Add a "bye" position to make it even
+  const playersWithBye = [...players, 'BYE'];
   const evenRounds = generateEvenSinglesRotation(playersWithBye);
   
-  // Remove matches involving the bye player and track who sits out
+  // Remove matches involving the bye player
   return evenRounds.map(round => 
     round.filter(match => match.player1 !== 'BYE' && match.player2 !== 'BYE')
   );
 }
 
 /**
- * Get the next optimal round for quick play based on exhaustive pairing
+ * Generate complete optimal schedule for a tournament
  */
-export function getNextOptimalRound(
+export function generateCompleteOptimalSchedule(
   players: string[],
   format: 'singles' | 'doubles',
-  existingMatches: Array<{ team1PlayerIds?: string[]; team2PlayerIds?: string[]; player1Id?: string; player2Id?: string; }>,
   maxCourts: number = 2
-): PairingResult {
+): PairingResult[] {
   try {
     if (format === 'doubles' && players.length % 4 === 0 && players.length >= 4) {
       const allPossibleRounds = generateAllDoublesPairings(players);
-      const nextRound = findNextUnusedRound(allPossibleRounds, existingMatches, 'doubles');
-      
-      if (nextRound) {
-        const matches = nextRound.slice(0, maxCourts).map(match => ({
+      return allPossibleRounds.map(round => {
+        const matches = round.slice(0, maxCourts).map(match => ({
           team1: match.team1,
           team2: match.team2
         }));
@@ -341,15 +366,13 @@ export function getNextOptimalRound(
         const restingPlayers = players.filter(p => !usedPlayers.has(p));
         
         return { matches, restingPlayers };
-      }
+      });
     }
     
     if (format === 'singles' && players.length >= 2) {
       const allPossibleRounds = generateAllSinglesPairings(players);
-      const nextRound = findNextUnusedRound(allPossibleRounds, existingMatches, 'singles');
-      
-      if (nextRound) {
-        const matches = (nextRound as SinglesMatch[]).slice(0, maxCourts).map(match => ({
+      return allPossibleRounds.map(round => {
+        const matches = (round as SinglesMatch[]).slice(0, maxCourts).map(match => ({
           team1: [match.player1],
           team2: [match.player2]
         }));
@@ -358,76 +381,60 @@ export function getNextOptimalRound(
         const restingPlayers = players.filter(p => !usedPlayers.has(p));
         
         return { matches, restingPlayers };
-      }
+      });
     }
     
-    // Fallback to existing random algorithm if systematic approach fails
-    throw new Error('Using fallback algorithm');
-    
+    return [];
   } catch (error) {
-    // Fallback: return empty result to use existing algorithm
+    return [];
+  }
+}
+
+/**
+ * Get a specific round from the optimal schedule
+ */
+export function getOptimalRound(
+  players: string[],
+  format: 'singles' | 'doubles',
+  roundNumber: number,
+  maxCourts: number = 2
+): PairingResult {
+  try {
+    const completeSchedule = generateCompleteOptimalSchedule(players, format, maxCourts);
+    
+    if (roundNumber >= 1 && roundNumber <= completeSchedule.length) {
+      return completeSchedule[roundNumber - 1]; // Convert 1-based to 0-based indexing
+    }
+    
+    // If we've exhausted the optimal schedule, cycle back to the beginning
+    if (completeSchedule.length > 0) {
+      const cycleIndex = ((roundNumber - 1) % completeSchedule.length);
+      return completeSchedule[cycleIndex];
+    }
+    
+    // Fallback
+    return { matches: [], restingPlayers: players };
+  } catch (error) {
     return { matches: [], restingPlayers: players };
   }
 }
 
 /**
- * Find the next unused round from all possible rounds
+ * Legacy function for backwards compatibility
+ * @deprecated Use getOptimalRound instead
  */
-function findNextUnusedRound(
-  allPossibleRounds: (DoublesMatch[][] | SinglesMatch[][]),
+export function getNextOptimalRound(
+  players: string[],
+  format: 'singles' | 'doubles',
   existingMatches: Array<{ team1PlayerIds?: string[]; team2PlayerIds?: string[]; player1Id?: string; player2Id?: string; }>,
-  format: 'singles' | 'doubles'
-): DoublesMatch[] | SinglesMatch[] | null {
-  
-  // Convert existing matches to comparable format
-  const existingRounds: Set<string> = new Set();
-  
-  // Group existing matches by some criteria (this is a simplified approach)
-  // In reality, you'd want to group by actual rounds played
-  for (const match of existingMatches) {
-    if (format === 'doubles' && match.team1PlayerIds && match.team2PlayerIds) {
-      const team1 = match.team1PlayerIds.slice().sort();
-      const team2 = match.team2PlayerIds.slice().sort();
-      const matchKey = `${team1.join(',')}-vs-${team2.join(',')}`;
-      existingRounds.add(matchKey);
-    } else if (format === 'singles' && match.player1Id && match.player2Id) {
-      const players = [match.player1Id, match.player2Id].sort();
-      const matchKey = players.join('-vs-');
-      existingRounds.add(matchKey);
-    }
-  }
-  
-  // Find first round that hasn't been used
-  for (const round of allPossibleRounds) {
-    const roundKey = createRoundKey(round, format);
-    if (!existingRounds.has(roundKey)) {
-      return round;
-    }
-  }
-  
-  // If all rounds have been used, start over
-  return allPossibleRounds.length > 0 ? allPossibleRounds[0] : null;
+  maxCourts: number = 2
+): PairingResult {
+  // For backwards compatibility, try to determine which round we're on
+  const roundNumber = existingMatches.length + 1;
+  return getOptimalRound(players, format, roundNumber, maxCourts);
 }
 
-/**
- * Create a comparable key for a round
- */
-function createRoundKey(round: DoublesMatch[] | SinglesMatch[], format: 'singles' | 'doubles'): string {
-  if (format === 'doubles') {
-    const doublesRound = round as DoublesMatch[];
-    return doublesRound.map(match => {
-      const team1 = match.team1.slice().sort().join(',');
-      const team2 = match.team2.slice().sort().join(',');
-      return `${team1}-vs-${team2}`;
-    }).sort().join('|');
-  } else {
-    const singlesRound = round as SinglesMatch[];
-    return singlesRound.map(match => {
-      const players = [match.player1, match.player2].sort();
-      return players.join('-vs-');
-    }).sort().join('|');
-  }
-}
+// Removed unused functions - now using direct round indexing approach
 
 /**
  * Calculate how many total rounds are possible before repetition
