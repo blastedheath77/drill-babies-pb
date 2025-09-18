@@ -56,7 +56,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
   const [isCircleContextInitialized, setIsCircleContextInitialized] = useState(false);
   
   // Load circles when user is authenticated
-  const loadUserCircles = async () => {
+  const loadUserCircles = React.useCallback(async () => {
     logger.info(`[CircleContext] 🔥 loadUserCircles CALLED - START OF FUNCTION`);
     logger.info(`[CircleContext] 🔥 loadUserCircles - isAuthenticated: ${isAuthenticated()}, user:`, user);
     logger.info(`[CircleContext] 🔥 loadUserCircles - user?.id: ${user?.id}, user?.email: ${user?.email}`);
@@ -85,22 +85,13 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
         logger.info(`[CircleContext] 🔍 State check - availableCircles after 100ms:`, availableCircles);
       }, 100);
       
-      // If user has circles but no valid selection, reset to first circle or 'all'
-      if (circles.length > 0 && selectedCircleId !== 'all') {
-        const hasValidSelection = circles.some(circle => circle.id === selectedCircleId);
-        if (!hasValidSelection) {
-          logger.info(`[CircleContext] Current selection ${selectedCircleId} is not valid, resetting to 'all'`);
-          setSelectedCircleIdState('all');
-          localStorage.removeItem(CIRCLE_STORAGE_KEY);
-        }
-      }
     } catch (error) {
       logger.error('[CircleContext] Failed to load user circles:', error);
       setAvailableCircles([]);
     } finally {
       setIsLoadingCircles(false);
     }
-  };
+  }, [user?.id, isAuthenticated]);
   
   // Load selected circle details
   const loadSelectedCircle = async (circleId: string | 'all') => {
@@ -233,26 +224,30 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
       setSelectedCircleIdState(DEFAULT_CIRCLE_ID);
       localStorage.removeItem(CIRCLE_STORAGE_KEY);
     }
-  }, [user?.id, isInitialized]); // Depend on both user.id and isInitialized
+  }, [user?.id, isInitialized]); // Removed loadUserCircles to prevent infinite loops
   
-  // Validate selected circle when available circles change
+  // Validate selected circle when available circles change (without circular dependency)
+  const selectedCircleIdRef = React.useRef(selectedCircleId);
+  selectedCircleIdRef.current = selectedCircleId;
+
   useEffect(() => {
-    logger.info(`[CircleContext] 🔍 Circle validation useEffect triggered - selectedCircleId: ${selectedCircleId}, availableCircles:`, availableCircles);
+    logger.info(`[CircleContext] 🔍 Circle validation useEffect triggered - selectedCircleId: ${selectedCircleIdRef.current}, availableCircles:`, availableCircles);
     logger.info(`[CircleContext] 🔍 availableCircles.length: ${availableCircles.length}`);
     
-    if (selectedCircleId !== 'all' && availableCircles.length > 0) {
-      const isValidSelection = availableCircles.some(circle => circle.id === selectedCircleId);
-      logger.info(`[CircleContext] 🔍 Checking if ${selectedCircleId} is valid selection: ${isValidSelection}`);
+    const currentSelectedCircleId = selectedCircleIdRef.current;
+    if (currentSelectedCircleId !== 'all' && availableCircles.length > 0) {
+      const isValidSelection = availableCircles.some(circle => circle.id === currentSelectedCircleId);
+      logger.info(`[CircleContext] 🔍 Checking if ${currentSelectedCircleId} is valid selection: ${isValidSelection}`);
       if (!isValidSelection) {
-        logger.info(`[CircleContext] ❌ Selected circle ${selectedCircleId} is no longer available, resetting to 'all'`);
+        logger.info(`[CircleContext] ❌ Selected circle ${currentSelectedCircleId} is no longer available, resetting to 'all'`);
         setSelectedCircleId('all');
       } else {
-        logger.info(`[CircleContext] ✅ Selected circle ${selectedCircleId} is valid`);
+        logger.info(`[CircleContext] ✅ Selected circle ${currentSelectedCircleId} is valid`);
       }
     } else {
-      logger.info(`[CircleContext] 🔍 Skipping validation - selectedCircleId: ${selectedCircleId}, circles count: ${availableCircles.length}`);
+      logger.info(`[CircleContext] 🔍 Skipping validation - selectedCircleId: ${currentSelectedCircleId}, circles count: ${availableCircles.length}`);
     }
-  }, [availableCircles, selectedCircleId]);
+  }, [availableCircles]);
   
   // Debug: Force log the current state values during render
   logger.info(`[CircleContext] 🔄 Context render - selectedCircleId: ${selectedCircleId}, availableCircles:`, availableCircles);

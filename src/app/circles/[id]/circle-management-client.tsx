@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Users, 
@@ -45,7 +45,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { InviteMemberDialog } from '@/components/invite-member-dialog';
-import { BulkInviteMemberDialog } from '@/components/bulk-invite-member-dialog';
 import type { Circle, CircleMembership, CircleInvite, User } from '@/lib/types';
 
 interface CircleManagementClientProps {
@@ -66,8 +65,8 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAction, setIsLoadingAction] = useState(false);
 
-  // Load circle data
-  const loadCircleData = async () => {
+  // Load circle data - memoized to prevent infinite loops
+  const loadCircleData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -110,13 +109,13 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [circleId, user?.id, router, toast]);
 
   useEffect(() => {
     if (user) {
       loadCircleData();
     }
-  }, [circleId, user]);
+  }, [circleId, user, loadCircleData]);
 
   const handleLeaveCircle = async () => {
     if (!user || !circle) return;
@@ -344,18 +343,11 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Circle Members</h3>
             {userIsAdmin && (
-              <div className="flex gap-2">
-                <InviteMemberDialog
-                  circleId={circle.id}
-                  circleName={circle.name}
-                  onInviteSent={loadCircleData}
-                />
-                <BulkInviteMemberDialog
-                  circleId={circle.id}
-                  circleName={circle.name}
-                  onInvitesSent={loadCircleData}
-                />
-              </div>
+              <InviteMemberDialog
+                circleId={circle.id}
+                circleName={circle.name}
+                onInviteSent={loadCircleData}
+              />
             )}
           </div>
 
@@ -412,23 +404,16 @@ export function CircleManagementClient({ circleId }: CircleManagementClientProps
           <TabsContent value="invitations" className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">Pending Invitations</h3>
-              <div className="flex gap-2">
-                <InviteMemberDialog
-                  circleId={circle.id}
-                  circleName={circle.name}
-                  onInviteSent={loadCircleData}
-                >
-                  <Button size="sm">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Send Invitation
-                  </Button>
-                </InviteMemberDialog>
-                <BulkInviteMemberDialog
-                  circleId={circle.id}
-                  circleName={circle.name}
-                  onInvitesSent={loadCircleData}
-                />
-              </div>
+              <InviteMemberDialog
+                circleId={circle.id}
+                circleName={circle.name}
+                onInviteSent={loadCircleData}
+              >
+                <Button size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Send Invitations
+                </Button>
+              </InviteMemberDialog>
             </div>
 
             {invites.length === 0 ? (

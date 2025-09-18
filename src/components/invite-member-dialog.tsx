@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Mail, UserPlus, User2, AtSign, Users } from 'lucide-react';
 import { sendCircleInvitation } from '@/lib/enhanced-circle-invites';
-import { getUserByEmail, searchUsersNotInCircle, searchUsersAndPhantomPlayersNotInCircle } from '@/lib/user-search';
+import { getUserByEmail, getSuggestedUsers } from '@/lib/user-search';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,11 +33,11 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { UserPicker } from '@/components/user-picker';
+import { SimpleMultiInvite } from '@/components/simple-multi-invite';
 import type { User } from '@/lib/types';
-import { getSuggestedUsers } from '@/lib/user-search';
 
 const userInviteSchema = z.object({
-  selectedUserId: z.string().min(1, 'Please select a user to invite'),
+  selectedUserIds: z.array(z.string()).min(1, 'Please select at least one user to invite'),
   message: z.string()
     .max(200, 'Message must be less than 200 characters')
     .optional(),
@@ -75,11 +75,12 @@ export function InviteMemberDialog({
   const [selectedTab, setSelectedTab] = useState('user');
   const [suggestedUsers, setSuggestedUsers] = useState<User[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 
   const userForm = useForm<UserInviteForm>({
     resolver: zodResolver(userInviteSchema),
     defaultValues: {
-      selectedUserId: '',
+      selectedUserIds: [],
       message: '',
     },
   });
@@ -95,6 +96,7 @@ export function InviteMemberDialog({
   const resetForms = () => {
     userForm.reset();
     emailForm.reset();
+    setSelectedUsers([]);
   };
 
   // Load location-based suggested users when dialog opens
@@ -131,49 +133,103 @@ export function InviteMemberDialog({
       return;
     }
 
+    if (data.selectedUserIds.length === 0) {
+      toast({
+        title: 'No users selected',
+        description: 'Please select at least one user to invite',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      logger.info(`Sending user invite for circle ${circleId}`);
+      logger.info(`Sending invitations for circle ${circleId} to ${data.selectedUserIds.length} users`);
 
-      const result = await sendCircleInvitation({
-        circleId,
-        invitedUserId: data.selectedUserId,
-        invitedBy: user.id,
-        message: data.message,
-      });
+      const results = [];
 
-      if (result.success) {
-        // Handle different invitation types with appropriate messaging
-        if (result.inviteType === 'phantom_instant') {
+      // Send invitations sequentially to avoid overwhelming the server
+      for (const selectedUserId of data.selectedUserIds) {
+        try {
+          const result = await sendCircleInvitation({
+            circleId,
+            invitedUserId: selectedUserId,
+            invitedBy: user.id,
+            message: data.message,
+          });
+          
+          results.push({
+            userId: selectedUserId,
+            success: result.success,
+            message: result.message,
+            inviteType: result.inviteType
+          });
+        } catch (error) {
+          results.push({
+            userId: selectedUserId,
+            success: false,
+            message: 'Failed to send invitation'
+          });
+        }
+      }
+
+      // Summarize results
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      const phantomInstant = results.filter(r => r.inviteType === 'phantom_instant').length;
+
+      if (successful === data.selectedUserIds.length) {
+        // All succeeded
+        if (phantomInstant > 0 && successful === 1) {
           toast({
             title: 'Phantom Player Added!',
-            description: 'The phantom player was instantly added to the circle (no invitation needed)',
+            description: 'The phantom player was instantly added to the circle.',
+          });
+        } else if (phantomInstant > 0) {
+          toast({
+            title: 'Invitations completed!',
+            description: `${phantomInstant} phantom players were instantly added to the circle${successful > phantomInstant ? `, ${successful - phantomInstant} invitations sent successfully` : ''}.`,
+          });
+        } else if (successful === 1) {
+          toast({
+            title: 'Invitation sent!',
+            description: 'The user has been invited to join the circle.',
           });
         } else {
           toast({
-            title: 'Invitation sent!',
-            description: 'The user has been invited to join the circle',
+            title: 'All invitations sent!',
+            description: `Successfully sent ${successful} invitations.`,
           });
         }
+      } else if (successful > 0) {
+        // Partial success
+        toast({
+          title: 'Invitations partially completed',
+          description: `${successful} invitations sent successfully, ${failed} failed.`,
+          variant: 'destructive',
+        });
+      } else {
+        // All failed
+        toast({
+          title: 'Failed to send invitations',
+          description: 'All invitations failed to send. Please try again.',
+          variant: 'destructive',
+        });
+      }
 
+      if (successful > 0) {
         resetForms();
         setOpen(false);
         
         if (onInviteSent) {
           onInviteSent();
         }
-      } else {
-        toast({
-          title: 'Failed to send invitation',
-          description: result.message,
-          variant: 'destructive',
-        });
       }
     } catch (error) {
-      logger.error('Failed to send user invite:', error);
+      logger.error('Failed to send invitations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to send invitation. Please try again.',
+        description: 'Failed to send invitations. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -280,14 +336,14 @@ export function InviteMemberDialog({
       <DialogTrigger asChild>
         {triggerButton}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
             Invite Member to {circleName}
           </DialogTitle>
           <DialogDescription>
-            Invite existing users or send email invitations to new members.
+            Select multiple users to invite at once, or send email invitations to new members.
           </DialogDescription>
         </DialogHeader>
 
@@ -295,7 +351,7 @@ export function InviteMemberDialog({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="user" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Existing User
+              Select Users
             </TabsTrigger>
             <TabsTrigger value="email" className="flex items-center gap-2">
               <AtSign className="h-4 w-4" />
@@ -303,44 +359,30 @@ export function InviteMemberDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="user" className="space-y-4">
+          <TabsContent value="user" className="space-y-4 flex-1 overflow-y-auto">
             <Form {...userForm}>
               <form onSubmit={userForm.handleSubmit(onUserInviteSubmit)} className="space-y-4">
                 <FormField
                   control={userForm.control}
-                  name="selectedUserId"
+                  name="selectedUserIds"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Select User</FormLabel>
+                      <FormLabel>Select Users</FormLabel>
                       <FormControl>
-                        <UserPicker
-                          selectedUserId={field.value}
-                          onUserSelect={(user: User) => field.onChange(user.id)}
+                        <SimpleMultiInvite
                           circleId={circleId}
-                          customSearchFunction={searchUsersAndPhantomPlayersNotInCircle.bind(null, circleId)}
-                          searchOptions={{ 
-                            excludeUserIds: [user?.id || ''],
-                            limit: 50,
-                            // Prioritize users from same location if current user has location
-                            ...(user?.location && {
-                              nearLocation: {
-                                city: user.location.city,
-                                country: user.location.country,
-                              }
-                            })
+                          excludeUserIds={[user?.id || '']}
+                          selectedUsers={selectedUsers}
+                          onUsersSelect={(users: User[]) => {
+                            setSelectedUsers(users);
+                            field.onChange(users.map(u => u.id));
                           }}
-                          placeholder={
-                            user?.location 
-                              ? `Search users and phantom players (prioritizing ${user.location.city}, ${user.location.country})...`
-                              : "Search for users and phantom players to invite..."
-                          }
-                          disabled={isSubmitting}
                           showLocation={true}
                           showGender={true}
                         />
                       </FormControl>
                       <FormDescription>
-                        Search and select an existing user or phantom player to invite
+                        Search and select multiple users or phantom players to invite
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -381,16 +423,19 @@ export function InviteMemberDialog({
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isSubmitting || !userForm.watch('selectedUserId')}
+                    disabled={isSubmitting || selectedUsers.length === 0}
                   >
-                    {isSubmitting ? 'Sending...' : 'Send Invitation'}
+                    {isSubmitting
+                      ? `Sending ${selectedUsers.length} invitation${selectedUsers.length !== 1 ? 's' : ''}...`
+                      : `Send ${selectedUsers.length || 0} invitation${(selectedUsers.length || 0) !== 1 ? 's' : ''}`
+                    }
                   </Button>
                 </DialogFooter>
               </form>
             </Form>
           </TabsContent>
 
-          <TabsContent value="email" className="space-y-4">
+          <TabsContent value="email" className="space-y-4 flex-1 overflow-y-auto">
             <Form {...emailForm}>
               <form onSubmit={emailForm.handleSubmit(onEmailInviteSubmit)} className="space-y-4">
                 <FormField

@@ -16,7 +16,7 @@ export const gameKeys = {
 
 // Circle-aware hook to get all games with caching
 export function useAllGames() {
-  const { selectedCircleId, availableCircles } = useCircles();
+  const { selectedCircleId, availableCircles, isLoadingCircles } = useCircles();
   
   // Determine query parameters based on circle context
   const getQueryParams = () => {
@@ -40,7 +40,9 @@ export function useAllGames() {
     circleId, 
     circleIds, 
     selectedCircleId,
-    availableCirclesCount: availableCircles.length 
+    availableCirclesCount: availableCircles.length,
+    isLoadingCircles,
+    enabled: !(selectedCircleId === 'all' && isLoadingCircles)
   });
   
   return useQuery({
@@ -71,6 +73,8 @@ export function useAllGames() {
       
       return result;
     },
+    // Don't run the query if we're in "All Circles" mode but circles are still loading
+    enabled: !(selectedCircleId === 'all' && isLoadingCircles),
     staleTime: 2 * 60 * 1000, // Reduced for debugging - games stay fresh for 2 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
