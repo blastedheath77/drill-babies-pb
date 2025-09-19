@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pbstats-v0.1.0-00088e86';
+const CACHE_NAME = 'pbstats-v0.1.0-7e84c8a0';
 const STATIC_CACHE_URLS = [
   '/',
   '/players',
