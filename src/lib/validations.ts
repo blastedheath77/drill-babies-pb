@@ -277,6 +277,14 @@ export const tournamentMatchSchema = z.object({
   court: z.string().optional(),
 });
 
+// Quick Play match result schema (allows draws)
+export const quickPlayMatchResultSchema = z.object({
+  matchId: z.string().min(1, 'Match ID is required'),
+  team1Score: scoreSchema,
+  team2Score: scoreSchema,
+  tournamentId: z.string().min(1, 'Tournament ID is required'),
+});
+
 // API response validation schemas
 export const apiResponseSchema = <T>(dataSchema: z.ZodSchema<T>) =>
   z.object({

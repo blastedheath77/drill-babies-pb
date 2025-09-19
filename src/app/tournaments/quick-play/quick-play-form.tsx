@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,6 +27,8 @@ import { useRouter } from 'next/navigation';
 import { isOnline, offlineQueue } from '@/lib/offline-queue';
 import { useQuery } from '@tanstack/react-query';
 import { getPlayers } from '@/lib/data';
+import { useCircles } from '@/hooks/use-circles';
+import { CircleSelector } from '@/components/circle-selector';
 import { PageHeader } from '@/components/page-header';
 import { ArrowLeft, Zap, Users, Clock, Target } from 'lucide-react';
 import Link from 'next/link';
@@ -57,15 +59,43 @@ type QuickPlayForm = z.infer<typeof quickPlaySchema>;
 
 export function QuickPlayForm() {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const playerSelectionRef = useRef<HTMLDivElement>(null);
 
-  // Fetch players
+  // Fetch players and circles
   const { data: players = [], isLoading: playersLoading } = useQuery({
     queryKey: ['players'],
     queryFn: getPlayers,
   });
+
+  const { data: circles = [] } = useCircles();
+
+  // Filter and sort players
+  const filteredAndSortedPlayers = useMemo(() => {
+    let filtered = [...players];
+
+    // Apply circle filtering
+    if (selectedCircleId && circles.length > 0) {
+      const selectedCircle = circles.find(c => c.id === selectedCircleId);
+      if (selectedCircle) {
+        filtered = filtered.filter(player =>
+          selectedCircle.playerIds.includes(player.id)
+        );
+      }
+    }
+
+    // Sort by games played (descending - most games first)
+    filtered.sort((a, b) => {
+      const aGames = a.wins + a.losses + (a.draws || 0);
+      const bGames = b.wins + b.losses + (b.draws || 0);
+      return bGames - aGames;
+    });
+
+    return filtered;
+  }, [players, selectedCircleId, circles]);
 
   const form = useForm<QuickPlayForm>({
     resolver: zodResolver(quickPlaySchema),
@@ -223,6 +253,19 @@ export function QuickPlayForm() {
   };
 
   const preview = getQuickPlayPreview();
+
+  // Auto-scroll to keep player selection in view when tournament preview appears
+  useEffect(() => {
+    if (selectedPlayers.length > 0 && playerSelectionRef.current) {
+      // Small delay to ensure the preview has rendered
+      setTimeout(() => {
+        playerSelectionRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }, 100);
+    }
+  }, [selectedPlayers.length > 0]); // Only trigger when going from 0 to 1+ players
 
   if (playersLoading) {
     return (
@@ -436,7 +479,7 @@ export function QuickPlayForm() {
             </Card>
 
             {/* Player Selection */}
-            <Card>
+            <Card ref={playerSelectionRef}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center">
@@ -453,19 +496,33 @@ export function QuickPlayForm() {
                 </p>
               </CardHeader>
               <CardContent>
+                {/* Circle Filter */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-medium">Filter by Circle:</span>
+                    <CircleSelector
+                      selectedCircleId={selectedCircleId}
+                      onCircleChange={setSelectedCircleId}
+                      placeholder="All players"
+                      showPlayerCount={false}
+                      size="sm"
+                    />
+                  </div>
+                </div>
+
                 <div className="mb-4 flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="default"
                     onClick={() => {
-                      const allPlayerIds = players.map(player => player.id);
+                      const allPlayerIds = filteredAndSortedPlayers.map(player => player.id);
                       setSelectedPlayers(allPlayerIds);
                       form.setValue('playerIds', allPlayerIds);
                     }}
                     className="flex-1 h-10 text-sm font-medium"
                   >
-                    Select All ({players.length})
+                    Select All ({filteredAndSortedPlayers.length})
                   </Button>
                   <Button
                     type="button"
@@ -486,7 +543,9 @@ export function QuickPlayForm() {
                   render={() => (
                     <FormItem>
                       <div className="space-y-1 max-h-96 scrollbar-always-visible">
-                        {players.map((player) => (
+                        {filteredAndSortedPlayers.map((player) => {
+                          const gamesPlayed = player.wins + player.losses + (player.draws || 0);
+                          return (
                           <FormItem
                             key={player.id}
                             className="flex flex-row items-center space-x-2 space-y-0 p-2 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 transition-colors"
@@ -506,12 +565,18 @@ export function QuickPlayForm() {
                                 <AvatarImage src={player.avatar} alt={player.name} />
                                 <AvatarFallback className="text-xs">{player.name.substring(0, 2)}</AvatarFallback>
                               </Avatar>
-                              <FormLabel className="text-sm font-medium cursor-pointer flex-1">
-                                {player.name}
-                              </FormLabel>
+                              <div className="flex-1">
+                                <FormLabel className="text-sm font-medium cursor-pointer">
+                                  {player.name}
+                                </FormLabel>
+                                <div className="text-xs text-muted-foreground">
+                                  {gamesPlayed} games played
+                                </div>
+                              </div>
                             </div>
                           </FormItem>
-                        ))}
+                          );
+                        })}
                       </div>
                       <FormMessage />
                     </FormItem>

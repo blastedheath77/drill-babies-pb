@@ -49,19 +49,13 @@ export default async function StatisticsPage() {
   );
 
   return (
-    <>
-      <PageHeader
-        title="Player Rankings"
-        description="View player leaderboards and overall club stats. Click column headers to sort."
-      />
-      <ClientOnly fallback={<LoadingSkeleton />}>
-        <DataErrorBoundary
-          fallbackTitle="Statistics Unavailable"
-          fallbackDescription="Unable to load player statistics. This may be due to a connection issue."
-        >
-          <StatisticsClient initialPlayers={initialPlayers} />
-        </DataErrorBoundary>
-      </ClientOnly>
-    </>
+    <ClientOnly fallback={<LoadingSkeleton />}>
+      <DataErrorBoundary
+        fallbackTitle="Statistics Unavailable"
+        fallbackDescription="Unable to load player statistics. This may be due to a connection issue."
+      >
+        <StatisticsClient initialPlayers={initialPlayers} />
+      </DataErrorBoundary>
+    </ClientOnly>
   );
 }

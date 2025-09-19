@@ -424,27 +424,25 @@ export function PartnershipsClientV2() {
                       </div>
                     </Link>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Condensed Stats Row */}
+                    <div className="grid grid-cols-3 gap-2 text-sm">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-primary">{playerData.partnerships.length}</div>
-                        <div className="text-muted-foreground">Partners</div>
+                        <div className="text-xl font-bold text-primary">{playerData.partnerships.length}</div>
+                        <div className="text-xs text-muted-foreground">Partners</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-primary">{playerData.totalGames}</div>
-                        <div className="text-muted-foreground">Total Games</div>
+                        <div className="text-xl font-bold text-primary">{playerData.totalGames}</div>
+                        <div className="text-xs text-muted-foreground">Total Games</div>
                       </div>
-                    </div>
-
-                    {/* Win Rate */}
-                    <div className="text-center">
-                      <span className={`text-3xl font-bold ${
-                        playerData.averageWinRate >= 70 ? 'text-green-600' :
-                        playerData.averageWinRate >= 50 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {playerData.averageWinRate.toFixed(0)}%
-                      </span>
-                      <div className="text-sm text-muted-foreground">Average Win Rate</div>
+                      <div className="text-center">
+                        <span className={`text-xl font-bold ${
+                          playerData.averageWinRate >= 70 ? 'text-green-600' :
+                          playerData.averageWinRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {playerData.averageWinRate.toFixed(0)}%
+                        </span>
+                        <div className="text-xs text-muted-foreground">Avg Win Rate</div>
+                      </div>
                     </div>
 
                     {/* Best Partner */}

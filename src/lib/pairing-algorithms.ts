@@ -3,6 +3,16 @@
  * Ensures all possible pairings are exhausted before repetition
  */
 
+// Cache for tournament schedules to maintain consistent player mappings
+const tournamentScheduleCache = new Map<string, DoublesMatch[][] | SinglesMatch[][]>();
+
+/**
+ * Clear the tournament schedule cache - useful for new tournaments
+ */
+export function clearTournamentScheduleCache(): void {
+  tournamentScheduleCache.clear();
+}
+
 interface PairingResult {
   matches: Array<{
     team1: string[];
@@ -63,18 +73,18 @@ function shuffleArray<T>(array: T[]): T[] {
  * Generate all possible doubles pairings for n players (n must be divisible by 4)
  * Each pairing represents one round of matches
  */
-export function generateAllDoublesPairings(players: string[]): DoublesMatch[][] {
+export function generateAllDoublesPairings(players: string[], randomize: boolean = true): DoublesMatch[][] {
   const n = players.length;
-  
+
   // For perfect rotation, we need multiples of 4
   if (n % 4 !== 0 || n < 4) {
     throw new Error(`Perfect doubles pairing requires multiples of 4 players, got ${n}`);
   }
-  
-  // Create a randomized mapping from positions to players
-  const shuffledPlayers = shuffleArray(players);
+
+  // Create player mapping - optionally randomized only on first call
+  const playersToUse = randomize ? shuffleArray(players) : players;
   const playerMapping = new Map<number, string>();
-  shuffledPlayers.forEach((player, index) => {
+  playersToUse.forEach((player, index) => {
     playerMapping.set(index, player);
   });
   
@@ -354,36 +364,53 @@ export function generateCompleteOptimalSchedule(
   maxCourts: number = 2
 ): PairingResult[] {
   try {
+    // Create cache key for consistent schedules
+    const cacheKey = `${format}-${players.sort().join(',')}-${maxCourts}`;
+
     if (format === 'doubles' && players.length % 4 === 0 && players.length >= 4) {
-      const allPossibleRounds = generateAllDoublesPairings(players);
+      // Check cache first
+      let allPossibleRounds = tournamentScheduleCache.get(cacheKey) as DoublesMatch[][];
+      if (!allPossibleRounds) {
+        // Generate and cache the schedule
+        allPossibleRounds = generateAllDoublesPairings(players, true); // Randomize only on first generation
+        tournamentScheduleCache.set(cacheKey, allPossibleRounds);
+      }
+
       return allPossibleRounds.map(round => {
         const matches = round.slice(0, maxCourts).map(match => ({
           team1: match.team1,
           team2: match.team2
         }));
-        
+
         const usedPlayers = new Set(matches.flatMap(m => [...m.team1, ...m.team2]));
         const restingPlayers = players.filter(p => !usedPlayers.has(p));
-        
+
         return { matches, restingPlayers };
       });
     }
-    
+
     if (format === 'singles' && players.length >= 2) {
-      const allPossibleRounds = generateAllSinglesPairings(players);
+      // Check cache first
+      let allPossibleRounds = tournamentScheduleCache.get(cacheKey) as SinglesMatch[][];
+      if (!allPossibleRounds) {
+        // Generate and cache the schedule
+        allPossibleRounds = generateAllSinglesPairings(players);
+        tournamentScheduleCache.set(cacheKey, allPossibleRounds);
+      }
+
       return allPossibleRounds.map(round => {
         const matches = (round as SinglesMatch[]).slice(0, maxCourts).map(match => ({
           team1: [match.player1],
           team2: [match.player2]
         }));
-        
+
         const usedPlayers = new Set(matches.flatMap(m => [...m.team1, ...m.team2]));
         const restingPlayers = players.filter(p => !usedPlayers.has(p));
-        
+
         return { matches, restingPlayers };
       });
     }
-    
+
     return [];
   } catch (error) {
     return [];

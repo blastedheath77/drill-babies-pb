@@ -5,7 +5,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { QueryProvider } from '@/lib/query-client';
 import { AuthProvider } from '@/contexts/auth-context';
-import { CircleProvider } from '@/contexts/circle-context';
 
 export const metadata: Metadata = {
   title: 'Pickleball Stats Tracker',
@@ -112,14 +111,12 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <CircleProvider>
-            <QueryProvider>
-              <ErrorBoundary>
-                <AppLayout>{children}</AppLayout>
-              </ErrorBoundary>
-              <Toaster />
-            </QueryProvider>
-          </CircleProvider>
+          <QueryProvider>
+            <ErrorBoundary>
+              <AppLayout>{children}</AppLayout>
+            </ErrorBoundary>
+            <Toaster />
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

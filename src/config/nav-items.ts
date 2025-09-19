@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Circle } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2 } from 'lucide-react';
 import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
@@ -63,10 +63,10 @@ export const mainNavItems: NavItem[] = [
     desktopVisible: true,
     description: 'Doubles partnership stats'
   },
-  { 
-    title: 'Head-to-Head', 
-    href: '/head-to-head', 
-    icon: Swords, 
+  {
+    title: 'Head-to-Head',
+    href: '/head-to-head',
+    icon: Swords,
     category: 'main',
     priority: 'tertiary',
     bottomNavEligible: false,
@@ -74,21 +74,21 @@ export const mainNavItems: NavItem[] = [
     desktopVisible: true,
     description: 'Player matchup stats'
   },
-  { 
-    title: 'Circles', 
-    href: '/circles', 
-    icon: Circle, 
+  {
+    title: 'Circles',
+    href: '/circles',
+    icon: Users2,
     category: 'main',
-    priority: 'secondary',
+    priority: 'tertiary',
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Manage player circles'
+    description: 'Player groups for filtering'
   },
-  { 
-    title: 'Rankings', 
-    href: '/statistics', 
-    icon: BarChart, 
+  {
+    title: 'Rankings',
+    href: '/statistics',
+    icon: BarChart,
     category: 'main',
     priority: 'primary',
     bottomNavEligible: true,

@@ -1,279 +1,194 @@
 'use client';
 
-import React from 'react';
-import { Check, ChevronDown, Users, Globe, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useCircles } from '@/contexts/circle-context';
-import { useAuth } from '@/contexts/auth-context';
+import { useCircles } from '@/hooks/use-circles';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Users2, Circle as CircleIcon, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CircleSelectorProps {
+  selectedCircleId: string | null;
+  onCircleChange: (circleId: string | null) => void;
+  placeholder?: string;
+  showPlayerCount?: boolean;
   className?: string;
-  variant?: 'default' | 'compact';
-  showCreateOption?: boolean;
-  onCreateCircle?: () => void;
+  size?: 'sm' | 'default' | 'lg';
 }
 
-export function CircleSelector({ 
-  className, 
-  variant = 'default',
-  showCreateOption = true,
-  onCreateCircle 
+const ALL_PLAYERS_VALUE = 'all-players';
+
+export function CircleSelector({
+  selectedCircleId,
+  onCircleChange,
+  placeholder = 'Select circle...',
+  showPlayerCount = true,
+  className,
+  size = 'default',
 }: CircleSelectorProps) {
-  const { isAuthenticated } = useAuth();
-  const {
-    selectedCircleId,
-    selectedCircle,
-    availableCircles,
-    isLoadingCircles,
-    setSelectedCircleId,
-  } = useCircles();
+  const { data: circles, isLoading, error, isError } = useCircles();
 
-  // Don't show selector if user is not authenticated
-  if (!isAuthenticated()) {
-    return null;
-  }
-
-  const handleCircleSelect = (circleId: string | 'all') => {
-    setSelectedCircleId(circleId);
-  };
-
-  const handleCreateCircle = () => {
-    if (onCreateCircle) {
-      onCreateCircle();
+  const handleValueChange = (value: string) => {
+    if (value === ALL_PLAYERS_VALUE) {
+      onCircleChange(null);
     } else {
-      // Default behavior - could navigate to create page
-      window.location.href = '/circles/create';
+      onCircleChange(value);
     }
   };
 
-  if (isLoadingCircles && variant === 'compact') {
+  const getCurrentValue = () => {
+    return selectedCircleId || ALL_PLAYERS_VALUE;
+  };
+
+  const getDisplayValue = () => {
+    if (!selectedCircleId) {
+      return 'All Players';
+    }
+
+    const selectedCircle = circles?.find(c => c.id === selectedCircleId);
+    if (!selectedCircle) {
+      return 'All Players';
+    }
+
+    if (showPlayerCount) {
+      const playerCount = selectedCircle.playerIds.length;
+      return `${selectedCircle.name} (${playerCount})`;
+    }
+
+    return selectedCircle.name;
+  };
+
+  const sizeClasses = {
+    sm: 'h-8 text-xs',
+    default: 'h-10 text-sm',
+    lg: 'h-12 text-base',
+  };
+
+  if (isError) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <Skeleton className="h-8 w-32" />
-      </div>
+      <Alert variant="destructive" className={cn('w-full max-w-xs', className)}>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription className="text-xs">
+          Failed to load circles
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  if (isLoadingCircles) {
+  if (isLoading) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <Skeleton className="h-10 w-48" />
-      </div>
+      <Skeleton
+        className={cn(
+          'w-full max-w-xs',
+          sizeClasses[size],
+          className
+        )}
+      />
     );
   }
 
-  const displayText = selectedCircleId === 'all' 
-    ? 'All Players' 
-    : selectedCircle?.name || 'Unknown Circle';
-  
-  const displayIcon = selectedCircleId === 'all' ? Globe : Users;
-  const Icon = displayIcon;
-
-  if (variant === 'compact') {
+  // If no circles exist, show a simple indicator
+  if (!circles || circles.length === 0) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="h-8 px-2 flex items-center gap-1 text-sm"
-            >
-              <Icon className="h-3 w-3" />
-              <span className="max-w-24 truncate">{displayText}</span>
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Select Circle</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            
-            {/* All Players Option */}
-            <DropdownMenuItem
-              onClick={() => handleCircleSelect('all')}
-              className="flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4" />
-                <span>All Players</span>
-              </div>
-              {selectedCircleId === 'all' && <Check className="h-4 w-4" />}
-            </DropdownMenuItem>
-            
-            {/* User's Circles */}
-            {availableCircles.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                {availableCircles.map((circle) => (
-                  <DropdownMenuItem
-                    key={circle.id}
-                    onClick={() => handleCircleSelect(circle.id)}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <span className="truncate">{circle.name}</span>
-                    </div>
-                    {selectedCircleId === circle.id && <Check className="h-4 w-4" />}
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
-            
-            {/* Create Circle Option */}
-            {showCreateOption && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleCreateCircle}
-                  className="flex items-center gap-2 text-primary"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Create Circle</span>
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className={cn(
+        'flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border rounded-md bg-muted/30 w-full max-w-xs',
+        sizeClasses[size],
+        className
+      )}>
+        <Users2 className="h-4 w-4" />
+        <span>All Players</span>
+        <Badge variant="outline" className="ml-auto text-xs">
+          No circles
+        </Badge>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="outline" 
-            className="flex items-center gap-2 min-w-48"
-          >
-            <Icon className="h-4 w-4" />
-            <span className="flex-1 text-left truncate">{displayText}</span>
-            {selectedCircleId !== 'all' && selectedCircle && (
-              <Badge variant="secondary" className="text-xs">
-                {selectedCircle.memberCount}
+    <Select
+      value={getCurrentValue()}
+      onValueChange={handleValueChange}
+    >
+      <SelectTrigger className={cn(
+        'w-full max-w-xs',
+        sizeClasses[size],
+        className
+      )}>
+        <div className="flex items-center gap-2 min-w-0">
+          {selectedCircleId ? (
+            <CircleIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          ) : (
+            <Users2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          )}
+          <SelectValue placeholder={placeholder}>
+            <span className="truncate">{getDisplayValue()}</span>
+          </SelectValue>
+        </div>
+      </SelectTrigger>
+      <SelectContent>
+        {/* All Players Option */}
+        <SelectItem value={ALL_PLAYERS_VALUE}>
+          <div className="flex items-center gap-2 w-full">
+            <Users2 className="h-4 w-4 text-primary" />
+            <span className="font-medium">All Players</span>
+            {showPlayerCount && (
+              <Badge variant="default" className="ml-auto text-xs">
+                Default
               </Badge>
             )}
-            <ChevronDown className="h-4 w-4 flex-shrink-0" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuLabel className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Select Circle
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          
-          {/* All Players Option */}
-          <DropdownMenuItem
-            onClick={() => handleCircleSelect('all')}
-            className="flex items-center justify-between py-3"
-          >
-            <div className="flex items-center gap-3">
-              <Globe className="h-4 w-4" />
-              <div>
-                <div className="font-medium">All Players</div>
-                <div className="text-xs text-muted-foreground">
-                  View all players and games
-                </div>
+          </div>
+        </SelectItem>
+
+        {/* Circle Options */}
+        {circles.map((circle) => {
+          const playerCount = circle.playerIds.length;
+
+          return (
+            <SelectItem key={circle.id} value={circle.id}>
+              <div className="flex items-center gap-2 w-full">
+                <CircleIcon className={`h-4 w-4 ${playerCount > 0 ? 'text-green-600' : 'text-muted-foreground'}`} />
+                <span className="truncate flex-1">{circle.name}</span>
+                {showPlayerCount && (
+                  <Badge
+                    variant={playerCount > 0 ? "secondary" : "outline"}
+                    className="ml-auto text-xs"
+                  >
+                    {playerCount} player{playerCount !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+                {playerCount === 0 && (
+                  <span className="text-xs text-muted-foreground ml-1">(Empty)</span>
+                )}
               </div>
-            </div>
-            {selectedCircleId === 'all' && <Check className="h-4 w-4 text-primary" />}
-          </DropdownMenuItem>
-          
-          {/* User's Circles */}
-          {availableCircles.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">
-                Your Circles
-              </DropdownMenuLabel>
-              {availableCircles.map((circle) => (
-                <DropdownMenuItem
-                  key={circle.id}
-                  onClick={() => handleCircleSelect(circle.id)}
-                  className="flex items-center justify-between py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <Users className="h-4 w-4" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{circle.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {circle.description || `${circle.memberCount} members`}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {circle.memberCount}
-                    </Badge>
-                    {selectedCircleId === circle.id && <Check className="h-4 w-4 text-primary" />}
-                  </div>
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-          
-          {/* No Circles Message */}
-          {availableCircles.length === 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                You haven't joined any circles yet
-              </div>
-            </>
-          )}
-          
-          {/* Create Circle Option */}
-          {showCreateOption && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleCreateCircle}
-                className="flex items-center gap-3 py-3 text-primary focus:text-primary"
-              >
-                <Plus className="h-4 w-4" />
-                <div>
-                  <div className="font-medium">Create New Circle</div>
-                  <div className="text-xs text-muted-foreground">
-                    Start your own player group
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 }
 
-// Simplified version for use in tight spaces
-export function CircleSelectorCompact(props: Omit<CircleSelectorProps, 'variant'>) {
-  return <CircleSelector {...props} variant="compact" />;
-}
-
-// Hook for getting current circle display info
-export function useCircleDisplay() {
-  const { selectedCircleId, selectedCircle } = useCircles();
-  
-  return {
-    displayText: selectedCircleId === 'all' 
-      ? 'All Players' 
-      : selectedCircle?.name || 'Unknown Circle',
-    displayIcon: selectedCircleId === 'all' ? Globe : Users,
-    isAllPlayers: selectedCircleId === 'all',
-    memberCount: selectedCircle?.memberCount || 0,
-  };
+// Compact version for use in headers or constrained spaces
+export function CircleSelectorCompact({
+  selectedCircleId,
+  onCircleChange,
+  className,
+}: Omit<CircleSelectorProps, 'size' | 'showPlayerCount' | 'placeholder'>) {
+  return (
+    <CircleSelector
+      selectedCircleId={selectedCircleId}
+      onCircleChange={onCircleChange}
+      placeholder="Filter..."
+      showPlayerCount={false}
+      size="sm"
+      className={cn('max-w-[140px]', className)}
+    />
+  );
 }

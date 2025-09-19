@@ -3,7 +3,7 @@
 import { collection, doc, updateDoc, addDoc, serverTimestamp, writeBatch, getDocs, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { revalidatePath } from 'next/cache';
-import { validateData, scoreSchema } from '@/lib/validations';
+import { validateData, scoreSchema, quickPlayMatchResultSchema } from '@/lib/validations';
 import { getTournamentMatchById } from '@/lib/data';
 import { logger } from '@/lib/logger';
 import { RATING_K_FACTOR, DEFAULT_RATING, MIN_RATING, MAX_RATING } from '@/lib/constants';
@@ -87,11 +87,22 @@ interface MatchResultData {
 
 export async function recordTournamentMatchResult(data: MatchResultData) {
   try {
-    // Validate input data
-    const validatedData = validateData(matchResultSchema, data);
+    // Get tournament details first to determine validation schema
+    const tournamentRef = doc(db, 'tournaments', data.tournamentId);
+    const tournamentSnap = await getDoc(tournamentRef);
+
+    if (!tournamentSnap.exists()) {
+      throw new Error('Tournament not found');
+    }
+
+    const tournament = { id: data.tournamentId, ...tournamentSnap.data() } as Tournament;
+
+    // Use appropriate validation schema based on tournament type
+    const schema = tournament.isQuickPlay ? quickPlayMatchResultSchema : matchResultSchema;
+    const validatedData = validateData(schema, data);
     const { matchId, team1Score, team2Score, tournamentId } = validatedData;
 
-    logger.info('Recording tournament match result', { matchId, team1Score, team2Score });
+    logger.info('Recording tournament match result', { matchId, team1Score, team2Score, isQuickPlay: tournament.isQuickPlay });
 
     // Get the match details to get player information
     const match = await getTournamentMatchById(matchId);
@@ -142,15 +153,17 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
     // Calculate expected and actual scores
     const expectedScoreTeam1 = getExpectedScore(team1Rating, team2Rating);
     const expectedScoreTeam2 = getExpectedScore(team2Rating, team1Rating);
-    
+
     const team1Won = team1Score > team2Score;
-    const actualScoreTeam1 = team1Won ? 1 : 0;
-    const actualScoreTeam2 = team1Won ? 0 : 1;
+    const isDraw = team1Score === team2Score;
+    const actualScoreTeam1 = isDraw ? 0.5 : (team1Won ? 1 : 0);
+    const actualScoreTeam2 = isDraw ? 0.5 : (team1Won ? 0 : 1);
 
     // Calculate margin and performance multipliers
-    const winnerScore = team1Won ? team1Score : team2Score;
-    const loserScore = team1Won ? team2Score : team1Score;
-    const marginMultiplier = getScoreMarginMultiplier(winnerScore, loserScore);
+    const marginMultiplier = isDraw ? 1.0 : getScoreMarginMultiplier(
+      team1Won ? team1Score : team2Score,
+      team1Won ? team2Score : team1Score
+    );
 
     // Track rating changes for game record
     const ratingChanges: { [playerId: string]: { before: number; after: number } } = {};
@@ -167,8 +180,8 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
         // Calculate individual performance multiplier
         const teamRating = isTeam1 ? team1Rating : team2Rating;
         const gameType = team1PlayerIds.length === 1 ? 'singles' : 'doubles';
-        const isWinner = (isTeam1 && team1Won) || (!isTeam1 && !team1Won);
-        const performanceMultiplier = getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
+        const isWinner = isDraw ? false : ((isTeam1 && team1Won) || (!isTeam1 && !team1Won));
+        const performanceMultiplier = isDraw ? 1.0 : getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
         
         const newRating = getNewRating(
           player.rating,
@@ -180,14 +193,16 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
 
         ratingChanges[playerId] = { before: oldRating, after: newRating };
 
-        const wins = player.wins + ((isTeam1 && team1Won) || (!isTeam1 && !team1Won) ? 1 : 0);
-        const losses = player.losses + ((isTeam1 && !team1Won) || (!isTeam1 && team1Won) ? 1 : 0);
+        const wins = player.wins + (isDraw ? 0 : ((isTeam1 && team1Won) || (!isTeam1 && !team1Won) ? 1 : 0));
+        const losses = player.losses + (isDraw ? 0 : ((isTeam1 && !team1Won) || (!isTeam1 && team1Won) ? 1 : 0));
+        const draws = (player.draws || 0) + (isDraw ? 1 : 0);
         const pointsFor = player.pointsFor + (isTeam1 ? team1Score : team2Score);
         const pointsAgainst = player.pointsAgainst + (isTeam1 ? team2Score : team1Score);
 
         batch.update(playerRef, {
           wins,
           losses,
+          draws,
           pointsFor,
           pointsAgainst,
           rating: newRating,

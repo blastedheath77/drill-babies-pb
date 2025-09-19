@@ -30,15 +30,6 @@ const logGameSchema = z.object({
 })
   .refine(
     (data) => {
-      // Games cannot end in a tie
-      return data.team1Score !== data.team2Score;
-    },
-    {
-      message: 'Games cannot end in a tie',
-    }
-  )
-  .refine(
-    (data) => {
       // For doubles, must have second players
       if (data.gameType === 'doubles') {
         return data.team1Player2 && data.team2Player2;
@@ -169,15 +160,17 @@ export async function logGame(values: z.infer<typeof logGameSchema>) {
     const expectedScoreTeam1 = getExpectedScore(team1Rating, team2Rating);
     const expectedScoreTeam2 = getExpectedScore(team2Rating, team1Rating);
 
-    // 4. Determine actual scores (1 for win, 0 for loss)
+    // 4. Determine actual scores (1 for win, 0 for loss, 0.5 for draw)
     const team1Won = team1Score > team2Score;
-    const actualScoreTeam1 = team1Won ? 1 : 0;
-    const actualScoreTeam2 = team1Won ? 0 : 1;
+    const isDraw = team1Score === team2Score;
+    const actualScoreTeam1 = isDraw ? 0.5 : (team1Won ? 1 : 0);
+    const actualScoreTeam2 = isDraw ? 0.5 : (team1Won ? 0 : 1);
 
     // 5. Calculate margin and performance multipliers
-    const winnerScore = team1Won ? team1Score : team2Score;
-    const loserScore = team1Won ? team2Score : team1Score;
-    const marginMultiplier = getScoreMarginMultiplier(winnerScore, loserScore);
+    const marginMultiplier = isDraw ? 1.0 : getScoreMarginMultiplier(
+      team1Won ? team1Score : team2Score,
+      team1Won ? team2Score : team1Score
+    );
 
     // 6. Update player stats and ratings, track rating changes
     const ratingChanges: { [playerId: string]: { before: number; after: number } } = {};
@@ -192,8 +185,8 @@ export async function logGame(values: z.infer<typeof logGameSchema>) {
         
         // Calculate individual performance multiplier relative to own team
         const teamRating = isTeam1 ? team1Rating : team2Rating;
-        const isWinner = (isTeam1 && team1Won) || (!isTeam1 && !team1Won);
-        const performanceMultiplier = getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
+        const isWinner = isDraw ? false : ((isTeam1 && team1Won) || (!isTeam1 && !team1Won));
+        const performanceMultiplier = isDraw ? 1.0 : getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
         
         const newRating = getNewRating(
           player.rating,
@@ -206,14 +199,16 @@ export async function logGame(values: z.infer<typeof logGameSchema>) {
         // Track rating change
         ratingChanges[playerId] = { before: oldRating, after: newRating };
 
-        const wins = player.wins + ((isTeam1 && team1Won) || (!isTeam1 && !team1Won) ? 1 : 0);
-        const losses = player.losses + ((isTeam1 && !team1Won) || (!isTeam1 && team1Won) ? 1 : 0);
+        const wins = player.wins + (isDraw ? 0 : ((isTeam1 && team1Won) || (!isTeam1 && !team1Won) ? 1 : 0));
+        const losses = player.losses + (isDraw ? 0 : ((isTeam1 && !team1Won) || (!isTeam1 && team1Won) ? 1 : 0));
+        const draws = (player.draws || 0) + (isDraw ? 1 : 0);
         const pointsFor = player.pointsFor + (isTeam1 ? team1Score : team2Score);
         const pointsAgainst = player.pointsAgainst + (isTeam1 ? team2Score : team1Score);
 
         batch.update(playerRef, {
           wins,
           losses,
+          draws,
           pointsFor,
           pointsAgainst,
           rating: newRating,

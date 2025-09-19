@@ -5,6 +5,7 @@ export interface Player {
   rating: number;
   wins: number;
   losses: number;
+  draws: number;
   pointsFor: number;
   pointsAgainst: number;
 }
@@ -96,53 +97,12 @@ export interface TournamentStanding {
   winPercentage: number;
 }
 
-// Circles system types
 export interface Circle {
   id: string;
   name: string;
-  description: string;
-  createdBy: string; // User ID of creator
-  createdAt: string;
-  updatedAt: string;
-  isPrivate: boolean; // If true, requires invitation to join
-  memberCount: number;
-  settings?: {
-    allowMemberInvites: boolean; // If members can invite others
-    autoAcceptInvites: boolean; // If invites are auto-accepted
-  };
+  description?: string;
+  playerIds: string[];
+  createdDate: string;
+  createdBy: string;
 }
 
-export interface CircleMembership {
-  id: string;
-  circleId: string;
-  userId: string;
-  role: 'admin' | 'member'; // admin can manage circle, member can just participate
-  joinedAt: string;
-  invitedBy?: string; // User ID who invited this member
-}
-
-export interface CircleInvite {
-  id: string;
-  circleId: string;
-  circle?: Circle; // Populated for UI
-  invitedUserId: string;
-  invitedBy: string; // User ID who sent the invite
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
-  createdAt: string;
-  expiresAt: string;
-  message?: string; // Optional personal message
-}
-
-export interface CircleContext {
-  selectedCircleId: string | 'all'; // 'all' means show all players/data
-  availableCircles: Circle[];
-}
-
-// Extended types to support circle context
-export interface GameWithCircle extends Game {
-  circleId?: string; // Optional - games can exist without a specific circle
-}
-
-export interface TournamentWithCircle extends Tournament {
-  circleId?: string; // Optional - tournaments can be circle-specific
-}

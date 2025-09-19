@@ -24,6 +24,7 @@ import type {
   Tournament,
   TournamentMatch,
   TournamentStanding,
+  Circle,
 } from './types';
 import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './constants';
 import { handleDatabaseError, logError } from './errors';
@@ -78,6 +79,17 @@ export async function getPlayerById(id: string): Promise<Player | undefined> {
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayerById');
     return undefined;
+  }
+}
+
+export async function getPlayersByIds(playerIds: string[]): Promise<Player[]> {
+  try {
+    const playerMap = await fetchPlayersByIds(playerIds);
+    // Return players in the same order as the input IDs
+    return playerIds.map(id => playerMap.get(id)).filter(Boolean) as Player[];
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getPlayersByIds');
+    return [];
   }
 }
 

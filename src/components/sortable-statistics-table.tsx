@@ -245,11 +245,8 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Player Rankings
-            </CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
               Click headers to sort • Select stat to display
             </p>
           </div>

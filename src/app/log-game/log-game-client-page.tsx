@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,8 @@ import { logGame } from '@/app/log-game/actions';
 import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
 import { ScoreSelector } from '@/components/ui/score-selector';
+import { CircleSelector } from '@/components/circle-selector';
+import { useCircles } from '@/hooks/use-circles';
 
 interface LogGameClientPageProps {
   players: Player[];
@@ -40,13 +42,41 @@ const logGameSchema = z.object({
 
 export function LogGameClientPage({ players }: LogGameClientPageProps) {
   const { toast } = useToast();
+  const { data: circles } = useCircles();
   const [gameType, setGameType] = useState<'singles' | 'doubles'>('doubles');
+  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
   const [team1Player1, setTeam1Player1] = useState<Player | null>(null);
   const [team1Player2, setTeam1Player2] = useState<Player | null>(null);
   const [team1Score, setTeam1Score] = useState(0);
   const [team2Player1, setTeam2Player1] = useState<Player | null>(null);
   const [team2Player2, setTeam2Player2] = useState<Player | null>(null);
   const [team2Score, setTeam2Score] = useState(0);
+
+  // Filter players based on selected circle
+  const filteredPlayers = useMemo(() => {
+    if (!selectedCircleId || !circles) return players;
+
+    const selectedCircle = circles.find(c => c.id === selectedCircleId);
+    if (!selectedCircle) return players;
+
+    return players.filter(player => selectedCircle.playerIds.includes(player.id));
+  }, [players, selectedCircleId, circles]);
+
+  // Clear selected players if they're not in the filtered list
+  useEffect(() => {
+    if (team1Player1 && !filteredPlayers.some(p => p.id === team1Player1.id)) {
+      setTeam1Player1(null);
+    }
+    if (team1Player2 && !filteredPlayers.some(p => p.id === team1Player2.id)) {
+      setTeam1Player2(null);
+    }
+    if (team2Player1 && !filteredPlayers.some(p => p.id === team2Player1.id)) {
+      setTeam2Player1(null);
+    }
+    if (team2Player2 && !filteredPlayers.some(p => p.id === team2Player2.id)) {
+      setTeam2Player2(null);
+    }
+  }, [filteredPlayers, team1Player1, team1Player2, team2Player1, team2Player2]);
 
   // Compact Player Selector Component
   function CompactPlayerSelector({ 
@@ -66,8 +96,8 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Available players (excluding already selected ones) sorted alphabetically by first name
-    const availablePlayers = players
-      .filter(p => 
+    const availablePlayers = filteredPlayers
+      .filter(p =>
         !player || p.id === player.id || !otherSelectedPlayers.some(selected => selected && selected.id === p.id)
       )
       .sort((a, b) => {
@@ -305,9 +335,30 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
                   </div>
                 </RadioGroup>
               </div>
-              
+
               <div className="shrink-0">
                 <Button onClick={onSubmit}>Submit Game</Button>
+              </div>
+            </div>
+
+            {/* Circle Filter */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Filter Players by Circle
+              </label>
+              <div className="flex items-center gap-4">
+                <CircleSelector
+                  selectedCircleId={selectedCircleId}
+                  onCircleChange={setSelectedCircleId}
+                  placeholder="All players..."
+                  showPlayerCount={true}
+                  className="max-w-xs"
+                />
+                {selectedCircleId && (
+                  <span className="text-sm text-muted-foreground">
+                    Showing {filteredPlayers.length} of {players.length} players
+                  </span>
+                )}
               </div>
             </div>
 

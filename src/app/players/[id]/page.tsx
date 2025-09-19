@@ -41,35 +41,34 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
   return (
     <>
       <PageHeader
-        title={player.name}
-        description={`Detailed statistics and match history for ${player.name}.`}
+        title="Player Statistics"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-8">
           <PlayerProfileClient player={player} />
-          <div className="grid grid-cols-2 gap-4">
-            <StatCard
-              title="Wins"
-              value={String(player.wins)}
-              icon={<Trophy className="h-4 w-4" />}
-            />
-            <StatCard
-              title="Losses"
-              value={String(player.losses)}
-              icon={<Swords className="h-4 w-4" />}
-            />
-            <StatCard
-              title="Win %"
-              value={`${winPercentage}%`}
-              icon={<Percent className="h-4 w-4" />}
-            />
-            <StatCard
-              title="Points Diff"
-              value={String(pointsDiff > 0 ? `+${pointsDiff}` : pointsDiff)}
-              icon={<BarChart className="h-4 w-4" />}
-            />
-          </div>
+          <Card>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div className="space-y-1">
+                  <div className="text-xl font-bold">{player.wins}</div>
+                  <div className="text-xs text-muted-foreground">Wins</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xl font-bold">{player.losses}</div>
+                  <div className="text-xs text-muted-foreground">Losses</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xl font-bold">{winPercentage}%</div>
+                  <div className="text-xs text-muted-foreground">Win %</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xl font-bold">{pointsDiff > 0 ? `+${pointsDiff}` : pointsDiff}</div>
+                  <div className="text-xs text-muted-foreground">Points Diff</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="lg:col-span-2 space-y-6">

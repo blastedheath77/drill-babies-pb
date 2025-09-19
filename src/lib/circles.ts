@@ -1,485 +1,260 @@
-'use server';
-
 import {
   collection,
   doc,
-  getDocs,
   getDoc,
+  getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
-  limit,
+  where,
   serverTimestamp,
-  writeBatch,
   Timestamp,
+  DocumentData,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import type { Circle } from './types';
+import { handleDatabaseError, logError } from './errors';
 import { logger } from './logger';
-import type { 
-  Circle, 
-  CircleMembership, 
-  CircleInvite,
-  User 
-} from './types';
 
-/**
- * Circle Management Functions
- */
-
-// Create a new circle
-export async function createCircle(
-  name: string,
-  description: string,
-  createdBy: string,
-  isPrivate: boolean = false,
-  settings?: {
-    allowMemberInvites: boolean;
-    autoAcceptInvites: boolean;
-  }
-): Promise<{ success: boolean; circleId?: string; message: string }> {
+export async function getCircles(): Promise<Circle[]> {
   try {
-    logger.info(`Creating circle: ${name} by user ${createdBy}`);
-    
-    // Check if circle name already exists
-    const existingCircleQuery = query(
-      collection(db, 'circles'),
-      where('name', '==', name.trim()),
-      limit(1)
-    );
-    const existingSnapshot = await getDocs(existingCircleQuery);
-    
-    if (!existingSnapshot.empty) {
-      return {
-        success: false,
-        message: `Circle with name "${name}" already exists`
-      };
-    }
-    
-    const circleData = {
-      name: name.trim(),
-      description: description.trim(),
-      createdBy,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      isPrivate,
-      memberCount: 1, // Creator is automatically a member
-      settings: settings || {
-        allowMemberInvites: true,
-        autoAcceptInvites: false
-      }
-    };
-    
-    // Create the circle
-    const circleRef = await addDoc(collection(db, 'circles'), circleData);
-    
-    // Add creator as admin member
-    await addDoc(collection(db, 'circleMemberships'), {
-      circleId: circleRef.id,
-      userId: createdBy,
-      role: 'admin',
-      joinedAt: serverTimestamp()
+    const circlesCollection = collection(db, 'circles');
+    const q = query(circlesCollection, orderBy('name', 'asc'));
+
+    // Add timeout to prevent hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Firebase request timeout')), 10000); // 10 second timeout
     });
-    
-    logger.info(`Circle created successfully: ${circleRef.id}`);
-    return {
-      success: true,
-      circleId: circleRef.id,
-      message: `Circle "${name}" created successfully`
-    };
+
+    const snapshot = await Promise.race([
+      getDocs(q),
+      timeoutPromise
+    ]) as any;
+
+    // Clean data to remove Firestore-specific objects that cause hydration issues
+    return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+      const data = doc.data();
+      // Convert Firestore timestamps to ISO strings and remove problematic fields
+      const { createdAt, ...cleanData } = data;
+      return {
+        id: doc.id,
+        ...cleanData,
+        createdDate: createdAt instanceof Timestamp ? createdAt.toDate().toISOString() : cleanData.createdDate,
+      } as Circle;
+    });
   } catch (error) {
-    logger.error('Failed to create circle:', error);
-    return {
-      success: false,
-      message: `Failed to create circle: ${error}`
-    };
+    logError(error instanceof Error ? error : new Error(String(error)), 'getCircles');
+
+    // Return empty array with specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('UNAVAILABLE')) {
+        logger.warn('Firebase connection timeout, returning empty circles list');
+      }
+    }
+
+    return [];
   }
 }
 
-// Get all circles a user is a member of
-export async function getUserCircles(userId: string): Promise<Circle[]> {
+export async function getCircleById(id: string): Promise<Circle | undefined> {
   try {
-    // Get user's memberships
-    const membershipsQuery = query(
-      collection(db, 'circleMemberships'),
-      where('userId', '==', userId)
+    const circleDoc = await getDoc(doc(db, 'circles', id));
+    if (circleDoc.exists()) {
+      const data = circleDoc.data();
+      // Convert Firestore timestamps to ISO strings and remove problematic fields
+      const { createdAt, ...cleanData } = data;
+      return {
+        id: circleDoc.id,
+        ...cleanData,
+        createdDate: createdAt instanceof Timestamp ? createdAt.toDate().toISOString() : cleanData.createdDate,
+      } as Circle;
+    }
+    return undefined;
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getCircleById');
+    return undefined;
+  }
+}
+
+export async function createCircle(data: Omit<Circle, 'id' | 'createdDate'>): Promise<string> {
+  try {
+    // Validate required fields
+    if (!data.name || data.name.trim().length === 0) {
+      throw new Error('Circle name is required');
+    }
+
+    // Check for duplicate names
+    const existingCircles = await getCircles();
+    const nameExists = existingCircles.some(
+      circle => circle.name.toLowerCase().trim() === data.name.toLowerCase().trim()
     );
-    const membershipsSnapshot = await getDocs(membershipsQuery);
-    
-    if (membershipsSnapshot.empty) {
+
+    if (nameExists) {
+      throw new Error('A circle with this name already exists');
+    }
+
+    // Validate playerIds array
+    if (!Array.isArray(data.playerIds)) {
+      throw new Error('playerIds must be an array');
+    }
+
+    const circleData = {
+      name: data.name.trim(),
+      description: data.description?.trim() || '',
+      playerIds: data.playerIds,
+      createdBy: data.createdBy,
+      createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(collection(db, 'circles'), circleData);
+    logger.info('Circle created successfully', { circleId: docRef.id, name: data.name });
+    return docRef.id;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create circle';
+    logError(error instanceof Error ? error : new Error(String(error)), 'createCircle');
+    throw new Error(errorMessage);
+  }
+}
+
+export async function updateCircle(id: string, data: Partial<Omit<Circle, 'id' | 'createdDate' | 'createdBy'>>): Promise<void> {
+  try {
+    // Validate circle exists
+    const existingCircle = await getCircleById(id);
+    if (!existingCircle) {
+      throw new Error('Circle not found');
+    }
+
+    // Validate name if provided
+    if (data.name !== undefined) {
+      if (!data.name || data.name.trim().length === 0) {
+        throw new Error('Circle name cannot be empty');
+      }
+
+      // Check for duplicate names (excluding current circle)
+      const existingCircles = await getCircles();
+      const nameExists = existingCircles.some(
+        circle => circle.id !== id && circle.name.toLowerCase().trim() === data.name!.toLowerCase().trim()
+      );
+
+      if (nameExists) {
+        throw new Error('A circle with this name already exists');
+      }
+    }
+
+    // Validate playerIds if provided
+    if (data.playerIds !== undefined && !Array.isArray(data.playerIds)) {
+      throw new Error('playerIds must be an array');
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.description !== undefined) updateData.description = data.description?.trim() || '';
+    if (data.playerIds !== undefined) updateData.playerIds = data.playerIds;
+
+    await updateDoc(doc(db, 'circles', id), updateData);
+    logger.info('Circle updated successfully', { circleId: id });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update circle';
+    logError(error instanceof Error ? error : new Error(String(error)), 'updateCircle');
+    throw new Error(errorMessage);
+  }
+}
+
+export async function deleteCircle(id: string): Promise<void> {
+  try {
+    // Validate circle exists
+    const existingCircle = await getCircleById(id);
+    if (!existingCircle) {
+      throw new Error('Circle not found');
+    }
+
+    await deleteDoc(doc(db, 'circles', id));
+    logger.info('Circle deleted successfully', { circleId: id, name: existingCircle.name });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete circle';
+    logError(error instanceof Error ? error : new Error(String(error)), 'deleteCircle');
+    throw new Error(errorMessage);
+  }
+}
+
+export async function getCirclesForPlayer(playerId: string): Promise<Circle[]> {
+  try {
+    if (!playerId || playerId.trim().length === 0) {
       return [];
     }
-    
-    // Get circle IDs
-    const circleIds = membershipsSnapshot.docs.map(doc => doc.data().circleId);
-    
-    // Get circles
-    const circles: Circle[] = [];
-    for (const circleId of circleIds) {
-      const circleDoc = await getDoc(doc(db, 'circles', circleId));
-      if (circleDoc.exists()) {
-        const circleData = circleDoc.data();
-        circles.push({
-          id: circleDoc.id,
-          name: circleData.name,
-          description: circleData.description,
-          createdBy: circleData.createdBy,
-          createdAt: circleData.createdAt?.toDate?.()?.toISOString() || circleData.createdAt,
-          updatedAt: circleData.updatedAt?.toDate?.()?.toISOString() || circleData.updatedAt,
-          isPrivate: circleData.isPrivate,
-          memberCount: circleData.memberCount || 0,
-          settings: circleData.settings
-        });
-      }
-    }
-    
-    return circles.sort((a, b) => a.name.localeCompare(b.name));
-  } catch (error) {
-    logger.error('Failed to get user circles:', error);
-    return [];
-  }
-}
 
-// Get circle details
-export async function getCircle(circleId: string): Promise<Circle | null> {
-  try {
-    const circleDoc = await getDoc(doc(db, 'circles', circleId));
-    
-    if (!circleDoc.exists()) {
-      return null;
-    }
-    
-    const circleData = circleDoc.data();
-    return {
-      id: circleDoc.id,
-      name: circleData.name,
-      description: circleData.description,
-      createdBy: circleData.createdBy,
-      createdAt: circleData.createdAt?.toDate?.()?.toISOString() || circleData.createdAt,
-      updatedAt: circleData.updatedAt?.toDate?.()?.toISOString() || circleData.updatedAt,
-      isPrivate: circleData.isPrivate,
-      memberCount: circleData.memberCount || 0,
-      settings: circleData.settings
-    };
-  } catch (error) {
-    logger.error('Failed to get circle:', error);
-    return null;
-  }
-}
-
-// Update circle
-export async function updateCircle(
-  circleId: string,
-  updates: {
-    name?: string;
-    description?: string;
-    isPrivate?: boolean;
-    settings?: {
-      allowMemberInvites: boolean;
-      autoAcceptInvites: boolean;
-    };
-  },
-  userId: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    // Check if user is admin of this circle
-    const isAdmin = await isCircleAdmin(circleId, userId);
-    if (!isAdmin) {
-      return {
-        success: false,
-        message: 'Only circle admins can update circle settings'
-      };
-    }
-    
-    const updateData: any = {
-      updatedAt: serverTimestamp()
-    };
-    
-    if (updates.name !== undefined) {
-      updateData.name = updates.name.trim();
-    }
-    if (updates.description !== undefined) {
-      updateData.description = updates.description.trim();
-    }
-    if (updates.isPrivate !== undefined) {
-      updateData.isPrivate = updates.isPrivate;
-    }
-    if (updates.settings !== undefined) {
-      updateData.settings = updates.settings;
-    }
-    
-    await updateDoc(doc(db, 'circles', circleId), updateData);
-    
-    logger.info(`Circle ${circleId} updated by user ${userId}`);
-    return {
-      success: true,
-      message: 'Circle updated successfully'
-    };
-  } catch (error) {
-    logger.error('Failed to update circle:', error);
-    return {
-      success: false,
-      message: `Failed to update circle: ${error}`
-    };
-  }
-}
-
-// Delete circle (only by admin)
-export async function deleteCircle(
-  circleId: string,
-  userId: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    // Check if user is admin of this circle
-    const isAdmin = await isCircleAdmin(circleId, userId);
-    if (!isAdmin) {
-      return {
-        success: false,
-        message: 'Only circle admins can delete circles'
-      };
-    }
-    
-    const batch = writeBatch(db);
-    
-    // Delete all memberships
-    const membershipsQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId)
+    const circlesCollection = collection(db, 'circles');
+    const q = query(
+      circlesCollection,
+      where('playerIds', 'array-contains', playerId),
+      orderBy('name', 'asc')
     );
-    const membershipsSnapshot = await getDocs(membershipsQuery);
-    membershipsSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
+
+    // Add timeout to prevent hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Firebase request timeout')), 10000);
     });
-    
-    // Delete all invites
-    const invitesQuery = query(
-      collection(db, 'circleInvites'),
-      where('circleId', '==', circleId)
-    );
-    const invitesSnapshot = await getDocs(invitesQuery);
-    invitesSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    
-    // Delete the circle
-    batch.delete(doc(db, 'circles', circleId));
-    
-    await batch.commit();
-    
-    logger.info(`Circle ${circleId} deleted by user ${userId}`);
-    return {
-      success: true,
-      message: 'Circle deleted successfully'
-    };
-  } catch (error) {
-    logger.error('Failed to delete circle:', error);
-    return {
-      success: false,
-      message: `Failed to delete circle: ${error}`
-    };
-  }
-}
 
-/**
- * Circle Membership Functions
- */
+    const snapshot = await Promise.race([
+      getDocs(q),
+      timeoutPromise
+    ]) as any;
 
-// Check if user is a member of a circle
-export async function isCircleMember(circleId: string, userId: string): Promise<boolean> {
-  try {
-    const membershipQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId),
-      where('userId', '==', userId),
-      limit(1)
-    );
-    const snapshot = await getDocs(membershipQuery);
-    return !snapshot.empty;
-  } catch (error) {
-    logger.error('Failed to check circle membership:', error);
-    return false;
-  }
-}
-
-// Check if user is an admin of a circle
-export async function isCircleAdmin(circleId: string, userId: string): Promise<boolean> {
-  try {
-    const membershipQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId),
-      where('userId', '==', userId),
-      where('role', '==', 'admin'),
-      limit(1)
-    );
-    const snapshot = await getDocs(membershipQuery);
-    return !snapshot.empty;
-  } catch (error) {
-    logger.error('Failed to check circle admin status:', error);
-    return false;
-  }
-}
-
-// Get circle members
-export async function getCircleMembers(circleId: string): Promise<{
-  memberships: CircleMembership[];
-  users: User[];
-}> {
-  try {
-    const membershipsQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId),
-      orderBy('joinedAt', 'asc')
-    );
-    const membershipsSnapshot = await getDocs(membershipsQuery);
-    
-    const memberships: CircleMembership[] = [];
-    const userIds: string[] = [];
-    
-    membershipsSnapshot.docs.forEach(doc => {
+    // Clean data to remove Firestore-specific objects that cause hydration issues
+    return snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
       const data = doc.data();
-      memberships.push({
-        id: doc.id,
-        circleId: data.circleId,
-        userId: data.userId,
-        role: data.role,
-        joinedAt: data.joinedAt?.toDate?.()?.toISOString() || data.joinedAt,
-        invitedBy: data.invitedBy
-      });
-      userIds.push(data.userId);
-    });
-    
-    // Get user details (assuming we have a users collection)
-    const users: User[] = [];
-    for (const userId of userIds) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', userId));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          users.push({
-            id: userDoc.id,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-            avatar: userData.avatar,
-            createdAt: userData.createdAt?.toDate?.()?.toISOString() || userData.createdAt,
-            updatedAt: userData.updatedAt?.toDate?.()?.toISOString() || userData.updatedAt
-          });
-        }
-      } catch (error) {
-        logger.warn(`Failed to get user details for ${userId}:`, error);
-      }
-    }
-    
-    return { memberships, users };
-  } catch (error) {
-    logger.error('Failed to get circle members:', error);
-    return { memberships: [], users: [] };
-  }
-}
-
-// Leave circle
-export async function leaveCircle(
-  circleId: string,
-  userId: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    // Find the membership
-    const membershipQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId),
-      where('userId', '==', userId),
-      limit(1)
-    );
-    const membershipSnapshot = await getDocs(membershipQuery);
-    
-    if (membershipSnapshot.empty) {
+      // Convert Firestore timestamps to ISO strings and remove problematic fields
+      const { createdAt, ...cleanData } = data;
       return {
-        success: false,
-        message: 'You are not a member of this circle'
-      };
-    }
-    
-    const membershipDoc = membershipSnapshot.docs[0];
-    const membershipData = membershipDoc.data();
-    
-    // Check if this is the last admin
-    if (membershipData.role === 'admin') {
-      const adminQuery = query(
-        collection(db, 'circleMemberships'),
-        where('circleId', '==', circleId),
-        where('role', '==', 'admin')
-      );
-      const adminSnapshot = await getDocs(adminQuery);
-      
-      if (adminSnapshot.size === 1) {
-        return {
-          success: false,
-          message: 'Cannot leave circle as the only admin. Transfer admin role first or delete the circle.'
-        };
-      }
-    }
-    
-    // Delete membership
-    await deleteDoc(membershipDoc.ref);
-    
-    // Update member count
-    const circleRef = doc(db, 'circles', circleId);
-    const circleDoc = await getDoc(circleRef);
-    if (circleDoc.exists()) {
-      const currentCount = circleDoc.data().memberCount || 0;
-      await updateDoc(circleRef, {
-        memberCount: Math.max(0, currentCount - 1),
-        updatedAt: serverTimestamp()
-      });
-    }
-    
-    logger.info(`User ${userId} left circle ${circleId}`);
-    return {
-      success: true,
-      message: 'Successfully left the circle'
-    };
-  } catch (error) {
-    logger.error('Failed to leave circle:', error);
-    return {
-      success: false,
-      message: `Failed to leave circle: ${error}`
-    };
-  }
-}
-
-/**
- * Helper Functions
- */
-
-// Get circles that include specific players (for filtering)
-export async function getCirclesWithPlayers(playerIds: string[]): Promise<string[]> {
-  try {
-    // This would need to be implemented based on how we track 
-    // which players are associated with which circles
-    // For now, return empty array
-    return [];
-  } catch (error) {
-    logger.error('Failed to get circles with players:', error);
-    return [];
-  }
-}
-
-// Update member count for a circle
-export async function updateCircleMemberCount(circleId: string): Promise<void> {
-  try {
-    const membershipsQuery = query(
-      collection(db, 'circleMemberships'),
-      where('circleId', '==', circleId)
-    );
-    const membershipsSnapshot = await getDocs(membershipsQuery);
-    
-    await updateDoc(doc(db, 'circles', circleId), {
-      memberCount: membershipsSnapshot.size,
-      updatedAt: serverTimestamp()
+        id: doc.id,
+        ...cleanData,
+        createdDate: createdAt instanceof Timestamp ? createdAt.toDate().toISOString() : cleanData.createdDate,
+      } as Circle;
     });
   } catch (error) {
-    logger.error('Failed to update circle member count:', error);
+    logError(error instanceof Error ? error : new Error(String(error)), 'getCirclesForPlayer');
+
+    // Return empty array with specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('UNAVAILABLE')) {
+        logger.warn('Firebase connection timeout, returning empty circles list for player');
+      }
+    }
+
+    return [];
+  }
+}
+
+// Utility function to validate circle name uniqueness (for client-side validation)
+export async function isCircleNameAvailable(name: string, excludeId?: string): Promise<boolean> {
+  try {
+    const circles = await getCircles();
+    return !circles.some(
+      circle =>
+        circle.id !== excludeId &&
+        circle.name.toLowerCase().trim() === name.toLowerCase().trim()
+    );
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'isCircleNameAvailable');
+    // On error, assume name is not available to be safe
+    return false;
+  }
+}
+
+// Utility function to get circles with player count
+export async function getCirclesWithPlayerCount(): Promise<Array<Circle & { playerCount: number }>> {
+  try {
+    const circles = await getCircles();
+    return circles.map(circle => ({
+      ...circle,
+      playerCount: circle.playerIds.length,
+    }));
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'getCirclesWithPlayerCount');
+    return [];
   }
 }

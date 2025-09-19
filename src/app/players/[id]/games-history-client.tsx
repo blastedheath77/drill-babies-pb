@@ -108,6 +108,7 @@ export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
                 ? game.team2
                 : game.team1;
               const win = playerTeam.score > opponentTeam.score;
+              const isDraw = playerTeam.score === opponentTeam.score;
 
               return (
                 <TableRow key={game.id} className="cursor-pointer hover:bg-muted/50">
@@ -124,8 +125,10 @@ export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
                   <TableCell className="px-2 py-2 text-center">
                     <Link href={`/games/${game.id}`} className="block">
                       <span className={`inline-block px-2 py-1 rounded border-2 font-mono text-sm whitespace-nowrap ${
-                        win 
-                          ? 'border-blue-500 text-blue-700 bg-blue-50' 
+                        isDraw
+                          ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                          : win
+                          ? 'border-blue-500 text-blue-700 bg-blue-50'
                           : 'border-red-500 text-red-700 bg-red-50'
                       }`}>
                         {playerTeam.score} - {opponentTeam.score}

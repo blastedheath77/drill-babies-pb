@@ -78,14 +78,8 @@ function DesktopSidebar({ isCollapsed = false, onToggleCollapsed }: { isCollapse
 
   return (
     <div className={cn("flex flex-col h-full bg-background border-r transition-all duration-300", isCollapsed ? "w-16" : "w-64")}>
-      {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <Icons.PickleballPaddle className="h-5 w-5" />
-          </Button>
-          {!isCollapsed && <span className="text-lg font-semibold">Drill babies</span>}
-        </div>
+      {/* Collapse Toggle Button */}
+      <div className="flex justify-end p-2 border-b">
         <Button
           variant="ghost"
           size="icon"
@@ -369,16 +363,8 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full py-6">
-      {/* Header */}
-      <SheetHeader>
-        <SheetTitle className="flex items-center gap-2">
-          <Icons.PickleballPaddle className="h-5 w-5" />
-          Menu
-        </SheetTitle>
-      </SheetHeader>
-      
       {/* Navigation Items */}
-      <div className="flex-1 mt-6 overflow-auto">
+      <div className="flex-1 overflow-auto">
         <nav className="space-y-1 px-1">
           {regularMenuItems.map((item) => {
             const Icon = item.icon;

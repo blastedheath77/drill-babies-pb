@@ -501,12 +501,20 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
           <CardHeader>
             <CardTitle>All Partnerships</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Click on a partner to see detailed stats
+              Partnerships with 3+ games, sorted by win rate. Click to see detailed stats.
             </p>
           </CardHeader>
           <CardContent className="max-h-96 overflow-y-auto">
             <div className="space-y-2">
-              {partnerships.map((p) => {
+              {partnerships
+                .filter(p => p.gamesPlayed >= 3) // Only show partnerships with 3+ games
+                .sort((a, b) => {
+                  // Sort by win rate (descending)
+                  const aWinRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
+                  const bWinRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
+                  return bWinRate - aWinRate;
+                })
+                .map((p) => {
                 const winRate = p.gamesPlayed > 0 ? (p.wins / p.gamesPlayed) * 100 : 0;
                 const isSelected = selectedPartner?.partner.id === p.partner.id;
                 
@@ -673,7 +681,15 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {partnerships.map((p) => {
+              {partnerships
+                .filter(p => p.gamesPlayed >= 3) // Only show partnerships with 3+ games
+                .sort((a, b) => {
+                  // Sort by win rate (descending)
+                  const aWinRate = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
+                  const bWinRate = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
+                  return bWinRate - aWinRate;
+                })
+                .map((p) => {
                 const winRate = p.gamesPlayed > 0 ? (p.wins / p.gamesPlayed) * 100 : 0;
                 const getChemistryLevel = () => {
                   if (p.gamesPlayed < 3) return { label: "New", color: "text-gray-500" };

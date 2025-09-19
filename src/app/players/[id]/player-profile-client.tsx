@@ -27,7 +27,7 @@ export function PlayerProfileClient({ player }: PlayerProfileClientProps) {
 
   return (
     <Card>
-      <CardContent className="pt-6 flex flex-col items-center text-center">
+      <CardContent className="pt-6">
         {isEditing ? (
           <div className="w-full">
             <ImageUpload
@@ -39,27 +39,29 @@ export function PlayerProfileClient({ player }: PlayerProfileClientProps) {
             />
           </div>
         ) : (
-          <>
-            <Avatar className="h-32 w-32 mb-4 border-4 border-primary shadow-lg">
-              <AvatarImage src={currentAvatar} alt={player.name} />
-              <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
-            </Avatar>
-            
-            <Button
-              onClick={handleEditToggle}
-              size="sm"
-              variant="outline"
-              className="mb-4 bg-white border border-gray-300 hover:bg-gray-50 shadow-sm"
-            >
-              <Edit3 className="h-4 w-4 mr-2" />
-              Edit Photo
-            </Button>
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center">
+              <Avatar className="h-24 w-24 mb-3 border-4 border-primary shadow-lg">
+                <AvatarImage src={currentAvatar} alt={player.name} />
+                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+              </Avatar>
 
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold">{player.name}</h2>
-              <p className="text-muted-foreground text-lg">Rating: {player.rating.toFixed(2)}</p>
+              <Button
+                onClick={handleEditToggle}
+                size="sm"
+                variant="outline"
+                className="bg-white border border-gray-300 hover:bg-gray-50 shadow-sm"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Edit Photo
+              </Button>
             </div>
-          </>
+
+            <div className="flex-1">
+              <h2 className="text-3xl font-bold mb-2">{player.name}</h2>
+              <p className="text-muted-foreground text-xl">Rating: {player.rating.toFixed(2)}</p>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

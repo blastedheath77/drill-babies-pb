@@ -10,21 +10,6 @@ import { useAppUpdate } from '@/hooks/use-app-update';
 import { UnifiedNavigation } from '@/components/layout/unified-navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-// Simplified Header Component for Mobile
-function SimpleHeader() {
-  const isMobile = useIsMobile();
-  
-  if (!isMobile) return null;
-  
-  return (
-    <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm lg:hidden">
-      <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold">Pickleball Stats</span>
-      </div>
-      <div className="flex-1">{/* Can add page title or breadcrumbs here */}</div>
-    </header>
-  );
-}
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -51,7 +36,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile Layout */}
       {isMobile && (
         <div className="flex flex-col min-h-screen">
-          <SimpleHeader />
           <main className="flex-1 p-3 sm:p-6 pb-20">
             {children}
           </main>

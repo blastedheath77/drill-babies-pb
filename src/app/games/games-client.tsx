@@ -327,7 +327,9 @@ export function GamesClient() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="font-mono text-lg">
+                          <div className={`font-mono text-lg ${
+                            isDraw ? 'text-yellow-600' : ''
+                          }`}>
                             <span className={!isDraw ? 'font-bold' : ''}>{firstScore}</span>
                             <span className="mx-2">-</span>
                             <span>{secondScore}</span>
@@ -382,17 +384,21 @@ export function GamesClient() {
 
                           {/* Teams and Score */}
                           <div className="space-y-2">
-                            <div className={`flex items-center justify-between ${!isDraw ? 'font-semibold' : ''}`}>
+                            <div className={`flex items-center justify-between ${!isDraw ? 'font-semibold' : ''} ${
+                              isDraw ? 'text-yellow-600' : ''
+                            }`}>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm">
                                   {firstTeam.players.map(p => p.name).join(' & ')}
                                 </span>
                                 {!isDraw && <Crown className="h-3 w-3 text-yellow-600" />}
                               </div>
-                              <span className="text-lg font-mono font-bold">{firstScore}</span>
+                              <span className={`text-lg font-mono ${!isDraw ? 'font-bold' : ''}`}>{firstScore}</span>
                             </div>
-                            
-                            <div className="flex items-center justify-between text-muted-foreground">
+
+                            <div className={`flex items-center justify-between ${
+                              isDraw ? 'text-yellow-600' : 'text-muted-foreground'
+                            }`}>
                               <span className="text-sm">
                                 {secondTeam.players.map(p => p.name).join(' & ')}
                               </span>

@@ -8,7 +8,7 @@ import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
-import { getOptimalRound, calculateMaxUniqueRounds } from '@/lib/pairing-algorithms';
+import { getOptimalRound, calculateMaxUniqueRounds, clearTournamentScheduleCache } from '@/lib/pairing-algorithms';
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -30,6 +30,9 @@ interface CreateQuickPlayData {
 
 export async function createQuickPlayTournament(data: CreateQuickPlayData) {
   try {
+    // Clear tournament schedule cache for fresh pairings
+    clearTournamentScheduleCache();
+
     // Check authentication and permissions
     const currentUser = await getCurrentUser();
     requireAuthentication(currentUser);
