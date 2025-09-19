@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, Trophy, Calendar, Users, Target, Edit, Plus, Zap, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { MatchResultDialog } from '@/components/match-result-dialog';
+import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { addQuickPlayRound, deleteQuickPlayRound } from '../quick-play-actions';
 import { useRouter } from 'next/navigation';
@@ -168,6 +169,11 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
   const router = useRouter();
   const { canCreateTournaments } = useAuth();
 
+  const handleTournamentDeleted = () => {
+    // Navigate back to tournaments list
+    router.push('/tournaments');
+  };
+
   // Group matches by round
   const matchesByRound = matches.reduce(
     (acc, match) => {
@@ -318,7 +324,23 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
 
       {/* Tournament Info */}
       <Card className="mb-6">
-        <CardContent className="pt-6">
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">Tournament Details</CardTitle>
+            {canCreateTournaments() && (
+              <DeleteTournamentDialog tournament={tournament} onDelete={handleTournamentDeleted}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <Trash2 className="h-4 w-4 text-white" />
+                </Button>
+              </DeleteTournamentDialog>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />

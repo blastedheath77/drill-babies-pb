@@ -157,59 +157,53 @@ export function TournamentsClient() {
   };
 
   const TournamentCard = ({ tournament }: { tournament: Tournament }) => (
-    <Card key={tournament.id} className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-          <div className="flex-1">
-            <CardTitle className="text-lg sm:text-xl leading-tight flex items-center gap-2">
-              {tournament.isQuickPlay ? (
-                <Zap className="h-4 w-4 text-green-600 flex-shrink-0" />
-              ) : (
-                <Trophy className="h-4 w-4 text-blue-600 flex-shrink-0" />
+    <Card
+      key={tournament.id}
+      className={`hover:shadow-md transition-shadow relative ${
+        tournament.isQuickPlay
+          ? 'border-l-4 border-l-green-500'
+          : 'border-l-4 border-l-blue-500'
+      }`}
+    >
+      <Link href={`/tournaments/${tournament.id}`} className="block">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base leading-tight flex items-center gap-2 truncate">
+                {tournament.isQuickPlay ? (
+                  <Zap className="h-4 w-4 text-green-600 flex-shrink-0" />
+                ) : (
+                  <Trophy className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                )}
+                <span className="truncate">{tournament.name}</span>
+              </CardTitle>
+              {tournament.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-1 truncate">
+                  {tournament.description}
+                </p>
               )}
-              {tournament.name}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{tournament.description}</p>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {getStatusBadge(tournament.status)}
+            </div>
           </div>
-          <div className="flex-shrink-0">
-            {getStatusBadge(tournament.status)}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-3 mb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 flex-shrink-0" />
-              <span>{formatDate(tournament.createdDate)}</span>
+        </CardHeader>
+        <CardContent className="pt-0 pb-3">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{formatDate(tournament.createdDate)}</span>
             </span>
-            <span className="flex items-center gap-2">
-              <Users className="h-4 w-4 flex-shrink-0" />
-              <span>{tournament.playerIds.length} players</span>
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{tournament.playerIds.length}</span>
             </span>
-          </div>
-          <div className="flex justify-start">
-            <Badge variant="outline" className="text-xs">
-              {tournament.format} • {tournament.type}
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 truncate">
+              {tournament.format}
             </Badge>
           </div>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Link href={`/tournaments/${tournament.id}`} className="flex-1">
-            <Button variant="outline" size="default" className="w-full h-10">
-              View Details
-            </Button>
-          </Link>
-          {canCreateTournaments() && (
-            <DeleteTournamentDialog tournament={tournament} onDelete={handleTournamentDeleted}>
-              <Button variant="outline" size="default" className="text-destructive hover:text-destructive w-full sm:w-auto h-10">
-                <Trash2 className="h-4 w-4 mr-2 sm:mr-0" />
-                <span className="sm:hidden">Delete</span>
-              </Button>
-            </DeleteTournamentDialog>
-          )}
-        </div>
-      </CardContent>
+        </CardContent>
+      </Link>
     </Card>
   );
 
@@ -261,35 +255,34 @@ export function TournamentsClient() {
         description="Organise recreational play and tournaments."
       />
 
+      {canCreateTournaments() && (
+        <div className="flex gap-2 justify-center mb-6">
+          <Link href="/tournaments/quick-play">
+            <Button className="bg-green-600 hover:bg-green-700 text-white border-0 w-32">
+              <Zap className="h-4 w-4 mr-2" />
+              Quick Play
+            </Button>
+          </Link>
+          <Link href="/tournaments/create">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white border-0 w-32">
+              <Trophy className="h-4 w-4 mr-2" />
+              Tournament
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="mb-6">
         <Tabs defaultValue="active" className="w-full">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="active" className="flex-1 sm:flex-none">
+          <div className="flex justify-center sm:justify-start">
+            <TabsList>
+              <TabsTrigger value="active">
                 Active ({activeTournaments.length})
               </TabsTrigger>
-              <TabsTrigger value="completed" className="flex-1 sm:flex-none">
+              <TabsTrigger value="completed">
                 Completed ({completedTournaments.length})
               </TabsTrigger>
             </TabsList>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              {canCreateTournaments() && (
-                <>
-                  <Link href="/tournaments/quick-play" className="w-full sm:w-auto">
-                    <Button className="w-full h-10 bg-green-600 hover:bg-green-700 text-white border-0">
-                      <Zap className="h-4 w-4 mr-2" />
-                      Quick Play
-                    </Button>
-                  </Link>
-                  <Link href="/tournaments/create" className="w-full sm:w-auto">
-                    <Button className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white border-0">
-                      <Trophy className="h-4 w-4 mr-2" />
-                      Create Tournament
-                    </Button>
-                  </Link>
-                </>
-              )}
-            </div>
           </div>
 
           <TabsContent value="active" className="mt-6">
