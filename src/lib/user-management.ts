@@ -80,6 +80,12 @@ export async function createUserDocument(
  * Gets user document from Firestore
  */
 export async function getUserDocument(uid: string): Promise<User | null> {
+  // If Firebase db is not available, return null
+  if (!db) {
+    console.warn('⚠️ Firebase db not available, cannot fetch user document');
+    return null;
+  }
+
   try {
     const userDoc = doc(db, USERS_COLLECTION, uid);
     const userSnap = await getDoc(userDoc);
@@ -419,10 +425,17 @@ export async function updateUserPassword(
  * Set up auth state listener
  */
 export function onAuthStateChange(callback: (user: User | null) => void) {
+  // If Firebase auth is not available, return a no-op function and call callback with null
+  if (!auth) {
+    console.warn('⚠️ Firebase auth not available, running in development mode');
+    callback(null);
+    return () => {}; // Return no-op unsubscribe function
+  }
+
   return onAuthStateChanged(auth, async (firebaseUser) => {
     try {
       console.log('🔄 Auth state changed:', firebaseUser ? `User: ${firebaseUser.uid}` : 'Signed out');
-      
+
       if (firebaseUser) {
         console.log('👤 Getting user document for:', firebaseUser.uid);
         const user = await getUserDocument(firebaseUser.uid);
