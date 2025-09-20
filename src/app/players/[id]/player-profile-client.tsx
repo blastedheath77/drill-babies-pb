@@ -50,7 +50,6 @@ export function PlayerProfileClient({ player }: PlayerProfileClientProps) {
                 onClick={handleEditToggle}
                 size="sm"
                 variant="outline"
-                className="bg-white border border-gray-300 hover:bg-gray-50 shadow-sm"
               >
                 <Edit3 className="h-4 w-4 mr-2" />
                 Edit Photo

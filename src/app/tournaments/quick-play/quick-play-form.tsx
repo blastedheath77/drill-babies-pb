@@ -592,11 +592,11 @@ export function QuickPlayForm() {
                 Cancel
               </Button>
             </Link>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || selectedPlayers.length < (watchedFormat === 'singles' ? 2 : 4)} 
+            <Button
+              type="submit"
+              disabled={isSubmitting || selectedPlayers.length < (watchedFormat === 'singles' ? 2 : 4)}
               size="lg"
-              className="w-full sm:w-auto h-12 text-base font-medium bg-green-600 hover:bg-green-700"
+              className="w-full sm:w-auto h-12 text-base font-medium bg-green-600 hover:bg-green-700 text-white dark:text-foreground"
             >
               {isSubmitting ? 'Starting...' : 'Start Quick Play'}
             </Button>

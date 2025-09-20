@@ -36,33 +36,41 @@
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 216 100% 95%;
+    /* Rich dark navy background with subtle blue undertones */
+    --background: 222 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 224 71% 4%;
-    --card-foreground: 216 100% 95%;
+    /* Elevated surface with more contrast */
+    --card: 222 84% 7%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 224 71% 4%;
-    --popover-foreground: 216 100% 95%;
+    --popover: 222 84% 7%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 217 90% 61%;
-    --primary-foreground: 0 0% 98%;
+    /* Vibrant blue primary for accents */
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 84% 4.9%;
 
-    --secondary: 224 71% 10%;
-    --secondary-foreground: 216 100% 95%;
+    /* Subtle secondary surfaces */
+    --secondary: 217 32% 17.5%;
+    --secondary-foreground: 210 40% 95%;
 
-    --muted: 224 71% 10%;
-    --muted-foreground: 216 100% 80%;
+    /* Muted areas with better contrast */
+    --muted: 217 32% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 25 90% 61%;
-    --accent-foreground: 0 0% 98%;
+    /* Warm accent color for highlights */
+    --accent: 34 78% 60%;
+    --accent-foreground: 222 84% 4.9%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 0 0% 98%;
+    /* More subdued destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 224 71% 10%;
-    --input: 224 71% 10%;
-    --ring: 217 90% 61%;
+    /* More visible borders and inputs */
+    --border: 217 32% 35%;
+    --input: 217 32% 35%;
+    --ring: 217 91% 60%;
   }
 }
 

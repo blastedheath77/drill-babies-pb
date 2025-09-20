@@ -18,6 +18,7 @@ import { useRecentGames } from '@/hooks/use-games';
 import { BarChart, Trophy, Users, Swords, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Home() {
   const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers();
@@ -100,61 +101,54 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Theme Toggle for Testing */}
+      <div className="flex justify-end">
+        <ThemeToggle />
+      </div>
+
       {/* Enhanced Top Ranked Player Section */}
       <div className="w-full">
         {players.length > 0 ? (
-          <Card className="bg-gradient-to-br from-yellow-50 via-orange-50 to-red-50 border-2 border-yellow-200 shadow-lg">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-yellow-700">
-                <Trophy className="h-8 w-8 text-yellow-600" />
+          <Card className="bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-400 dark:from-yellow-600/80 dark:via-amber-600/80 dark:to-orange-600/80 border-2 border-yellow-400 dark:border-amber-500 shadow-lg dark:shadow-2xl">
+            <CardHeader className="text-center pb-1">
+              <CardTitle className="flex items-center justify-center gap-1 text-lg font-bold text-yellow-700 dark:text-amber-200">
+                <Trophy className="h-5 w-5 text-yellow-600 dark:text-amber-300" />
                 Top Ranked Player
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-center">
-              <div className="flex flex-col items-center gap-4">
-                <Avatar className="h-20 w-20 border-4 border-yellow-400 shadow-lg">
+            <CardContent className="text-center pt-2">
+              <div className="flex flex-col items-center gap-2">
+                <Avatar className="h-14 w-14 border-3 border-yellow-400 dark:border-amber-400 shadow-lg dark:shadow-2xl">
                   <AvatarImage
                     src={players[0].avatar}
                     alt={players[0].name}
                     data-ai-hint="top player avatar"
                   />
-                  <AvatarFallback className="bg-yellow-100 text-yellow-800 text-xl font-bold">
+                  <AvatarFallback className="bg-yellow-100 dark:bg-amber-800 text-yellow-800 dark:text-amber-200 text-lg font-bold">
                     {players[0].name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <Link
                     href={`/players/${players[0].id}`}
-                    className="text-3xl font-bold text-gray-800 hover:text-yellow-700 hover:underline transition-colors"
+                    className="text-xl font-bold text-yellow-700 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-200 hover:underline transition-colors"
                   >
                     {players[0].name}
                   </Link>
-                  <div className="flex items-center justify-center gap-2 mt-2">
-                    <div className="bg-yellow-100 border-2 border-yellow-300 rounded-full px-4 py-2">
-                      <span className="text-xl font-bold text-yellow-800">
-                        Rating: {players[0].rating.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="bg-green-100 border-2 border-green-300 rounded-full px-3 py-2">
-                      <span className="text-sm font-semibold text-green-800">
-                        {players[0].wins}W - {players[0].losses}L
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         ) : (
-          <Card className="bg-gray-50 border-2 border-gray-200">
+          <Card className="bg-gray-50 dark:bg-gray-800/50 border-2 border-gray-200 dark:border-gray-600">
             <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-xl text-gray-600">
-                <Trophy className="h-6 w-6 text-gray-500" />
+              <CardTitle className="flex items-center justify-center gap-2 text-xl text-gray-600 dark:text-gray-300">
+                <Trophy className="h-6 w-6 text-gray-500 dark:text-gray-400" />
                 No Players Yet
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-gray-500">Start by adding players and logging games!</p>
+              <p className="text-gray-500 dark:text-gray-400">Start by adding players and logging games!</p>
             </CardContent>
           </Card>
         )}
