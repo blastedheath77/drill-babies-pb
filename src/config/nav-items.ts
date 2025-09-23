@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2, Grid3x3 } from 'lucide-react';
 import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
@@ -111,16 +111,27 @@ export const mainNavItems: NavItem[] = [
 
 // Action items (with special styling)
 export const actionNavItems: NavItem[] = [
-  { 
-    title: 'Rec Play & Tournaments', 
-    href: '/tournaments', 
-    icon: Trophy, 
+  {
+    title: 'Rec Play & Tournaments',
+    href: '/tournaments',
+    icon: Trophy,
     category: 'action',
     priority: 'secondary',
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
     description: 'Manage tournaments'
+  },
+  {
+    title: 'Box Leagues',
+    href: '/box-leagues',
+    icon: Grid3x3,
+    category: 'action',
+    priority: 'secondary',
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Competitive box league system'
   },
 ];
 

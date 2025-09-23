@@ -1,0 +1,209 @@
+'use client';
+
+import React from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Grid3x3, Settings, Users, Calendar, Trophy, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useBoxLeague, useBoxesByLeague } from '@/hooks/use-box-leagues';
+import { usePlayers } from '@/hooks/use-players';
+
+interface BoxLeagueDetailClientProps {
+  boxLeagueId: string;
+}
+
+export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProps) {
+  const { data: boxLeague, isLoading, error } = useBoxLeague(boxLeagueId);
+  const { data: boxes = [] } = useBoxesByLeague(boxLeagueId);
+  const { data: allPlayers = [] } = usePlayers();
+
+  const getPlayerById = (playerId: string) => {
+    return allPlayers.find(p => p.id === playerId);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading box league...</span>
+      </div>
+    );
+  }
+
+  if (error || !boxLeague) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/box-leagues">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Box League Not Found</h1>
+            <p className="text-muted-foreground">
+              The box league you're looking for doesn't exist or has been deleted.
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-muted-foreground mb-4">
+              This box league could not be found.
+            </p>
+            <Button asChild>
+              <Link href="/box-leagues">Back to Box Leagues</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/box-leagues">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">{boxLeague.name}</h1>
+            <Badge variant={boxLeague.status === 'active' ? 'default' : 'secondary'}>
+              {boxLeague.status}
+            </Badge>
+          </div>
+          {boxLeague.description && (
+            <p className="text-muted-foreground mt-1">{boxLeague.description}</p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/box-leagues/${boxLeagueId}/settings`}>
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
+          </Link>
+        </Button>
+      </div>
+
+      {/* League Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Grid3x3 className="h-5 w-5" />
+            League Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Total Boxes:</span>
+              <div className="font-semibold">{boxLeague.totalBoxes}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Current Cycle:</span>
+              <div className="font-semibold">{boxLeague.currentCycle}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Current Round:</span>
+              <div className="font-semibold">
+                {boxLeague.currentRound} of {boxLeague.roundsPerCycle}
+              </div>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Players Needed:</span>
+              <div className="font-semibold">{boxLeague.totalBoxes * 4}</div>
+            </div>
+          </div>
+
+          {/* Compact Box Overview */}
+          {boxes.length > 0 && (
+            <div className="mt-6 pt-6 border-t">
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Box Assignments</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                {boxes
+                  .sort((a, b) => a.boxNumber - b.boxNumber)
+                  .map((box) => (
+                    <div key={box.id} className="bg-secondary/30 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Box {box.boxNumber}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {box.playerIds.length}/4
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        {box.playerIds.length === 0 ? (
+                          <div className="text-xs text-muted-foreground italic">
+                            No players assigned
+                          </div>
+                        ) : (
+                          box.playerIds.map((playerId) => {
+                            const player = getPlayerById(playerId);
+                            return player ? (
+                              <div key={playerId} className="flex items-center gap-2">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage src={player.avatar} alt={player.name} />
+                                  <AvatarFallback className="text-xs">{player.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs truncate">{player.name}</span>
+                              </div>
+                            ) : null;
+                          })
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      {/* Quick Actions */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Link href={`/box-leagues/${boxLeagueId}/boxes`}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <Users className="h-8 w-8 mx-auto mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Manage Boxes</h3>
+              <p className="text-sm text-muted-foreground">
+                Create boxes and assign players
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/box-leagues/${boxLeagueId}/rounds`}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <Calendar className="h-8 w-8 mx-auto mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Rounds & Matches</h3>
+              <p className="text-sm text-muted-foreground">
+                Start rounds and record results
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/box-leagues/${boxLeagueId}/standings`}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <Trophy className="h-8 w-8 mx-auto mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Standings</h3>
+              <p className="text-sm text-muted-foreground">
+                View current standings and stats
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+    </div>
+  );
+}

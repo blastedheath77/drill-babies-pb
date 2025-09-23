@@ -106,3 +106,109 @@ export interface Circle {
   createdBy: string;
 }
 
+// Box League Interfaces
+export interface BoxLeague {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'completed' | 'paused';
+  createdDate: string;
+  createdBy: string;
+  // Configuration
+  roundsPerCycle: number; // 1-5 rounds before promotion/relegation
+  newPlayerEntryBox: number; // Which box new players enter (usually bottom box)
+  totalBoxes: number;
+  // Current state
+  currentCycle: number;
+  currentRound: number;
+  circleId?: string; // Optional: restrict to specific circle
+}
+
+export interface Box {
+  id: string;
+  boxLeagueId: string;
+  boxNumber: number; // 1 = highest, 2 = next, etc.
+  playerIds: string[]; // Exactly 4 players
+  createdDate: string;
+  // Current standings within this box
+  standings?: BoxLeagueStanding[];
+}
+
+export interface BoxLeagueRound {
+  id: string;
+  boxLeagueId: string;
+  roundNumber: number;
+  cycleNumber: number;
+  status: 'pending' | 'active' | 'completed';
+  createdDate: string;
+  completedDate?: string;
+  // All matches for this round across all boxes
+  matchIds: string[];
+}
+
+export interface BoxLeagueMatch {
+  id: string;
+  boxLeagueId: string;
+  boxLeagueRoundId: string;
+  boxId: string;
+  roundNumber: number;
+  cycleNumber: number;
+  matchNumber: 1 | 2 | 3; // The 3 specific match formats
+  // Match participants (exactly 4 players)
+  playerIds: string[]; // All 4 players involved
+  // Partnerships for this specific match
+  team1PlayerIds: string[]; // 2 players partnered
+  team2PlayerIds: string[]; // 2 players partnered
+  // Game result
+  team1Score: number;
+  team2Score: number;
+  winnerTeamPlayerIds: string[]; // IDs of winning team
+  status: 'pending' | 'completed';
+  date?: string;
+  gameId?: string; // Link to actual Game record if needed
+}
+
+export interface BoxLeaguePlayerStats {
+  id: string;
+  playerId: string;
+  boxLeagueId: string;
+  boxId: string;
+  currentPosition: 1 | 2 | 3 | 4; // Current ranking within box
+  // Match statistics
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  // Game statistics
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  // Box league points (1 for win, 0 for loss)
+  totalPoints: number;
+  // Partner statistics
+  partnerStats: { [partnerId: string]: { wins: number; losses: number } };
+  // Opponent statistics
+  opponentStats: { [opponentId: string]: { wins: number; losses: number } };
+  // Historical data
+  positionHistory: { cycle: number; round: number; position: number; boxNumber: number }[];
+  lastUpdated: string;
+}
+
+export interface BoxLeagueStanding {
+  playerId: string;
+  player?: Player;
+  position: 1 | 2 | 3 | 4;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  gamesWon: number;
+  gamesLost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointsDifference: number;
+  totalPoints: number; // Box league points
+  // Head-to-head vs other players in same box
+  headToHeadRecord: { [playerId: string]: { wins: number; losses: number } };
+}
+
