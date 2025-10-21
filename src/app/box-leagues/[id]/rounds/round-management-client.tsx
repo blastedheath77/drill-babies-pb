@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, Play, CheckCircle, Users, Trophy, Loader2, AlertTriangle, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, Play, CheckCircle, Users, Trophy, Loader2, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScoreSelector } from '@/components/ui/score-selector';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound, useUpdateBoxLeagueMatch } from '@/hooks/use-box-leagues';
+import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound, useUpdateBoxLeagueMatch, useDeleteRound } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
-import { createNewRound } from '@/lib/box-league-logic';
+import { createNewRound, updatePlayerStatsAfterMatch } from '@/lib/box-league-logic';
 import type { BoxLeagueMatch, Player } from '@/lib/types';
 
 interface RoundManagementClientProps {
@@ -75,6 +75,9 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Record Match Result</DialogTitle>
+          <DialogDescription>
+            Enter the final scores for this match
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -91,7 +94,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
                   <ScoreSelector
                     value={team1Score}
                     onChange={setTeam1Score}
-                    maxScore={21}
+                    maxScore={15}
                   />
                 </div>
               </div>
@@ -109,7 +112,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
                   <ScoreSelector
                     value={team2Score}
                     onChange={setTeam2Score}
-                    maxScore={21}
+                    maxScore={15}
                   />
                 </div>
               </div>
@@ -135,8 +138,10 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
   const { data: rounds = [], isLoading: roundsLoading, refetch: refetchRounds } = useRoundsByLeague(boxLeagueId);
   const { data: allPlayers = [] } = usePlayers();
   const updateMatch = useUpdateBoxLeagueMatch();
+  const deleteRound = useDeleteRound();
 
   const [isCreatingRound, setIsCreatingRound] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const isLoading = leagueLoading || boxesLoading || roundsLoading;
 
@@ -159,22 +164,43 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
       console.log('Round created successfully!');
     } catch (error) {
       console.error('Error creating new round:', error);
-      alert('Failed to create new round. Please try again.');
+      alert(`Failed to create new round: ${error instanceof Error ? error.message : 'Please try again.'}`);
     } finally {
       setIsCreatingRound(false);
     }
   };
 
+  const handleDeleteRound = async () => {
+    if (!boxLeague || !currentRound) return;
+
+    try {
+      await deleteRound.mutateAsync({
+        roundId: currentRound.id,
+        boxLeagueId: boxLeague.id
+      });
+
+      setIsDeleteDialogOpen(false);
+      alert('Round deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting round:', error);
+      alert(`Failed to delete round: ${error instanceof Error ? error.message : 'Please try again.'}`);
+    }
+  };
+
   const handleMatchResult = async (matchId: string, team1Score: number, team2Score: number) => {
     try {
-      const winnerTeamPlayerIds = team1Score > team2Score
-        ? rounds.find(r => r.matchIds.includes(matchId))?.matchIds.includes(matchId)
-          ? allMatches.find(m => m.id === matchId)?.team1PlayerIds || []
-          : []
-        : rounds.find(r => r.matchIds.includes(matchId))?.matchIds.includes(matchId)
-          ? allMatches.find(m => m.id === matchId)?.team2PlayerIds || []
-          : [];
+      // Find the match
+      const match = allMatches.find(m => m.id === matchId);
+      if (!match) {
+        throw new Error('Match not found');
+      }
 
+      // Determine winner
+      const winnerTeamPlayerIds = team1Score > team2Score
+        ? match.team1PlayerIds
+        : match.team2PlayerIds;
+
+      // Update match with result
       await updateMatch.mutateAsync({
         id: matchId,
         updates: {
@@ -183,10 +209,30 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
           winnerTeamPlayerIds,
           status: 'completed',
           date: new Date().toISOString()
-        }
+        },
+        match: match // Pass match data so hook can invalidate correct queries
       });
+
+      // Create the updated match object for stats calculation
+      const completedMatch: BoxLeagueMatch = {
+        ...match,
+        team1Score,
+        team2Score,
+        winnerTeamPlayerIds,
+        status: 'completed',
+        date: new Date().toISOString()
+      };
+
+      // Update player stats based on match result
+      console.log('Updating player stats after match...');
+      await updatePlayerStatsAfterMatch(completedMatch);
+      console.log('Player stats updated successfully!');
+
+      // No need to manually refetch - mutation hook will invalidate queries automatically
+
     } catch (error) {
       console.error('Error updating match result:', error);
+      alert('Failed to save match result. Please try again.');
     }
   };
 
@@ -240,21 +286,6 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
           <h1 className="text-3xl font-bold">Rounds & Matches</h1>
           <p className="text-muted-foreground">{boxLeague.name}</p>
         </div>
-        {canStartNewRound() && boxLeague.currentRound === 0 && (
-          <Button onClick={handleCreateNewRound} disabled={isCreatingRound}>
-            {isCreatingRound ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Start First Round
-              </>
-            )}
-          </Button>
-        )}
       </div>
 
       {/* Round Status */}
@@ -335,21 +366,82 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
             <h2 className="text-2xl font-bold">
               Round {boxLeague.currentRound} Matches
             </h2>
-            {getPendingMatchesCount() === 0 && boxLeague.currentRound < boxLeague.roundsPerCycle && (
-              <Button onClick={handleCreateNewRound} disabled={isCreatingRound}>
-                {isCreatingRound ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Start Next Round
-                  </>
-                )}
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {boxLeague.status !== 'completed' && (
+                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Round
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Delete Round {boxLeague.currentRound}?</DialogTitle>
+                      <DialogDescription>
+                        This action cannot be undone
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <p className="mb-4">
+                        Are you sure you want to delete Round {boxLeague.currentRound}? This action cannot be undone.
+                      </p>
+                      {getPendingMatchesCount() < allMatches.length && (
+                        <Alert>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>
+                            Cannot delete this round: {allMatches.length - getPendingMatchesCount()} match(es) have been completed.
+                            Only rounds with no completed matches can be deleted.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {getPendingMatchesCount() === allMatches.length && (
+                        <Alert>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>
+                            This will delete all {allMatches.length} matches in this round.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleDeleteRound}
+                        disabled={getPendingMatchesCount() < allMatches.length || deleteRound.isPending}
+                      >
+                        {deleteRound.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          'Delete Round'
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+              {getPendingMatchesCount() === 0 && boxLeague.currentRound < boxLeague.roundsPerCycle && (
+                <Button onClick={handleCreateNewRound} disabled={isCreatingRound}>
+                  {isCreatingRound ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Start Next Round
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Matches by Box */}

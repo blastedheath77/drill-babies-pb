@@ -18,7 +18,6 @@ import { useRecentGames } from '@/hooks/use-games';
 import { BarChart, Trophy, Users, Swords, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Home() {
   const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers();
@@ -101,40 +100,48 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Theme Toggle for Testing */}
-      <div className="flex justify-end">
-        <ThemeToggle />
-      </div>
-
       {/* Enhanced Top Ranked Player Section */}
       <div className="w-full">
         {players.length > 0 ? (
-          <Card className="bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-400 dark:from-yellow-600/80 dark:via-amber-600/80 dark:to-orange-600/80 border-2 border-yellow-400 dark:border-amber-500 shadow-lg dark:shadow-2xl">
-            <CardHeader className="text-center pb-1">
-              <CardTitle className="flex items-center justify-center gap-1 text-lg font-bold text-yellow-700 dark:text-amber-200">
-                <Trophy className="h-5 w-5 text-yellow-600 dark:text-amber-300" />
+          <Card className="relative overflow-hidden bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 dark:from-indigo-600 dark:via-purple-600 dark:to-pink-600 border-none shadow-xl dark:shadow-2xl">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-32 translate-x-32" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-y-24 -translate-x-24" />
+
+            <CardHeader className="text-center pb-4 pt-6 relative z-10">
+              <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-white drop-shadow-md">
+                <Trophy className="h-7 w-7 text-yellow-200 drop-shadow-lg" />
                 Top Ranked Player
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-center pt-2">
-              <div className="flex flex-col items-center gap-2">
-                <Avatar className="h-14 w-14 border-3 border-yellow-400 dark:border-amber-400 shadow-lg dark:shadow-2xl">
-                  <AvatarImage
-                    src={players[0].avatar}
-                    alt={players[0].name}
-                    data-ai-hint="top player avatar"
-                  />
-                  <AvatarFallback className="bg-yellow-100 dark:bg-amber-800 text-yellow-800 dark:text-amber-200 text-lg font-bold">
-                    {players[0].name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
+            <CardContent className="text-center pb-8 relative z-10">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white/30 rounded-full blur-xl scale-110" />
+                  <Avatar className="relative h-24 w-24 border-4 border-white/80 shadow-2xl ring-4 ring-purple-300/50 dark:ring-purple-400/50">
+                    <AvatarImage
+                      src={players[0].avatar}
+                      alt={players[0].name}
+                      data-ai-hint="top player avatar"
+                    />
+                    <AvatarFallback className="bg-white text-purple-600 text-3xl font-bold">
+                      {players[0].name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="space-y-1">
                   <Link
                     href={`/players/${players[0].id}`}
-                    className="text-xl font-bold text-yellow-700 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-200 hover:underline transition-colors"
+                    className="text-3xl font-extrabold text-white hover:text-purple-100 transition-colors drop-shadow-lg block"
                   >
                     {players[0].name}
                   </Link>
+                  <div className="flex items-center justify-center gap-2 text-white/90">
+                    <span className="text-sm font-medium">Rating:</span>
+                    <span className="text-xl font-bold bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                      {players[0].rating.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardContent>

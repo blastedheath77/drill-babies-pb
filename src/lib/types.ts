@@ -118,10 +118,15 @@ export interface BoxLeague {
   roundsPerCycle: number; // 1-5 rounds before promotion/relegation
   newPlayerEntryBox: number; // Which box new players enter (usually bottom box)
   totalBoxes: number;
+  isTestMode?: boolean; // Mark league as test/debug mode (doesn't affect player stats)
   // Current state
   currentCycle: number;
   currentRound: number;
   circleId?: string; // Optional: restrict to specific circle
+  // Pause management
+  pauseReason?: string; // Reason for pausing the league
+  pausedDate?: string; // When the league was paused
+  completedDate?: string; // When the league was completed
 }
 
 export interface Box {
@@ -144,6 +149,9 @@ export interface BoxLeagueRound {
   completedDate?: string;
   // All matches for this round across all boxes
   matchIds: string[];
+  // Scheduling
+  startDate?: string; // When the round starts/started
+  endDate?: string; // Deadline for completing the round
 }
 
 export interface BoxLeagueMatch {

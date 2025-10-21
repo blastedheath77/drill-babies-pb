@@ -4,12 +4,25 @@ import React, { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
+interface ThemeToggleProps {
+  iconOnly?: boolean;
+}
+
+export function ThemeToggle({ iconOnly = false }: ThemeToggleProps) {
+  const [isDark, setIsDark] = useState(true); // Default to dark mode
 
   useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
+    // Check localStorage for saved preference, default to dark if not set
+    const savedTheme = localStorage.getItem('theme');
+    const isDarkMode = savedTheme === 'light' ? false : true; // Default to dark
+
     setIsDark(isDarkMode);
+
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, []);
 
   const toggleTheme = () => {
@@ -18,10 +31,30 @@ export function ThemeToggle() {
 
     if (newIsDark) {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
   };
+
+  if (iconOnly) {
+    return (
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={toggleTheme}
+        className="h-9 w-9 rounded-full border-2"
+        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {isDark ? (
+          <Sun className="h-5 w-5" />
+        ) : (
+          <Moon className="h-5 w-5" />
+        )}
+      </Button>
+    );
+  }
 
   return (
     <Button

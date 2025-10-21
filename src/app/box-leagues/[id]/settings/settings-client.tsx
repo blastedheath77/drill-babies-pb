@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useBoxLeague, useUpdateBoxLeague, useDeleteBoxLeague } from '@/hooks/use-box-leagues';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
@@ -32,11 +32,13 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
     name: '',
     description: '',
     status: 'active' as 'active' | 'completed' | 'paused',
-    roundsPerCycle: 3
+    roundsPerCycle: 3,
+    pauseReason: ''
   });
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
 
   // Initialize form data when box league loads
   React.useEffect(() => {
@@ -45,7 +47,8 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
         name: boxLeague.name,
         description: boxLeague.description || '',
         status: boxLeague.status,
-        roundsPerCycle: boxLeague.roundsPerCycle
+        roundsPerCycle: boxLeague.roundsPerCycle,
+        pauseReason: boxLeague.pauseReason || ''
       });
     }
   }, [boxLeague]);
@@ -63,21 +66,67 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
       return;
     }
 
+    if (formData.status === 'paused' && !formData.pauseReason.trim()) {
+      alert('Please provide a reason for pausing the league');
+      return;
+    }
+
     try {
+      const updates: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        status: formData.status,
+        roundsPerCycle: formData.roundsPerCycle
+      };
+
+      // Add pause-specific fields if changing to paused
+      if (formData.status === 'paused' && boxLeague?.status !== 'paused') {
+        updates.pauseReason = formData.pauseReason.trim();
+        updates.pausedDate = new Date().toISOString();
+      } else if (formData.status === 'paused') {
+        updates.pauseReason = formData.pauseReason.trim();
+      }
+
+      // Clear pause fields if resuming
+      if (formData.status === 'active' && boxLeague?.status === 'paused') {
+        updates.pauseReason = null;
+        updates.pausedDate = null;
+      }
+
+      // Add completed date if completing
+      if (formData.status === 'completed' && boxLeague?.status !== 'completed') {
+        updates.completedDate = new Date().toISOString();
+      }
+
       await updateBoxLeague.mutateAsync({
         id: boxLeagueId,
-        updates: {
-          name: formData.name.trim(),
-          description: formData.description.trim() || null,
-          status: formData.status,
-          roundsPerCycle: formData.roundsPerCycle
-        }
+        updates
       });
 
       alert('Settings updated successfully!');
     } catch (error) {
       console.error('Error updating box league:', error);
       alert('Failed to update settings. Please try again.');
+    }
+  };
+
+  const handleCompleteLeague = async () => {
+    if (!boxLeague) return;
+
+    try {
+      await updateBoxLeague.mutateAsync({
+        id: boxLeagueId,
+        updates: {
+          status: 'completed',
+          completedDate: new Date().toISOString()
+        }
+      });
+
+      setIsCompleteDialogOpen(false);
+      alert('League marked as completed!');
+    } catch (error) {
+      console.error('Error completing league:', error);
+      alert('Failed to complete league. Please try again.');
     }
   };
 
@@ -210,6 +259,34 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
                 </SelectContent>
               </Select>
             </div>
+
+            {formData.status === 'paused' && (
+              <div className="space-y-2">
+                <Label htmlFor="pauseReason">Pause Reason</Label>
+                <Textarea
+                  id="pauseReason"
+                  value={formData.pauseReason}
+                  onChange={(e) => setFormData(prev => ({ ...prev, pauseReason: e.target.value }))}
+                  placeholder="Enter reason for pausing the league..."
+                  rows={2}
+                  required={formData.status === 'paused'}
+                />
+              </div>
+            )}
+
+            {boxLeague.status === 'paused' && boxLeague.pausedDate && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>League Paused</strong><br />
+                  {boxLeague.pauseReason && <span>Reason: {boxLeague.pauseReason}<br /></span>}
+                  Paused on: {new Date(boxLeague.pausedDate).toLocaleDateString()}
+                  {boxLeague.pausedDate && (
+                    <span> ({Math.floor((new Date().getTime() - new Date(boxLeague.pausedDate).getTime()) / (1000 * 60 * 60 * 24))} days ago)</span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
 
@@ -300,7 +377,7 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
 
         {/* Action Buttons */}
         <div className="flex justify-between">
-          <div>
+          <div className="flex gap-3">
             {canDelete() && (
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <DialogTrigger asChild>
@@ -312,6 +389,9 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Delete Box League</DialogTitle>
+                    <DialogDescription>
+                      This will permanently delete all league data
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
                     <p className="mb-4">
@@ -341,6 +421,49 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
                       ) : (
                         'Delete League'
                       )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {boxLeague.status !== 'completed' && boxLeague.currentRound > 0 && (
+              <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" type="button">
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Complete League
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Complete Box League</DialogTitle>
+                    <DialogDescription>
+                      Mark this league as finished
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <p className="mb-4">
+                      Are you sure you want to mark this league as completed? This will prevent any further modifications.
+                    </p>
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Completing the league will prevent:
+                        <ul className="list-disc list-inside mt-2">
+                          <li>Creating new rounds</li>
+                          <li>Recording match results</li>
+                          <li>Making player changes</li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCompleteDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCompleteLeague}>
+                      Complete League
                     </Button>
                   </DialogFooter>
                 </DialogContent>

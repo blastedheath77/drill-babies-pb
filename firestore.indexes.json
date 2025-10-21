@@ -1,0 +1,55 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "boxLeagueMatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "boxId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cycleNumber",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "roundNumber",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "matchNumber",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "boxLeaguePlayerStats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "playerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "boxLeagueId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "boxLeaguePlayerStats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "boxId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "currentPosition",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -193,18 +193,26 @@ export function useUpdateBoxLeagueMatch() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<BoxLeagueMatch> }) =>
+    mutationFn: ({ id, updates, match }: { id: string; updates: Partial<BoxLeagueMatch>; match?: BoxLeagueMatch }) =>
       updateBoxLeagueMatch(id, updates),
-    onSuccess: (_, { updates }) => {
-      if (updates.boxLeagueRoundId) {
-        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByRound(updates.boxLeagueRoundId) });
+    onSuccess: (_, { updates, match }) => {
+      // Use match data if provided, otherwise try to get IDs from updates
+      const boxLeagueRoundId = match?.boxLeagueRoundId || updates.boxLeagueRoundId;
+      const boxId = match?.boxId || updates.boxId;
+      const boxLeagueId = match?.boxLeagueId || updates.boxLeagueId;
+
+      // Invalidate queries to refresh UI
+      if (boxLeagueRoundId) {
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByRound(boxLeagueRoundId) });
       }
-      if (updates.boxId) {
-        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByBox(updates.boxId) });
+      if (boxId) {
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByBox(boxId) });
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId) });
       }
-      if (updates.boxLeagueId) {
-        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.rounds(updates.boxLeagueId) });
-        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(updates.boxLeagueId) });
+      if (boxLeagueId) {
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.rounds(boxLeagueId) });
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(boxLeagueId) });
+        queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.detail(boxLeagueId) });
       }
     },
   });
@@ -238,6 +246,87 @@ export function useCreateOrUpdatePlayerStats() {
     onSuccess: (_, data) => {
       queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(data.boxLeagueId) });
       queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(data.boxId) });
+    },
+  });
+}
+
+// Round Management Hooks
+export function useDeleteRound() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ roundId, boxLeagueId }: { roundId: string; boxLeagueId: string }) => {
+      const { deleteRound } = await import('@/lib/box-league-logic');
+      return deleteRound(roundId, boxLeagueId);
+    },
+    onSuccess: (_, { boxLeagueId }) => {
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.rounds(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.detail(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matches() });
+    },
+  });
+}
+
+export function useValidateRoundDeletion() {
+  return useMutation({
+    mutationFn: async ({ roundId, boxLeagueId }: { roundId: string; boxLeagueId: string }) => {
+      const { validateRoundDeletion } = await import('@/lib/box-league-logic');
+      return validateRoundDeletion(roundId, boxLeagueId);
+    },
+  });
+}
+
+// Player Swap Hooks
+export function useSwapPlayers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      boxLeagueId,
+      playerId1,
+      boxId1,
+      playerId2,
+      boxId2
+    }: {
+      boxLeagueId: string;
+      playerId1: string;
+      boxId1: string;
+      playerId2: string;
+      boxId2: string;
+    }) => {
+      const { swapPlayers } = await import('@/lib/box-league-logic');
+      return swapPlayers(boxLeagueId, playerId1, boxId1, playerId2, boxId2);
+    },
+    onSuccess: (_, { boxLeagueId, boxId1, boxId2 }) => {
+      // Invalidate all relevant queries
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.boxes(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId1) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId2) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByBox(boxId1) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByBox(boxId2) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.detail(boxLeagueId) });
+    },
+  });
+}
+
+export function useAnalyzeSwapImpact() {
+  return useMutation({
+    mutationFn: async ({
+      boxLeagueId,
+      playerId1,
+      boxId1,
+      playerId2,
+      boxId2
+    }: {
+      boxLeagueId: string;
+      playerId1: string;
+      boxId1: string;
+      playerId2: string;
+      boxId2: string;
+    }) => {
+      const { analyzeSwapImpact } = await import('@/lib/box-league-logic');
+      return analyzeSwapImpact(boxLeagueId, playerId1, boxId1, playerId2, boxId2);
     },
   });
 }

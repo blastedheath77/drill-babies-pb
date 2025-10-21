@@ -11,7 +11,7 @@ import { usePlayers } from '@/hooks/use-players';
 import { usePartnershipsData } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
 import { PlusCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, ArrowUpRight, ArrowDownRight, Users2, Swords } from 'lucide-react';
-import { getPartnershipStats, getHeadToHeadStats, getGamesForPlayer } from '@/lib/data';
+import { getPartnershipStats, getHeadToHeadStats, getGamesForPlayer, calculateExpectedWinRate } from '@/lib/data';
 import type { Player, Game } from '@/lib/types';
 import Link from 'next/link';
 
@@ -71,32 +71,136 @@ function usePlayerStats(players: Player[], games: Game[]) {
         total: playerGames.length
       };
 
-      // Ally: Best partnership
+      // Ally: Best partnership (based on performance above expectation)
       const partnerships = getPartnershipStats(player.id, games, players);
-      const bestPartner = partnerships
-        .filter(p => p.gamesPlayed >= 2) // At least 2 games together
-        .sort((a, b) => (b.wins / b.gamesPlayed) - (a.wins / a.gamesPlayed))[0];
-      
+
+      // Calculate performance bonus for each partnership
+      const partnershipPerformance = partnerships
+        .filter(p => p.gamesPlayed >= 5) // At least 5 games together
+        .map(p => {
+          const actualWinRate = p.wins / p.gamesPlayed;
+
+          // Calculate expected win rate based on combined team rating
+          // For doubles, the team rating is the average of both players
+          const teamRating = (player.rating + p.partner.rating) / 2;
+
+          // Get average opponent rating from games with this partner
+          const partnerGames = games.filter(game =>
+            game.type === 'Doubles' &&
+            game.playerIds.includes(player.id) &&
+            game.playerIds.includes(p.partner.id)
+          );
+
+          let totalOpponentRating = 0;
+          let opponentCount = 0;
+
+          partnerGames.forEach(game => {
+            const playerTeam = game.team1.playerIds.includes(player.id) ? game.team1 : game.team2;
+            const opponentTeam = game.team1.playerIds.includes(player.id) ? game.team2 : game.team1;
+
+            // Calculate average opponent team rating
+            const opponentRatings = opponentTeam.players.map(p => p.rating);
+            const avgOpponentRating = opponentRatings.reduce((sum, r) => sum + r, 0) / opponentRatings.length;
+
+            totalOpponentRating += avgOpponentRating;
+            opponentCount++;
+          });
+
+          const avgOpponentRating = opponentCount > 0 ? totalOpponentRating / opponentCount : player.rating;
+          const expectedWinRate = calculateExpectedWinRate(teamRating, avgOpponentRating);
+          const performanceBonus = actualWinRate - expectedWinRate;
+
+          return {
+            ...p,
+            actualWinRate,
+            expectedWinRate,
+            performanceBonus
+          };
+        })
+        .sort((a, b) => b.performanceBonus - a.performanceBonus);
+
+      // Debug logging for Andreas Jonsson
+      if (player.name === 'Andreas Jonsson') {
+        console.log('\n=== ANDREAS JONSSON ALLY CALCULATION ===');
+        console.log(`Andreas Rating: ${player.rating.toFixed(2)}`);
+        console.log('\nAll Partnerships (5+ games):');
+        partnershipPerformance.forEach(p => {
+          console.log(`\n${p.partner.name} (Rating: ${p.partner.rating.toFixed(2)})`);
+          console.log(`  Games: ${p.gamesPlayed} (${p.wins}W-${p.gamesPlayed - p.wins}L)`);
+          console.log(`  Team Rating: ${((player.rating + p.partner.rating) / 2).toFixed(2)}`);
+          console.log(`  Actual Win Rate: ${(p.actualWinRate * 100).toFixed(1)}%`);
+          console.log(`  Expected Win Rate: ${(p.expectedWinRate * 100).toFixed(1)}%`);
+          console.log(`  Performance Bonus: ${(p.performanceBonus * 100).toFixed(1)}% ${p.performanceBonus > 0 ? '✓ ABOVE EXPECTED' : '✗ BELOW EXPECTED'}`);
+        });
+        console.log(`\nBest Ally: ${partnershipPerformance[0]?.partner.name || 'None'}`);
+        console.log('=====================================\n');
+      }
+
+      const bestPartner = partnershipPerformance[0];
       const ally = bestPartner ? bestPartner.partner.name.split(' ')[0] : '-';
 
-      // Nemesis: Worst opponent (lowest win rate against)
-      let worstOpponent: { name: string; winRate: number } | null = null;
-      let lowestWinRate = 1;
-
-      players.forEach(opponent => {
-        if (opponent.id === player.id) return;
-        
-        const h2hStats = getHeadToHeadStats(player.id, opponent.id, games);
-        if (h2hStats && h2hStats.gamesPlayed >= 2) {
-          const winRate = h2hStats.wins / h2hStats.gamesPlayed;
-          if (winRate < lowestWinRate) {
-            lowestWinRate = winRate;
-            worstOpponent = { name: opponent.name.split(' ')[0], winRate };
+      // Nemesis: Opponent you underperform against most (based on rating expectation)
+      const opponentPerformance = players
+        .filter(opponent => opponent.id !== player.id)
+        .map(opponent => {
+          const h2hStats = getHeadToHeadStats(player.id, opponent.id, games);
+          if (!h2hStats || h2hStats.gamesPlayed < 5) {
+            return null; // Skip opponents with fewer than 5 games
           }
-        }
-      });
 
-      const nemesis = worstOpponent ? worstOpponent.name : '-';
+          const actualWinRate = h2hStats.wins / h2hStats.gamesPlayed;
+
+          // For head-to-head, we need to consider team ratings
+          // Get the games where they played against each other
+          const h2hGames = games.filter(game =>
+            game.playerIds.includes(player.id) &&
+            game.playerIds.includes(opponent.id) &&
+            !game.team1.playerIds.includes(player.id) === game.team1.playerIds.includes(opponent.id) // On opposite teams
+          );
+
+          // Calculate average team ratings for these matchups
+          let totalPlayerTeamRating = 0;
+          let totalOpponentTeamRating = 0;
+          let validGamesCount = 0;
+
+          h2hGames.forEach(game => {
+            const playerTeam = game.team1.playerIds.includes(player.id) ? game.team1 : game.team2;
+            const opponentTeam = game.team1.playerIds.includes(player.id) ? game.team2 : game.team1;
+
+            // Calculate average team ratings
+            const playerTeamRating = playerTeam.players.reduce((sum, p) => sum + p.rating, 0) / playerTeam.players.length;
+            const opponentTeamRating = opponentTeam.players.reduce((sum, p) => sum + p.rating, 0) / opponentTeam.players.length;
+
+            totalPlayerTeamRating += playerTeamRating;
+            totalOpponentTeamRating += opponentTeamRating;
+            validGamesCount++;
+          });
+
+          if (validGamesCount === 0) {
+            return null;
+          }
+
+          const avgPlayerTeamRating = totalPlayerTeamRating / validGamesCount;
+          const avgOpponentTeamRating = totalOpponentTeamRating / validGamesCount;
+          const expectedWinRate = calculateExpectedWinRate(avgPlayerTeamRating, avgOpponentTeamRating);
+
+          // Underperformance: how much worse you do than expected
+          // Higher underperformance = bigger nemesis
+          const underperformance = expectedWinRate - actualWinRate;
+
+          return {
+            opponent,
+            actualWinRate,
+            expectedWinRate,
+            underperformance,
+            gamesPlayed: h2hStats.gamesPlayed
+          };
+        })
+        .filter(Boolean) // Remove nulls
+        .sort((a, b) => (b?.underperformance || 0) - (a?.underperformance || 0)); // Sort by highest underperformance
+
+      const worstOpponent = opponentPerformance[0];
+      const nemesis = worstOpponent ? worstOpponent.opponent.name.split(' ')[0] : '-';
 
       playerStats[player.id] = { form, ally, nemesis };
     });

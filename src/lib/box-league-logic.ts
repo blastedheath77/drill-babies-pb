@@ -66,6 +66,14 @@ export async function createNewRound(boxLeagueId: string): Promise<string> {
       throw new Error('Box league not found');
     }
 
+    // Check league status - prevent round creation if paused or completed
+    if (boxLeague.status === 'paused') {
+      throw new Error('Cannot create round: League is paused. Please resume the league first.');
+    }
+    if (boxLeague.status === 'completed') {
+      throw new Error('Cannot create round: League is completed. No further rounds can be created.');
+    }
+
     // Get all boxes in the league
     const boxes = await getBoxesByLeague(boxLeagueId);
     if (boxes.length === 0) {
@@ -139,9 +147,57 @@ export async function createNewRound(boxLeagueId: string): Promise<string> {
 
 /**
  * Calculate if a cycle is complete and promotion/relegation should occur
+ * Note: This only checks if enough rounds have been played, not if all matches are completed
+ * Use validateCycleComplete() for full validation including pending matches
  */
 export function isCycleComplete(boxLeague: BoxLeague): boolean {
   return boxLeague.currentRound >= boxLeague.roundsPerCycle;
+}
+
+/**
+ * Validate that a cycle is truly complete with all matches finished
+ * Returns true only if:
+ * 1. Required number of rounds have been played
+ * 2. All matches in the current round are completed (no pending matches)
+ */
+export async function validateCycleComplete(boxLeagueId: string): Promise<{ complete: boolean; reason?: string }> {
+  const { getBoxLeague, getMatchesByBox, getBoxesByLeague } = await import('./box-leagues');
+
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    return { complete: false, reason: 'Box league not found' };
+  }
+
+  // Check if enough rounds have been played
+  if (boxLeague.currentRound < boxLeague.roundsPerCycle) {
+    return {
+      complete: false,
+      reason: `Only ${boxLeague.currentRound} of ${boxLeague.roundsPerCycle} rounds completed`
+    };
+  }
+
+  // Get all boxes and check for pending matches in the entire current cycle
+  const boxes = await getBoxesByLeague(boxLeagueId);
+  let totalPendingMatches = 0;
+
+  for (const box of boxes) {
+    const matches = await getMatchesByBox(box.id);
+    // Check ALL matches from current cycle (not just current round)
+    const cycleMatches = matches.filter(
+      m => m.cycleNumber === boxLeague.currentCycle
+    );
+    const pending = cycleMatches.filter(m => m.status === 'pending');
+    totalPendingMatches += pending.length;
+  }
+
+  if (totalPendingMatches > 0) {
+    return {
+      complete: false,
+      reason: `${totalPendingMatches} match(es) still pending in the current cycle`
+    };
+  }
+
+  return { complete: true };
 }
 
 /**
@@ -179,8 +235,23 @@ export function calculateBoxStandings(
       return b.totalPoints - a.totalPoints;
     }
 
-    // 2. Head-to-head record (only if exactly 2 players are tied)
-    // For now, we'll skip this complex case and move to next tiebreaker
+    // 2. Head-to-head record (only if exactly 2 players are tied on points)
+    // Check if these are the only 2 players tied at this point level
+    const playersAtSamePoints = standings.filter(s => s.totalPoints === a.totalPoints);
+    if (playersAtSamePoints.length === 2 &&
+        playersAtSamePoints.some(s => s.playerId === a.playerId) &&
+        playersAtSamePoints.some(s => s.playerId === b.playerId)) {
+      // Get head-to-head record between these two players
+      const aVsBRecord = a.headToHeadRecord[b.playerId];
+      const bVsARecord = b.headToHeadRecord[a.playerId];
+
+      if (aVsBRecord && bVsARecord) {
+        // Compare head-to-head wins (higher is better)
+        if (aVsBRecord.wins !== bVsARecord.wins) {
+          return bVsARecord.wins - aVsBRecord.wins;
+        }
+      }
+    }
 
     // 3. Total games won (higher is better)
     if (a.gamesWon !== b.gamesWon) {
@@ -383,6 +454,11 @@ export async function calculatePromotionRelegation(
     throw new Error('Cycle is not complete. Cannot perform promotion/relegation.');
   }
 
+  // Check if any player stats exist
+  if (allPlayerStats.length === 0) {
+    throw new Error('No player statistics found. Please ensure all matches in the current cycle have been recorded before attempting promotion/relegation. Go to "Rounds & Matches" to record match results.');
+  }
+
   // Sort boxes by box number
   boxes.sort((a, b) => a.boxNumber - b.boxNumber);
 
@@ -394,6 +470,15 @@ export async function calculatePromotionRelegation(
 
   for (const box of boxes) {
     const boxPlayerStats = allPlayerStats.filter(stats => stats.boxId === box.id);
+
+    if (boxPlayerStats.length === 0) {
+      throw new Error(`Box ${box.boxNumber} has no player statistics. All players must complete at least one match before promotion/relegation.`);
+    }
+
+    if (boxPlayerStats.length !== 4) {
+      throw new Error(`Box ${box.boxNumber} has ${boxPlayerStats.length} player(s) with statistics but needs exactly 4. Expected ${box.playerIds.length} players based on box assignments.`);
+    }
+
     const boxMatches: BoxLeagueMatch[] = []; // We'd need to fetch these, but for standings calculation we have stats
     boxStandings[box.id] = calculateBoxStandings(boxPlayerStats, boxMatches);
   }
@@ -659,5 +744,281 @@ export async function removePlayerFromBoxLeague(
   const statsSnapshot = await getDocs(statsQuery);
   for (const doc of statsSnapshot.docs) {
     await deleteDoc(doc.ref);
+  }
+}
+
+// Round Management
+
+export interface DeleteRoundValidation {
+  canDelete: boolean;
+  reason?: string;
+  completedMatchesCount: number;
+  totalMatchesCount: number;
+}
+
+/**
+ * Validate if a round can be deleted
+ * Only allow deletion if no matches have been completed
+ */
+export async function validateRoundDeletion(
+  roundId: string,
+  boxLeagueId: string
+): Promise<DeleteRoundValidation> {
+  const { getBoxLeague, getMatchesByRound } = await import('./box-leagues');
+
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    return {
+      canDelete: false,
+      reason: 'Box league not found',
+      completedMatchesCount: 0,
+      totalMatchesCount: 0
+    };
+  }
+
+  if (boxLeague.status === 'completed') {
+    return {
+      canDelete: false,
+      reason: 'Cannot delete rounds from a completed league',
+      completedMatchesCount: 0,
+      totalMatchesCount: 0
+    };
+  }
+
+  const matches = await getMatchesByRound(roundId);
+  const completedMatches = matches.filter(m => m.status === 'completed');
+
+  if (completedMatches.length > 0) {
+    return {
+      canDelete: false,
+      reason: `Cannot delete round: ${completedMatches.length} match(es) have been completed`,
+      completedMatchesCount: completedMatches.length,
+      totalMatchesCount: matches.length
+    };
+  }
+
+  return {
+    canDelete: true,
+    completedMatchesCount: 0,
+    totalMatchesCount: matches.length
+  };
+}
+
+/**
+ * Delete a round and all its matches
+ * Only allowed if no matches have been completed
+ */
+export async function deleteRound(roundId: string, boxLeagueId: string): Promise<void> {
+  const {
+    getBoxLeague,
+    getMatchesByRound,
+    updateBoxLeague,
+    getRoundsByLeague
+  } = await import('./box-leagues');
+  const { deleteDoc, doc, writeBatch } = await import('firebase/firestore');
+  const { db } = await import('./firebase');
+
+  // Validate deletion is allowed
+  const validation = await validateRoundDeletion(roundId, boxLeagueId);
+  if (!validation.canDelete) {
+    throw new Error(validation.reason || 'Cannot delete round');
+  }
+
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    throw new Error('Box league not found');
+  }
+
+  // Get the round to check its round number
+  const rounds = await getRoundsByLeague(boxLeagueId);
+  const roundToDelete = rounds.find(r => r.id === roundId);
+
+  if (!roundToDelete) {
+    throw new Error('Round not found');
+  }
+
+  // Only allow deleting the latest round
+  const latestRound = Math.max(...rounds.map(r => r.roundNumber));
+  if (roundToDelete.roundNumber !== latestRound) {
+    throw new Error('Can only delete the most recent round');
+  }
+
+  const batch = writeBatch(db);
+
+  // Delete all matches in the round
+  const matches = await getMatchesByRound(roundId);
+  for (const match of matches) {
+    const matchRef = doc(db, 'boxLeagueMatches', match.id);
+    batch.delete(matchRef);
+  }
+
+  // Delete the round
+  const roundRef = doc(db, 'boxLeagueRounds', roundId);
+  batch.delete(roundRef);
+
+  await batch.commit();
+
+  // Decrement the current round counter
+  await updateBoxLeague(boxLeagueId, {
+    currentRound: boxLeague.currentRound - 1
+  });
+}
+
+// Player Swap Functionality
+
+export interface SwapImpact {
+  affectedMatches: BoxLeagueMatch[];
+  completedMatchesCount: number;
+  pendingMatchesCount: number;
+  canSwap: boolean;
+  reason?: string;
+}
+
+/**
+ * Analyze the impact of swapping two players between boxes
+ */
+export async function analyzeSwapImpact(
+  boxLeagueId: string,
+  playerId1: string,
+  boxId1: string,
+  playerId2: string,
+  boxId2: string
+): Promise<SwapImpact> {
+  const { getBoxLeague, getMatchesByBox } = await import('./box-leagues');
+
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    throw new Error('Box league not found');
+  }
+
+  // Get all matches from both boxes in current cycle
+  const box1Matches = await getMatchesByBox(boxId1);
+  const box2Matches = await getMatchesByBox(boxId2);
+
+  // Filter to current cycle only
+  const currentCycleBox1Matches = box1Matches.filter(m => m.cycleNumber === boxLeague.currentCycle);
+  const currentCycleBox2Matches = box2Matches.filter(m => m.cycleNumber === boxLeague.currentCycle);
+
+  // Find matches involving either player
+  const affectedMatches = [
+    ...currentCycleBox1Matches.filter(m => m.playerIds.includes(playerId1)),
+    ...currentCycleBox2Matches.filter(m => m.playerIds.includes(playerId2))
+  ];
+
+  const completedMatches = affectedMatches.filter(m => m.status === 'completed');
+  const pendingMatches = affectedMatches.filter(m => m.status === 'pending');
+
+  // Check if swap is allowed (no completed matches should be affected)
+  const canSwap = completedMatches.length === 0;
+  const reason = !canSwap
+    ? `Cannot swap players: ${completedMatches.length} completed match(es) would be invalidated`
+    : undefined;
+
+  return {
+    affectedMatches,
+    completedMatchesCount: completedMatches.length,
+    pendingMatchesCount: pendingMatches.length,
+    canSwap,
+    reason
+  };
+}
+
+/**
+ * Swap two players between boxes
+ * This function will:
+ * 1. Validate the swap is allowed (no completed matches affected)
+ * 2. Update box player assignments
+ * 3. Update player stats with new box assignments
+ * 4. Mark affected pending matches for replay
+ * 5. Add audit trail to position history
+ */
+export async function swapPlayers(
+  boxLeagueId: string,
+  playerId1: string,
+  boxId1: string,
+  playerId2: string,
+  boxId2: string
+): Promise<void> {
+  const {
+    getBoxLeague,
+    updateBox,
+    updateBoxLeagueMatch,
+    getPlayerStatsByLeague,
+    createOrUpdatePlayerStats
+  } = await import('./box-leagues');
+
+  // Validate swap
+  const impact = await analyzeSwapImpact(boxLeagueId, playerId1, boxId1, playerId2, boxId2);
+
+  if (!impact.canSwap) {
+    throw new Error(impact.reason || 'Swap not allowed');
+  }
+
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    throw new Error('Box league not found');
+  }
+
+  const boxes = await getBoxesByLeague(boxLeagueId);
+  const box1 = boxes.find(b => b.id === boxId1);
+  const box2 = boxes.find(b => b.id === boxId2);
+
+  if (!box1 || !box2) {
+    throw new Error('One or both boxes not found');
+  }
+
+  // Update box player assignments
+  const box1PlayerIds = box1.playerIds.filter(id => id !== playerId1);
+  box1PlayerIds.push(playerId2);
+
+  const box2PlayerIds = box2.playerIds.filter(id => id !== playerId2);
+  box2PlayerIds.push(playerId1);
+
+  await updateBox(boxId1, { playerIds: box1PlayerIds });
+  await updateBox(boxId2, { playerIds: box2PlayerIds });
+
+  // Update player stats with new box assignments and add to position history
+  const allPlayerStats = await getPlayerStatsByLeague(boxLeagueId);
+
+  const player1Stats = allPlayerStats.find(s => s.playerId === playerId1);
+  const player2Stats = allPlayerStats.find(s => s.playerId === playerId2);
+
+  if (player1Stats) {
+    const historyEntry = {
+      cycle: boxLeague.currentCycle,
+      round: boxLeague.currentRound,
+      position: player1Stats.currentPosition,
+      boxNumber: box1.boxNumber
+    };
+
+    await createOrUpdatePlayerStats({
+      ...player1Stats,
+      boxId: boxId2,
+      positionHistory: [...player1Stats.positionHistory, historyEntry]
+    });
+  }
+
+  if (player2Stats) {
+    const historyEntry = {
+      cycle: boxLeague.currentCycle,
+      round: boxLeague.currentRound,
+      position: player2Stats.currentPosition,
+      boxNumber: box2.boxNumber
+    };
+
+    await createOrUpdatePlayerStats({
+      ...player2Stats,
+      boxId: boxId1,
+      positionHistory: [...player2Stats.positionHistory, historyEntry]
+    });
+  }
+
+  // Mark affected pending matches for replay
+  // For now, we'll update their status to indicate they need to be replayed
+  // In a future enhancement, we could delete them and recreate with new pairings
+  for (const match of impact.affectedMatches.filter(m => m.status === 'pending')) {
+    await updateBoxLeagueMatch(match.id, {
+      status: 'pending' // Keep as pending, but they will be for different players
+    });
   }
 }

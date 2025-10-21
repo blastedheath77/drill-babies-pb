@@ -59,7 +59,6 @@ PBstats is a pickleball statistics tracking application built with Next.js 14, F
 ### Authentication & Permissions
 - Firebase Auth with fallback to localStorage for development
 - Role-based permissions: admin, player, viewer
-- Circle-based access control
 
 ### Development Notes
 - Uses React Query for server state management

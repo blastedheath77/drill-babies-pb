@@ -272,7 +272,7 @@ export function QuickPlayForm() {
       <>
         <PageHeader
           title="Quick Play"
-          description="Start playing immediately with flexible round-robin games"
+          description="Quick friendly round-robin tournament"
         />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
@@ -287,7 +287,7 @@ export function QuickPlayForm() {
     <>
       <PageHeader
         title="Quick Play"
-        description="Start playing immediately with flexible round-robin games"
+        description="Quick friendly round-robin tournament"
       >
         <Link href="/tournaments">
           <Button variant="outline">
@@ -302,13 +302,7 @@ export function QuickPlayForm() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Quick Play Details */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Zap className="h-5 w-5 mr-2 text-green-600" />
-                  Quick Play Setup
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <FormField
                   control={form.control}
                   name="name"
@@ -357,13 +351,13 @@ export function QuickPlayForm() {
                             <FormControl>
                               <RadioGroupItem value="singles" />
                             </FormControl>
-                            <FormLabel className="font-normal">Singles (2+ players)</FormLabel>
+                            <FormLabel className="font-normal">Singles</FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
                               <RadioGroupItem value="doubles" />
                             </FormControl>
-                            <FormLabel className="font-normal">Doubles (4+ players)</FormLabel>
+                            <FormLabel className="font-normal">Doubles</FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>

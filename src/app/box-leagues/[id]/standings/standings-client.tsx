@@ -7,13 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useBoxLeague, useBoxesByLeague, useRoundsByLeague } from '@/hooks/use-box-leagues';
+import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, usePlayerStatsByBox, useMatchesByBox } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
-import { calculateStandings } from '@/lib/box-league-logic';
+import { calculateBoxStandings } from '@/lib/box-league-logic';
 import type { BoxLeagueStanding, Player } from '@/lib/types';
 
 interface StandingsClientProps {
   boxLeagueId: string;
+}
+
+interface BoxStandingsCardProps {
+  box: any;
+  boxLeague: any;
+  boxLeagueId: string;
+  allPlayers: Player[];
 }
 
 interface StandingRowProps {
@@ -23,6 +30,68 @@ interface StandingRowProps {
   boxNumber: number;
   totalPlayers: number;
   boxLeagueId: string;
+}
+
+function BoxStandingsCard({ box, boxLeague, boxLeagueId, allPlayers }: BoxStandingsCardProps) {
+  const { data: playerStats = [] } = usePlayerStatsByBox(box.id);
+  const { data: matches = [] } = useMatchesByBox(box.id);
+
+  const getPlayerById = (playerId: string): Player | undefined => {
+    return allPlayers.find(p => p.id === playerId);
+  };
+
+  const getStandingsForBox = (): BoxLeagueStanding[] => {
+    try {
+      return calculateBoxStandings(playerStats, matches);
+    } catch (error) {
+      console.error('Error calculating standings for box:', box.id, error);
+      return [];
+    }
+  };
+
+  const standings = getStandingsForBox();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>Box {box.boxNumber}</span>
+            {box.boxNumber === 1 && <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Top Box</Badge>}
+            {box.boxNumber === boxLeague.totalBoxes && <Badge variant="outline" className="bg-blue-100 text-blue-800">Bottom Box</Badge>}
+          </div>
+          <Badge variant="secondary">
+            {standings.length} players
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {standings.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Trophy className="h-8 w-8 mx-auto mb-2" />
+            <p>No matches played yet</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {standings.map((standing, index) => {
+              const player = getPlayerById(standing.playerId);
+              return player ? (
+                <StandingRow
+                  key={standing.playerId}
+                  standing={standing}
+                  player={player}
+                  position={index + 1}
+                  boxNumber={box.boxNumber}
+                  totalPlayers={standings.length}
+                  boxLeagueId={boxLeagueId}
+                />
+              ) : null;
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function StandingRow({ standing, player, position, boxNumber, totalPlayers, boxLeagueId }: StandingRowProps) {
@@ -102,19 +171,6 @@ export function StandingsClient({ boxLeagueId }: StandingsClientProps) {
   const { data: allPlayers = [] } = usePlayers();
 
   const isLoading = leagueLoading || boxesLoading || roundsLoading;
-
-  const getPlayerById = (playerId: string): Player | undefined => {
-    return allPlayers.find(p => p.id === playerId);
-  };
-
-  const getStandingsForBox = (boxId: string): BoxLeagueStanding[] => {
-    try {
-      return calculateStandings(boxId, rounds);
-    } catch (error) {
-      console.error('Error calculating standings for box:', boxId, error);
-      return [];
-    }
-  };
 
   const getTotalMatches = () => {
     return rounds.reduce((total, round) => total + round.matchIds.length, 0);
@@ -222,50 +278,15 @@ export function StandingsClient({ boxLeagueId }: StandingsClientProps) {
         <div className="space-y-6">
           {boxes
             .sort((a, b) => a.boxNumber - b.boxNumber)
-            .map((box) => {
-              const standings = getStandingsForBox(box.id);
-              return (
-                <Card key={box.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span>Box {box.boxNumber}</span>
-                        {box.boxNumber === 1 && <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Top Box</Badge>}
-                        {box.boxNumber === boxLeague.totalBoxes && <Badge variant="outline" className="bg-blue-100 text-blue-800">Bottom Box</Badge>}
-                      </div>
-                      <Badge variant="secondary">
-                        {standings.length} players
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {standings.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Trophy className="h-8 w-8 mx-auto mb-2" />
-                        <p>No matches played yet</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {standings.map((standing, index) => {
-                          const player = getPlayerById(standing.playerId);
-                          return player ? (
-                            <StandingRow
-                              key={standing.playerId}
-                              standing={standing}
-                              player={player}
-                              position={index + 1}
-                              boxNumber={box.boxNumber}
-                              totalPlayers={standings.length}
-                              boxLeagueId={boxLeagueId}
-                            />
-                          ) : null;
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            .map((box) => (
+              <BoxStandingsCard
+                key={box.id}
+                box={box}
+                boxLeague={boxLeague}
+                boxLeagueId={boxLeagueId}
+                allPlayers={allPlayers}
+              />
+            ))}
         </div>
       )}
 

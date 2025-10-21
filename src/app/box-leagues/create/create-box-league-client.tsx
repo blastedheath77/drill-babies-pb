@@ -12,44 +12,58 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function CreateBoxLeagueClient() {
   const router = useRouter();
   const { user } = useAuth();
   const createBoxLeague = useCreateBoxLeague();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     roundsPerCycle: 3,
     totalBoxes: 2,
+    isTestMode: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
+    // Prevent double submission
+    if (isSubmitting || createBoxLeague.isPending) {
+      return;
+    }
+
+    if (!user?.id) {
       console.error('User not authenticated');
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       const boxLeagueData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         status: 'active' as const,
-        createdBy: user.id || user.uid || '',
+        createdBy: user.id,
         roundsPerCycle: formData.roundsPerCycle,
         newPlayerEntryBox: formData.totalBoxes, // Default to bottom box
         totalBoxes: formData.totalBoxes,
+        isTestMode: formData.isTestMode,
       };
 
+      console.log('Creating box league with data:', boxLeagueData);
       const boxLeagueId = await createBoxLeague.mutateAsync(boxLeagueData);
+      console.log('Box league created with ID:', boxLeagueId);
 
       // Navigate to the created box league
       router.push(`/box-leagues/${boxLeagueId}`);
     } catch (error) {
       console.error('Error creating box league:', error);
+      setIsSubmitting(false);
     }
   };
 
@@ -162,6 +176,26 @@ export function CreateBoxLeagueClient() {
                     </p>
                   </div>
                 </div>
+
+                {/* Test Mode Checkbox */}
+                <div className="flex items-start space-x-3 pt-4 border-t">
+                  <Checkbox
+                    id="isTestMode"
+                    checked={formData.isTestMode}
+                    onCheckedChange={(checked) => updateFormData('isTestMode', checked === true)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="isTestMode"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Test Mode
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Mark this league as a test. Test leagues are isolated and can be easily deleted without affecting player stats.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -239,9 +273,9 @@ export function CreateBoxLeagueClient() {
           </Button>
           <Button
             type="submit"
-            disabled={createBoxLeague.isPending || !formData.name.trim()}
+            disabled={isSubmitting || createBoxLeague.isPending || !formData.name.trim()}
           >
-            {createBoxLeague.isPending ? 'Creating...' : 'Create Box League'}
+            {(isSubmitting || createBoxLeague.isPending) ? 'Creating...' : 'Create Box League'}
           </Button>
         </div>
       </form>

@@ -11,7 +11,9 @@ import {
   orderBy,
   limit,
   Timestamp,
-  writeBatch
+  writeBatch,
+  runTransaction,
+  setDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
@@ -35,6 +37,9 @@ export async function createBoxLeague(
   boxLeagueData: Omit<BoxLeague, 'id' | 'createdDate' | 'currentCycle' | 'currentRound'>
 ): Promise<string> {
   try {
+    const batch = writeBatch(db);
+
+    // Create the box league document
     const newBoxLeague: Omit<BoxLeague, 'id'> = {
       ...boxLeagueData,
       createdDate: new Date().toISOString(),
@@ -42,8 +47,26 @@ export async function createBoxLeague(
       currentRound: 0, // Not started yet
     };
 
-    const docRef = await addDoc(collection(db, BOX_LEAGUES_COLLECTION), newBoxLeague);
-    return docRef.id;
+    const boxLeagueRef = doc(collection(db, BOX_LEAGUES_COLLECTION));
+    batch.set(boxLeagueRef, newBoxLeague);
+
+    // Atomically create all boxes for the league
+    const boxCreatedDate = new Date().toISOString();
+    for (let i = 1; i <= boxLeagueData.totalBoxes; i++) {
+      const boxRef = doc(collection(db, BOXES_COLLECTION));
+      const newBox: Omit<Box, 'id'> = {
+        boxLeagueId: boxLeagueRef.id,
+        boxNumber: i,
+        playerIds: [],
+        createdDate: boxCreatedDate,
+      };
+      batch.set(boxRef, newBox);
+    }
+
+    // Commit all changes atomically
+    await batch.commit();
+
+    return boxLeagueRef.id;
   } catch (error) {
     console.error('Error creating box league:', error);
     throw error;
@@ -303,28 +326,31 @@ export async function createOrUpdatePlayerStats(
   statsData: Omit<BoxLeaguePlayerStats, 'id' | 'lastUpdated'>
 ): Promise<void> {
   try {
-    // Check if stats already exist for this player in this box league
-    const q = query(
-      collection(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION),
-      where('playerId', '==', statsData.playerId),
-      where('boxLeagueId', '==', statsData.boxLeagueId)
-    );
+    // Use deterministic document ID based on boxLeagueId and playerId
+    // This allows us to use transactions for race-condition-free updates
+    const statsDocId = `${statsData.boxLeagueId}_${statsData.playerId}`;
+    const statsRef = doc(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION, statsDocId);
 
-    const querySnapshot = await getDocs(q);
+    // Use a transaction to ensure atomic read-modify-write
+    await runTransaction(db, async (transaction) => {
+      const statsDoc = await transaction.get(statsRef);
 
-    const statsWithTimestamp = {
-      ...statsData,
-      lastUpdated: new Date().toISOString()
-    };
+      const statsWithTimestamp = {
+        ...statsData,
+        lastUpdated: new Date().toISOString()
+      };
 
-    if (querySnapshot.empty) {
-      // Create new stats
-      await addDoc(collection(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION), statsWithTimestamp);
-    } else {
-      // Update existing stats
-      const existingDoc = querySnapshot.docs[0];
-      await updateDoc(existingDoc.ref, statsWithTimestamp);
-    }
+      if (!statsDoc.exists()) {
+        // Create new stats
+        transaction.set(statsRef, {
+          id: statsDocId,
+          ...statsWithTimestamp
+        });
+      } else {
+        // Update existing stats
+        transaction.update(statsRef, statsWithTimestamp);
+      }
+    });
   } catch (error) {
     console.error('Error creating/updating player stats:', error);
     throw error;

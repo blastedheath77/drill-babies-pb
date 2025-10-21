@@ -2,13 +2,15 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Grid3x3, Settings, Users, Calendar, Trophy, Loader2 } from 'lucide-react';
+import { ArrowLeft, Grid3x3, Settings, Users, Calendar, Trophy, Loader2, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useBoxLeague, useBoxesByLeague } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { validateCycleComplete } from '@/lib/box-league-logic';
 
 interface BoxLeagueDetailClientProps {
   boxLeagueId: string;
@@ -18,6 +20,19 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
   const { data: boxLeague, isLoading, error } = useBoxLeague(boxLeagueId);
   const { data: boxes = [] } = useBoxesByLeague(boxLeagueId);
   const { data: allPlayers = [] } = usePlayers();
+  const [cycleValidation, setCycleValidation] = React.useState<{ complete: boolean; reason?: string } | null>(null);
+
+  // Validate cycle completion status
+  React.useEffect(() => {
+    if (!boxLeague) return;
+
+    const checkCycleComplete = async () => {
+      const validation = await validateCycleComplete(boxLeagueId);
+      setCycleValidation(validation);
+    };
+
+    checkCycleComplete();
+  }, [boxLeague, boxLeagueId]);
 
   const getPlayerById = (playerId: string) => {
     return allPlayers.find(p => p.id === playerId);
@@ -77,6 +92,11 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
             <Badge variant={boxLeague.status === 'active' ? 'default' : 'secondary'}>
               {boxLeague.status}
             </Badge>
+            {boxLeague.isTestMode && (
+              <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700">
+                TEST
+              </Badge>
+            )}
           </div>
           {boxLeague.description && (
             <p className="text-muted-foreground mt-1">{boxLeague.description}</p>
@@ -123,7 +143,15 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
           {/* Compact Box Overview */}
           {boxes.length > 0 && (
             <div className="mt-6 pt-6 border-t">
-              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Box Assignments</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-muted-foreground">Box Assignments</h4>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/box-leagues/${boxLeagueId}/boxes`}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Manage
+                  </Link>
+                </Button>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
                 {boxes
                   .sort((a, b) => a.boxNumber - b.boxNumber)
@@ -165,21 +193,33 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
         </CardContent>
       </Card>
 
+      {/* Cycle Completion Alert */}
+      {cycleValidation?.complete && (
+        <Alert className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20 border-yellow-300 dark:border-yellow-800">
+          <Trophy className="h-5 w-5 text-yellow-600" />
+          <AlertDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-yellow-900 dark:text-yellow-100">
+                  Cycle {boxLeague.currentCycle} Complete!
+                </div>
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  All rounds have been completed. Time to execute promotion/relegation and start the next cycle.
+                </p>
+              </div>
+              <Button asChild className="ml-4 shrink-0">
+                <Link href={`/box-leagues/${boxLeagueId}/cycle-completion`}>
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Complete Cycle
+                </Link>
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Quick Actions */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <Link href={`/box-leagues/${boxLeagueId}/boxes`}>
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardContent className="p-6 text-center">
-              <Users className="h-8 w-8 mx-auto mb-3 text-primary" />
-              <h3 className="font-semibold mb-2">Manage Boxes</h3>
-              <p className="text-sm text-muted-foreground">
-                Create boxes and assign players
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
+      <div className="grid md:grid-cols-2 gap-4">
         <Link href={`/box-leagues/${boxLeagueId}/rounds`}>
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">

@@ -504,6 +504,19 @@ export function getPartnershipStats(playerId: string, allGames: Game[], allPlaye
   return Object.values(partnerships).sort((a, b) => b.gamesPlayed - a.gamesPlayed);
 }
 
+/**
+ * Calculate expected win rate based on ELO rating differential
+ * Uses standard ELO probability formula: 1 / (1 + 10^((opponentRating - playerRating) / 400))
+ *
+ * @param playerRating - The player's ELO rating
+ * @param opponentRating - The opponent's ELO rating
+ * @returns Expected win probability (0 to 1)
+ */
+export function calculateExpectedWinRate(playerRating: number, opponentRating: number): number {
+  const ratingDiff = opponentRating - playerRating;
+  return 1 / (1 + Math.pow(10, ratingDiff / 400));
+}
+
 export function getBiggestRivals(
   playerId: string,
   allPlayers: Player[],

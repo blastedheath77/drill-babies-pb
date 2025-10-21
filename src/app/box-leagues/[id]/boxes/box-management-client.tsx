@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, Plus, Trash2, UserPlus, UserMinus, Loader2, AlertTriangle, GripVertical } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Trash2, UserPlus, UserMinus, Loader2, AlertTriangle, GripVertical, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SwapPlayersDialog } from '@/components/box-leagues/swap-players-dialog';
 import { useBoxLeague, useBoxesByLeague, useCreateBox, useUpdateBox } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import type { Box, Player } from '@/lib/types';
@@ -256,44 +257,16 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
   const [dragOverPlayer, setDragOverPlayer] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Swap dialog state
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [swapData, setSwapData] = useState<{
+    player1: Player;
+    box1: Box;
+    player2: Player;
+    box2: Box;
+  } | null>(null);
+
   const isLoading = leagueLoading || boxesLoading || playersLoading;
-
-  // Check if we have all required boxes based on unique box numbers
-  const hasAllRequiredBoxes = () => {
-    if (!boxLeague) return false;
-    const uniqueBoxNumbers = new Set(boxes.map(b => b.boxNumber));
-    const requiredBoxNumbers = Array.from({length: boxLeague.totalBoxes}, (_, i) => i + 1);
-    return requiredBoxNumbers.every(num => uniqueBoxNumbers.has(num));
-  };
-
-  // Auto-create boxes if they don't exist - only runs once when conditions are right
-  useEffect(() => {
-    if (boxLeague && !boxesLoading && !hasAllRequiredBoxes()) {
-      createMissingBoxes();
-    }
-  }, [boxLeague?.id, boxes.length, boxesLoading]); // Only depend on essential data, not the boxes array itself
-
-  const createMissingBoxes = async () => {
-    if (!boxLeague) return;
-
-    try {
-      const existingBoxNumbers = new Set(boxes.map(box => box.boxNumber));
-
-      for (let i = 1; i <= boxLeague.totalBoxes; i++) {
-        // Only create box if it doesn't already exist
-        if (!existingBoxNumbers.has(i)) {
-          await createBox.mutateAsync({
-            boxLeagueId: boxLeague.id,
-            boxNumber: i,
-            playerIds: []
-          });
-        }
-      }
-      refetchBoxes();
-    } catch (error) {
-      console.error('Error creating boxes:', error);
-    }
-  };
 
   const handleDragStart = (e: React.DragEvent, player: Player, sourceBoxId?: string, sourcePosition?: number) => {
     setDraggedPlayer({ player, sourceBoxId, sourcePosition });
@@ -352,36 +325,15 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
 
     if (!sourceBox || !targetBox) return;
 
-    try {
-      // Create new player lists with swapped players
-      const sourcePlayerIds = sourceBox.playerIds.map(id =>
-        id === draggedPlayerData.id ? targetPlayer.id : id
-      );
-
-      const targetPlayerIds = targetBox.playerIds.map(id =>
-        id === targetPlayer.id ? draggedPlayerData.id : id
-      );
-
-      // Update both boxes
-      await Promise.all([
-        updateBox.mutateAsync({
-          id: sourceBoxId,
-          updates: { playerIds: sourcePlayerIds }
-        }),
-        sourceBoxId !== targetBoxId ? updateBox.mutateAsync({
-          id: targetBoxId,
-          updates: { playerIds: targetPlayerIds }
-        }) : Promise.resolve()
-      ]);
-
-      console.log(`Swapped ${draggedPlayerData.name} with ${targetPlayer.name}`);
-    } catch (error) {
-      console.error('Error swapping players:', error);
-      alert('Failed to swap players. Please try again.');
-    } finally {
-      setDraggedPlayer(null);
-      refetchBoxes();
-    }
+    // Open swap dialog with impact analysis
+    setSwapData({
+      player1: draggedPlayerData,
+      box1: sourceBox,
+      player2: targetPlayer,
+      box2: targetBox,
+    });
+    setSwapDialogOpen(true);
+    setDraggedPlayer(null);
   };
 
   const handleDrop = async (e: React.DragEvent, targetBoxId: string) => {
@@ -765,6 +717,19 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
           </Button>
         )}
       </div>
+
+      {/* Swap Players Dialog */}
+      {swapData && (
+        <SwapPlayersDialog
+          open={swapDialogOpen}
+          onOpenChange={setSwapDialogOpen}
+          boxLeagueId={boxLeagueId}
+          player1={swapData.player1}
+          box1={swapData.box1}
+          player2={swapData.player2}
+          box2={swapData.box2}
+        />
+      )}
     </div>
   );
 }

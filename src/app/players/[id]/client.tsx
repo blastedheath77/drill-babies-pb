@@ -425,28 +425,6 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
 
   return (
     <TabsContent value="partners" className="mt-4 space-y-6">
-      {/* Partnership Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          title="Total Partners"
-          value={String(partnerships.length)}
-          icon={<Users className="h-4 w-4" />}
-          description="Unique doubles partners"
-        />
-        <StatCard
-          title="Partnership Games"
-          value={String(partnershipInsights.totalGames)}
-          icon={<Swords className="h-4 w-4" />}
-          description="Total doubles games played"
-        />
-        <StatCard
-          title="Avg Win Rate"
-          value={`${partnershipInsights.averageWinRate.toFixed(0)}%`}
-          icon={<Percent className="h-4 w-4" />}
-          description="Overall partnership success"
-        />
-      </div>
-
       {/* Best Partner Highlight */}
       {partnershipInsights.bestPartner && (
         <Card className="border-2 border-primary/20 bg-primary/5">
@@ -623,30 +601,30 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
                   <h4 className="font-semibold">Partnership Analysis</h4>
                   <div className="space-y-2 text-sm">
                     {selectedPartner.gamesPlayed >= 5 && (
-                      <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                      <div className="flex items-center justify-between p-2 bg-blue-50 text-blue-900 rounded">
                         <span>Partnership Status:</span>
                         <span className="font-medium">
-                          {selectedPartner.gamesPlayed > 0 && 
-                           (selectedPartner.wins / selectedPartner.gamesPlayed) >= 0.7 
-                            ? "Excellent Chemistry" 
-                            : selectedPartner.gamesPlayed > 0 && 
-                              (selectedPartner.wins / selectedPartner.gamesPlayed) >= 0.5 
-                                ? "Good Partnership" 
+                          {selectedPartner.gamesPlayed > 0 &&
+                           (selectedPartner.wins / selectedPartner.gamesPlayed) >= 0.7
+                            ? "Excellent Chemistry"
+                            : selectedPartner.gamesPlayed > 0 &&
+                              (selectedPartner.wins / selectedPartner.gamesPlayed) >= 0.5
+                                ? "Good Partnership"
                                 : "Needs Work"}
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gray-50 text-gray-900 rounded">
                       <span>Games Needed for Ranking:</span>
                       <span className="font-medium">
                         {Math.max(0, 10 - selectedPartner.gamesPlayed)} more
                       </span>
                     </div>
                     {selectedPartner.gamesPlayed > 0 && (
-                      <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div className="flex items-center justify-between p-2 bg-gray-50 text-gray-900 rounded">
                         <span>Recent Form:</span>
                         <span className="font-medium">
-                          {selectedPartner.wins > selectedPartner.losses ? "Strong" : 
+                          {selectedPartner.wins > selectedPartner.losses ? "Strong" :
                            selectedPartner.wins === selectedPartner.losses ? "Balanced" : "Struggling"}
                         </span>
                       </div>
