@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, Play, CheckCircle, Users, Trophy, Loader2, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Play, CheckCircle, Users, Trophy, Loader2, AlertTriangle, Plus, Trash2, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScoreSelector } from '@/components/ui/score-selector';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EditMatchResultDialog } from '@/components/box-leagues/edit-match-result-dialog';
 import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound, useUpdateBoxLeagueMatch, useDeleteRound } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import { createNewRound, updatePlayerStatsAfterMatch } from '@/lib/box-league-logic';
@@ -45,17 +46,6 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
 
     if (team1Score < 0 || team2Score < 0) {
       alert('Scores cannot be negative.');
-      return;
-    }
-
-    if (Math.max(team1Score, team2Score) < 11) {
-      alert('Games must be played to at least 11 points.');
-      return;
-    }
-
-    const scoreDiff = Math.abs(team1Score - team2Score);
-    if (Math.max(team1Score, team2Score) >= 11 && scoreDiff < 2) {
-      alert('Games must be won by at least 2 points.');
       return;
     }
 
@@ -142,6 +132,8 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
 
   const [isCreatingRound, setIsCreatingRound] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [editMatchDialogOpen, setEditMatchDialogOpen] = useState(false);
+  const [editMatchData, setEditMatchData] = useState<BoxLeagueMatch | null>(null);
 
   const isLoading = leagueLoading || boxesLoading || roundsLoading;
 
@@ -234,6 +226,11 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
       console.error('Error updating match result:', error);
       alert('Failed to save match result. Please try again.');
     }
+  };
+
+  const handleEditMatch = (match: BoxLeagueMatch) => {
+    setEditMatchData(match);
+    setEditMatchDialogOpen(true);
   };
 
   // Get all matches for current round
@@ -487,10 +484,20 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
                             </div>
                             <div className="flex items-center gap-2">
                               {match.status === 'completed' ? (
-                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Completed
-                                </Badge>
+                                <>
+                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Completed
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditMatch(match)}
+                                    title="Edit result"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </>
                               ) : (
                                 <MatchResultDialog
                                   match={match}
@@ -522,6 +529,17 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
             </Alert>
           )}
         </div>
+      )}
+
+      {/* Edit Match Result Dialog */}
+      {editMatchData && (
+        <EditMatchResultDialog
+          open={editMatchDialogOpen}
+          onOpenChange={setEditMatchDialogOpen}
+          match={editMatchData}
+          team1Players={editMatchData.team1PlayerIds.map(id => allPlayers.find(p => p.id === id)).filter(p => p !== undefined) as Player[]}
+          team2Players={editMatchData.team2PlayerIds.map(id => allPlayers.find(p => p.id === id)).filter(p => p !== undefined) as Player[]}
+        />
       )}
     </div>
   );

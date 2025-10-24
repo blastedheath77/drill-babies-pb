@@ -155,9 +155,9 @@ export function CycleCompletionClient({ boxLeagueId }: CycleCompletionClientProp
     try {
       await executePromotionRelegation(boxLeagueId, promotionRelegationResult);
 
-      // Success! Redirect to league page
-      alert('Promotion and relegation completed successfully! Starting new cycle...');
-      router.push(`/box-leagues/${boxLeagueId}`);
+      // Success! Redirect to rounds page to show the new round
+      alert(`Cycle ${promotionRelegationResult.newCycleNumber} started successfully!\n\nPlayers have been moved to their new boxes and the first round has been created.`);
+      router.push(`/box-leagues/${boxLeagueId}/rounds`);
     } catch (err: any) {
       console.error('Error executing promotion/relegation:', err);
       setError(err.message || 'Failed to execute promotion/relegation');
@@ -440,6 +440,7 @@ export function CycleCompletionClient({ boxLeagueId }: CycleCompletionClientProp
               <li>{relegations.length} player(s) will be relegated</li>
               <li>All player stats will be reset for the new cycle</li>
               <li>Position history will be recorded</li>
+              <li>First round of the new cycle will be automatically created</li>
             </ul>
           </div>
 

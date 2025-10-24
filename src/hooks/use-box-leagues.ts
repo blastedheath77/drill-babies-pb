@@ -330,3 +330,61 @@ export function useAnalyzeSwapImpact() {
     },
   });
 }
+
+// Player Substitution Hooks
+export function useSubstitutePlayer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      boxLeagueId,
+      boxId,
+      oldPlayerId,
+      newPlayerId
+    }: {
+      boxLeagueId: string;
+      boxId: string;
+      oldPlayerId: string;
+      newPlayerId: string;
+    }) => {
+      const { substitutePlayer } = await import('@/lib/box-league-logic');
+      return substitutePlayer(boxLeagueId, boxId, oldPlayerId, newPlayerId);
+    },
+    onSuccess: (_, { boxLeagueId, boxId }) => {
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.league(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.boxes(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.box(boxId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByLeague(boxLeagueId) });
+    },
+  });
+}
+
+// Match Result Editing Hooks
+export function useEditMatchResult() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      match,
+      newTeam1Score,
+      newTeam2Score
+    }: {
+      match: BoxLeagueMatch;
+      newTeam1Score: number;
+      newTeam2Score: number;
+    }) => {
+      const { editMatchResult } = await import('@/lib/box-league-logic');
+      return editMatchResult(match, newTeam1Score, newTeam2Score);
+    },
+    onSuccess: (_, { match }) => {
+      // Invalidate all relevant queries since stats have changed
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByRound(match.boxLeagueRoundId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByBox(match.boxId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(match.boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(match.boxId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.detail(match.boxLeagueId) });
+    },
+  });
+}

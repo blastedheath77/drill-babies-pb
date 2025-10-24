@@ -193,6 +193,31 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
         </CardContent>
       </Card>
 
+      {/* New Cycle - Start Round Alert */}
+      {boxLeague.currentRound === 0 && boxLeague.currentCycle > 1 && (
+        <Alert className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-300 dark:border-blue-800">
+          <ArrowRight className="h-5 w-5 text-blue-600" />
+          <AlertDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-blue-900 dark:text-blue-100">
+                  Ready to Start Cycle {boxLeague.currentCycle}!
+                </div>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Players have been moved to their new boxes. Start the first round to begin the new cycle.
+                </p>
+              </div>
+              <Button asChild className="ml-4 shrink-0">
+                <Link href={`/box-leagues/${boxLeagueId}/rounds`}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Start Round
+                </Link>
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Cycle Completion Alert */}
       {cycleValidation?.complete && (
         <Alert className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20 border-yellow-300 dark:border-yellow-800">

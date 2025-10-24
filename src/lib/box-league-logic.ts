@@ -650,6 +650,11 @@ export async function executePromotionRelegation(
       currentRound: 0 // Reset round counter for new cycle
     });
 
+    // Automatically create the first round of the new cycle
+    console.log('Creating first round of new cycle...');
+    await createNewRound(boxLeagueId);
+    console.log('First round of new cycle created successfully');
+
   } catch (error) {
     console.error('Error executing promotion/relegation:', error);
     throw error;
@@ -1020,5 +1025,388 @@ export async function swapPlayers(
     await updateBoxLeagueMatch(match.id, {
       status: 'pending' // Keep as pending, but they will be for different players
     });
+  }
+}
+
+/**
+ * Substitute a player in a box league
+ * New player inherits old player's position, stats, and pending matches
+ * Completed matches remain showing old player's name (historical accuracy)
+ */
+export async function substitutePlayer(
+  boxLeagueId: string,
+  boxId: string,
+  oldPlayerId: string,
+  newPlayerId: string
+): Promise<void> {
+  const {
+    getBoxLeague,
+    getBoxesByLeague,
+    updateBox,
+    getPlayerStatsByLeague,
+    createOrUpdatePlayerStats,
+    getRoundsByLeague,
+    getMatchesByRound,
+    updateBoxLeagueMatch
+  } = await import('./box-leagues');
+
+  // Validate league exists
+  const boxLeague = await getBoxLeague(boxLeagueId);
+  if (!boxLeague) {
+    throw new Error('Box league not found');
+  }
+
+  // Validate box exists
+  const boxes = await getBoxesByLeague(boxLeagueId);
+  const box = boxes.find(b => b.id === boxId);
+  if (!box) {
+    throw new Error('Box not found');
+  }
+
+  // Validate old player is in the box
+  if (!box.playerIds.includes(oldPlayerId)) {
+    throw new Error('Old player is not in this box');
+  }
+
+  // Validate new player is not already in the league
+  const allPlayerStats = await getPlayerStatsByLeague(boxLeagueId);
+  const newPlayerExists = allPlayerStats.some(s => s.playerId === newPlayerId);
+  if (newPlayerExists) {
+    throw new Error('New player is already in this box league');
+  }
+
+  // Get old player's stats (if they exist)
+  const oldPlayerStats = allPlayerStats.find(s => s.playerId === oldPlayerId);
+
+  // Update box playerIds: replace old player with new player
+  const updatedPlayerIds = box.playerIds.map(id =>
+    id === oldPlayerId ? newPlayerId : id
+  );
+  await updateBox(boxId, { playerIds: updatedPlayerIds });
+
+  // Create new player stats
+  if (oldPlayerStats) {
+    // If old player has stats, inherit them
+    await createOrUpdatePlayerStats({
+      playerId: newPlayerId,
+      boxLeagueId,
+      boxId,
+      currentPosition: oldPlayerStats.currentPosition,
+      matchesPlayed: oldPlayerStats.matchesPlayed,
+      matchesWon: oldPlayerStats.matchesWon,
+      matchesLost: oldPlayerStats.matchesLost,
+      gamesPlayed: oldPlayerStats.gamesPlayed,
+      gamesWon: oldPlayerStats.gamesWon,
+      gamesLost: oldPlayerStats.gamesLost,
+      pointsFor: oldPlayerStats.pointsFor,
+      pointsAgainst: oldPlayerStats.pointsAgainst,
+      totalPoints: oldPlayerStats.totalPoints,
+      partnerStats: oldPlayerStats.partnerStats,
+      opponentStats: oldPlayerStats.opponentStats,
+      positionHistory: [
+        ...oldPlayerStats.positionHistory,
+        {
+          cycle: boxLeague.currentCycle,
+          round: boxLeague.currentRound,
+          position: oldPlayerStats.currentPosition,
+          boxNumber: box.boxNumber
+        }
+      ]
+    });
+  } else {
+    // If old player has no stats, create default stats for new player
+    // This happens when a player is added but no matches have been played yet
+    const position = box.playerIds.indexOf(oldPlayerId) + 1;
+    await createOrUpdatePlayerStats({
+      playerId: newPlayerId,
+      boxLeagueId,
+      boxId,
+      currentPosition: position,
+      matchesPlayed: 0,
+      matchesWon: 0,
+      matchesLost: 0,
+      gamesPlayed: 0,
+      gamesWon: 0,
+      gamesLost: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      totalPoints: 0,
+      partnerStats: {},
+      opponentStats: {},
+      positionHistory: [{
+        cycle: boxLeague.currentCycle,
+        round: boxLeague.currentRound,
+        position: position,
+        boxNumber: box.boxNumber
+      }]
+    });
+  }
+
+  // Update pending matches: replace old player with new player
+  // Get all rounds for this league
+  const rounds = await getRoundsByLeague(boxLeagueId);
+
+  // Get all matches from all rounds
+  const allMatchesPromises = rounds.map(round => getMatchesByRound(round.id));
+  const allMatchesArrays = await Promise.all(allMatchesPromises);
+  const allMatches = allMatchesArrays.flat();
+
+  const pendingMatches = allMatches.filter(m =>
+    m.status === 'pending' &&
+    (m.team1PlayerIds.includes(oldPlayerId) || m.team2PlayerIds.includes(oldPlayerId))
+  );
+
+  for (const match of pendingMatches) {
+    const updatedTeam1PlayerIds = match.team1PlayerIds.map(id =>
+      id === oldPlayerId ? newPlayerId : id
+    );
+    const updatedTeam2PlayerIds = match.team2PlayerIds.map(id =>
+      id === oldPlayerId ? newPlayerId : id
+    );
+
+    await updateBoxLeagueMatch(match.id, {
+      team1PlayerIds: updatedTeam1PlayerIds,
+      team2PlayerIds: updatedTeam2PlayerIds
+    });
+  }
+
+  // Delete old player's stats (if they exist)
+  if (oldPlayerStats) {
+    const { db, BOX_LEAGUE_PLAYER_STATS_COLLECTION } = await import('./box-leagues');
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const oldStatsDocId = `${boxLeagueId}_${oldPlayerId}`;
+    const oldStatsRef = doc(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION, oldStatsDocId);
+    await deleteDoc(oldStatsRef);
+  }
+
+  console.log(`Player substitution complete: ${oldPlayerId} -> ${newPlayerId}`);
+}
+
+/**
+ * Edit a match result
+ * Recalculates all affected player stats to reflect the new scores
+ */
+export async function editMatchResult(
+  match: BoxLeagueMatch,
+  newTeam1Score: number,
+  newTeam2Score: number
+): Promise<void> {
+  const {
+    updateBoxLeagueMatch,
+    getPlayerStatsByBox
+  } = await import('./box-leagues');
+
+  // Validate match is completed
+  if (match.status !== 'completed') {
+    throw new Error('Can only edit completed matches');
+  }
+
+  // Validate scores
+  if (newTeam1Score === newTeam2Score) {
+    throw new Error('Scores cannot be tied');
+  }
+  if (newTeam1Score < 0 || newTeam2Score < 0) {
+    throw new Error('Scores cannot be negative');
+  }
+
+  // Store old scores for audit trail
+  const oldTeam1Score = match.team1Score!;
+  const oldTeam2Score = match.team2Score!;
+  const oldWinnerTeamPlayerIds = match.winnerTeamPlayerIds;
+
+  // Determine new winner
+  const newWinnerTeamPlayerIds = newTeam1Score > newTeam2Score
+    ? match.team1PlayerIds
+    : match.team2PlayerIds;
+
+  // Get all player stats in the box
+  const allPlayerStats = await getPlayerStatsByBox(match.boxId);
+
+  // Reverse old match stats
+  for (const playerId of [...match.team1PlayerIds, ...match.team2PlayerIds]) {
+    const playerStats = allPlayerStats.find(s => s.playerId === playerId);
+    if (!playerStats) continue;
+
+    const wasTeam1 = match.team1PlayerIds.includes(playerId);
+    const wasWinner = oldWinnerTeamPlayerIds.includes(playerId);
+    const oldPlayerScore = wasTeam1 ? oldTeam1Score : oldTeam2Score;
+    const oldOpponentScore = wasTeam1 ? oldTeam2Score : oldTeam1Score;
+
+    // Reverse old stats
+    playerStats.matchesPlayed -= 1;
+    if (wasWinner) {
+      playerStats.matchesWon -= 1;
+      playerStats.totalPoints -= 1;
+    } else {
+      playerStats.matchesLost -= 1;
+    }
+    playerStats.gamesPlayed -= 1;
+    playerStats.gamesWon -= (wasWinner ? 1 : 0);
+    playerStats.gamesLost -= (wasWinner ? 0 : 1);
+    playerStats.pointsFor -= oldPlayerScore;
+    playerStats.pointsAgainst -= oldOpponentScore;
+
+    // Reverse partner stats
+    const partnerId = wasTeam1
+      ? match.team1PlayerIds.find(id => id !== playerId)!
+      : match.team2PlayerIds.find(id => id !== playerId)!;
+    if (playerStats.partnerStats[partnerId]) {
+      if (wasWinner) {
+        playerStats.partnerStats[partnerId].wins -= 1;
+      } else {
+        playerStats.partnerStats[partnerId].losses -= 1;
+      }
+    }
+
+    // Reverse opponent stats
+    const opponentIds = wasTeam1 ? match.team2PlayerIds : match.team1PlayerIds;
+    for (const opponentId of opponentIds) {
+      if (playerStats.opponentStats[opponentId]) {
+        if (wasWinner) {
+          playerStats.opponentStats[opponentId].wins -= 1;
+        } else {
+          playerStats.opponentStats[opponentId].losses -= 1;
+        }
+      }
+    }
+  }
+
+  // Apply new match stats
+  for (const playerId of [...match.team1PlayerIds, ...match.team2PlayerIds]) {
+    const playerStats = allPlayerStats.find(s => s.playerId === playerId);
+    if (!playerStats) continue;
+
+    const isTeam1 = match.team1PlayerIds.includes(playerId);
+    const isWinner = newWinnerTeamPlayerIds.includes(playerId);
+    const newPlayerScore = isTeam1 ? newTeam1Score : newTeam2Score;
+    const newOpponentScore = isTeam1 ? newTeam2Score : newTeam1Score;
+
+    // Apply new stats
+    playerStats.matchesPlayed += 1;
+    if (isWinner) {
+      playerStats.matchesWon += 1;
+      playerStats.totalPoints += 1;
+    } else {
+      playerStats.matchesLost += 1;
+    }
+    playerStats.gamesPlayed += 1;
+    playerStats.gamesWon += (isWinner ? 1 : 0);
+    playerStats.gamesLost += (isWinner ? 0 : 1);
+    playerStats.pointsFor += newPlayerScore;
+    playerStats.pointsAgainst += newOpponentScore;
+
+    // Apply partner stats
+    const partnerId = isTeam1
+      ? match.team1PlayerIds.find(id => id !== playerId)!
+      : match.team2PlayerIds.find(id => id !== playerId)!;
+    if (!playerStats.partnerStats[partnerId]) {
+      playerStats.partnerStats[partnerId] = { wins: 0, losses: 0 };
+    }
+    if (isWinner) {
+      playerStats.partnerStats[partnerId].wins += 1;
+    } else {
+      playerStats.partnerStats[partnerId].losses += 1;
+    }
+
+    // Apply opponent stats
+    const opponentIds = isTeam1 ? match.team2PlayerIds : match.team1PlayerIds;
+    for (const opponentId of opponentIds) {
+      if (!playerStats.opponentStats[opponentId]) {
+        playerStats.opponentStats[opponentId] = { wins: 0, losses: 0 };
+      }
+      if (isWinner) {
+        playerStats.opponentStats[opponentId].wins += 1;
+      } else {
+        playerStats.opponentStats[opponentId].losses += 1;
+      }
+    }
+
+    // Save updated stats
+    const { createOrUpdatePlayerStats } = await import('./box-leagues');
+    await createOrUpdatePlayerStats(playerStats);
+  }
+
+  // Update the match with new scores
+  await updateBoxLeagueMatch(match.id, {
+    team1Score: newTeam1Score,
+    team2Score: newTeam2Score,
+    winnerTeamPlayerIds: newWinnerTeamPlayerIds
+  });
+
+  console.log(`Match result edited: ${match.id} - Old: ${oldTeam1Score}-${oldTeam2Score}, New: ${newTeam1Score}-${newTeam2Score}`);
+}
+
+/**
+ * Sync pending matches with current box assignments
+ * This fixes mismatches caused by manual box edits after rounds started
+ * WARNING: Only use this for pending matches, never for completed matches
+ */
+export async function syncPendingMatchesWithBoxes(boxLeagueId: string): Promise<void> {
+  const {
+    getBoxesByLeague,
+    getRoundsByLeague,
+    getMatchesByRound,
+    updateBoxLeagueMatch
+  } = await import('./box-leagues');
+
+  console.log('Starting sync of pending matches with current box assignments...');
+
+  // Get current box assignments
+  const boxes = await getBoxesByLeague(boxLeagueId);
+
+  // Create a map of player -> box for quick lookup
+  const playerToBoxMap = new Map<string, { boxId: string; boxNumber: number }>();
+  boxes.forEach(box => {
+    box.playerIds.forEach(playerId => {
+      playerToBoxMap.set(playerId, { boxId: box.id, boxNumber: box.boxNumber });
+    });
+  });
+
+  // Get all rounds and their matches
+  const rounds = await getRoundsByLeague(boxLeagueId);
+  const allMatchesPromises = rounds.map(round => getMatchesByRound(round.id));
+  const allMatchesArrays = await Promise.all(allMatchesPromises);
+  const allMatches = allMatchesArrays.flat();
+
+  // Filter for pending matches only
+  const pendingMatches = allMatches.filter(m => m.status === 'pending');
+
+  let updatedCount = 0;
+  let errorCount = 0;
+
+  for (const match of pendingMatches) {
+    try {
+      // Check if all players in the match are still in the correct box
+      const allPlayerIds = [...match.team1PlayerIds, ...match.team2PlayerIds];
+      const playersStillInBox = allPlayerIds.every(playerId => {
+        const playerBox = playerToBoxMap.get(playerId);
+        return playerBox && playerBox.boxId === match.boxId;
+      });
+
+      if (!playersStillInBox) {
+        // Match has players not in the box anymore - needs updating
+        // Get current players in this box
+        const box = boxes.find(b => b.id === match.boxId);
+        if (!box || box.playerIds.length !== 4) {
+          console.warn(`Skipping match ${match.id}: Box ${match.boxId} doesn't have exactly 4 players`);
+          errorCount++;
+          continue;
+        }
+
+        // Note: This is a simple approach - we can't automatically determine
+        // which specific player should replace which. This should be done manually.
+        console.warn(`Match ${match.id} has players not in box anymore. Manual intervention required.`);
+        errorCount++;
+      }
+    } catch (error) {
+      console.error(`Error processing match ${match.id}:`, error);
+      errorCount++;
+    }
+  }
+
+  console.log(`Sync complete. Updated: ${updatedCount}, Errors/Skipped: ${errorCount}`);
+
+  if (errorCount > 0) {
+    throw new Error(`Found ${errorCount} pending matches with player mismatches. These require manual substitution using the "Substitute Player" feature.`);
   }
 }

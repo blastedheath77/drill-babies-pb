@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, Plus, Trash2, UserPlus, UserMinus, Loader2, AlertTriangle, GripVertical, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Trash2, UserPlus, UserMinus, Loader2, AlertTriangle, GripVertical, ArrowLeftRight, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SwapPlayersDialog } from '@/components/box-leagues/swap-players-dialog';
-import { useBoxLeague, useBoxesByLeague, useCreateBox, useUpdateBox } from '@/hooks/use-box-leagues';
+import { SubstitutePlayerDialog } from '@/components/box-leagues/substitute-player-dialog';
+import { useBoxLeague, useBoxesByLeague, useCreateBox, useUpdateBox, usePlayerStatsByBox } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import type { Box, Player } from '@/lib/types';
 
@@ -35,12 +36,13 @@ interface PlayerCardProps {
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: (e: React.DragEvent) => void;
   onRemovePlayer?: (boxId: string, playerId: string) => void;
+  onSubstitutePlayer?: (boxId: string, player: Player) => void;
   isDragging?: boolean;
   isBeingDragged?: boolean;
   isDropTarget?: boolean;
 }
 
-function PlayerCard({ player, position, boxId, onDragStart, onDragEnd, onDrop, onDragOver, onDragLeave, onRemovePlayer, isDragging, isBeingDragged, isDropTarget }: PlayerCardProps) {
+function PlayerCard({ player, position, boxId, onDragStart, onDragEnd, onDrop, onDragOver, onDragLeave, onRemovePlayer, onSubstitutePlayer, isDragging, isBeingDragged, isDropTarget }: PlayerCardProps) {
   const handleDragStart = (e: React.DragEvent) => {
     onDragStart(e, player, boxId, position);
   };
@@ -92,6 +94,20 @@ function PlayerCard({ player, position, boxId, onDragStart, onDragEnd, onDrop, o
         </div>
       </div>
       <GripVertical className="h-4 w-4 text-muted-foreground" />
+      {onSubstitutePlayer && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSubstitutePlayer(boxId, player);
+          }}
+          className="ml-2"
+          title="Substitute player"
+        >
+          <UserX className="h-4 w-4" />
+        </Button>
+      )}
       {onRemovePlayer && (
         <Button
           variant="ghost"
@@ -101,6 +117,7 @@ function PlayerCard({ player, position, boxId, onDragStart, onDragEnd, onDrop, o
             onRemovePlayer(boxId, player.id);
           }}
           className="ml-2"
+          title="Remove player"
         >
           <UserMinus className="h-4 w-4" />
         </Button>
@@ -266,6 +283,16 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
     box2: Box;
   } | null>(null);
 
+  // Substitute dialog state
+  const [substituteDialogOpen, setSubstituteDialogOpen] = useState(false);
+  const [substituteData, setSubstituteData] = useState<{
+    oldPlayer: Player;
+    boxId: string;
+  } | null>(null);
+
+  // Fetch player stats for the box when substitute dialog is open
+  const { data: boxPlayerStats = [] } = usePlayerStatsByBox(substituteData?.boxId || '');
+
   const isLoading = leagueLoading || boxesLoading || playersLoading;
 
   const handleDragStart = (e: React.DragEvent, player: Player, sourceBoxId?: string, sourcePosition?: number) => {
@@ -347,6 +374,13 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
     const targetBox = boxes.find(b => b.id === targetBoxId);
 
     if (!targetBox) return;
+
+    // Prevent moving players between boxes after rounds have started
+    if (sourceBoxId && sourceBoxId !== targetBoxId && boxLeague && boxLeague.currentRound > 0) {
+      alert('Cannot move players between boxes after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.');
+      setDraggedPlayer(null);
+      return;
+    }
 
     try {
       // If moving from unassigned players
@@ -452,6 +486,12 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
   };
 
   const removePlayerFromBox = async (boxId: string, playerId: string) => {
+    // Prevent removing players after rounds have started
+    if (boxLeague && boxLeague.currentRound > 0) {
+      alert('Cannot remove players after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.');
+      return;
+    }
+
     const box = boxes.find(b => b.id === boxId);
     if (!box) return;
 
@@ -467,6 +507,11 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
     } catch (error) {
       console.error('Error removing player from box:', error);
     }
+  };
+
+  const handleSubstitutePlayer = (boxId: string, oldPlayer: Player) => {
+    setSubstituteData({ oldPlayer, boxId });
+    setSubstituteDialogOpen(true);
   };
 
   const getPlayerById = (playerId: string): Player | undefined => {
@@ -647,6 +692,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
                         onDragOver={(e) => handlePlayerDragOver(e, player.id)}
                         onDragLeave={handlePlayerDragLeave}
                         onRemovePlayer={removePlayerFromBox}
+                        onSubstitutePlayer={handleSubstitutePlayer}
                         isBeingDragged={draggedPlayer?.player.id === player.id && draggedPlayer?.sourceBoxId === box.id}
                         isDragging={isDragging}
                         isDropTarget={dragOverPlayer === player.id}
@@ -728,6 +774,19 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
           box1={swapData.box1}
           player2={swapData.player2}
           box2={swapData.box2}
+        />
+      )}
+
+      {/* Substitute Player Dialog */}
+      {substituteData && (
+        <SubstitutePlayerDialog
+          open={substituteDialogOpen}
+          onOpenChange={setSubstituteDialogOpen}
+          boxLeagueId={boxLeagueId}
+          boxId={substituteData.boxId}
+          oldPlayer={substituteData.oldPlayer}
+          oldPlayerStats={boxPlayerStats.find(stat => stat.playerId === substituteData.oldPlayer.id)}
+          availablePlayers={getAvailablePlayers()}
         />
       )}
     </div>

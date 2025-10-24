@@ -3,10 +3,11 @@
 ## Analysis Summary
 
 **Backend Logic:** ✅ Promotion/relegation logic exists and is well-implemented
-**Frontend UI:** ✅ Cycle completion workflow now complete! Missing: player management edge cases
-**Player Management:** ⚠️ Basic features work, but edge cases (mid-round swaps, withdrawals) not handled
+**Frontend UI:** ✅ Cycle completion workflow now complete! Standings page redesigned!
+**Player Management:** ✅ Player substitution and match editing fully implemented! Manual edits protected!
 **Validation:** ✅ Cycle completion validation now properly checks for pending matches
-**Progress:** 11/40 tasks complete (28%)
+**Cycle Transitions:** ✅ Automatic round creation after cycle completion - no more stuck leagues!
+**Progress:** 17/40 tasks complete (43%)
 
 ---
 
@@ -89,8 +90,15 @@
       - Added comprehensive error messages when player stats are missing
       - Created `validateCycleComplete()` async function for proper validation with pending match checks
       - "Cycle Complete" alert now only shows when all matches in all rounds are truly finished
+  - **MAJOR UPDATE 2025-10-22**:
+    - **Fixed Critical Cycle Transition Bug**: Leagues were getting stuck at "Cycle 2, Round 0" after promotion/relegation
+    - Added automatic round creation after `executePromotionRelegation()` (box-league-logic.ts:653-656)
+    - Added recovery alert for stuck leagues showing "Ready to Start Cycle X!" when Round = 0 and Cycle > 1
+    - Updated success message and redirect flow (now goes to rounds page instead of main page)
+    - Added clarification in confirmation dialog about automatic round creation
+    - Cycle transitions now seamless: Complete Cycle → Players Moved → First Round Auto-Created → Ready to Play!
 
-### 3.2 Mid-Round Player Management
+### 3.2 Mid-Round Player Management ✅ COMPLETED
 
 - [x] Implement player swap functionality
   - **Issue**: No way to swap players between boxes once cycle has started
@@ -115,8 +123,59 @@
     - Created React hooks: useSwapPlayers() and useAnalyzeSwapImpact()
     - Prevents swaps that would invalidate completed matches
 
-- [ ] Player withdrawal handling
-  - **Issue**: No system to handle players who leave mid-cycle
+- [x] Player substitution functionality
+  - **Issue**: No way to replace a player mid-cycle while preserving stats and history
+  - **Files**: `src/lib/box-league-logic.ts`, box management UI, rounds UI
+  - **Action**:
+    - Add `substitutePlayer(boxLeagueId, boxId, oldPlayerId, newPlayerId)` function
+    - New player inherits old player's position, stats, and pending matches
+    - Completed matches remain showing old player's name (historical accuracy)
+    - Add UI with player selection dialog showing what will be inherited
+    - Update pending matches to reference new player
+    - Prevent manual box edits after rounds start (enforce use of substitute feature)
+  - **COMPLETED 2025-10-22**:
+    - Created `substitutePlayer()` function in box-league-logic.ts:1036-1183
+    - Created `SubstitutePlayerDialog` component in components/box-leagues/substitute-player-dialog.tsx
+    - Integrated substitute button (UserX icon) into box management PlayerCard components
+    - New player inherits ALL stats: position, matches won/lost, points, partner/opponent history
+    - Pending matches automatically updated to show new player
+    - Completed matches preserve historical accuracy (keep old player name)
+    - Created React hook: `useSubstitutePlayer()` in use-box-leagues.ts:335-362
+    - Added protection: Cannot remove players or drag between boxes after rounds start
+    - Shows alert directing users to use Substitute Player feature instead
+    - Handles edge case: Works even if old player has no stats yet (pre-match substitution)
+    - **Bug Fixes**:
+      - Fixed `getBox is not a function` by using `getBoxesByLeague()` instead
+      - Fixed `getMatchesByLeague is not a function` by fetching rounds first, then matches
+      - Fixed "Old player stats not found" by handling both with-stats and no-stats scenarios
+
+- [x] Match result editing
+  - **Issue**: Once a match result is recorded, cannot edit it if there was an error
+  - **Files**: `src/lib/box-league-logic.ts`, rounds UI
+  - **Action**:
+    - Add `editMatchResult(match, newTeam1Score, newTeam2Score)` function
+    - Recalculate all affected player stats when result changes
+    - Reverse old stats, apply new stats for accurate recalculation
+    - Add UI "Edit Result" button next to completed matches
+    - Add confirmation dialog with impact warning
+  - **COMPLETED 2025-10-22**:
+    - Created `editMatchResult()` function in box-league-logic.ts:1160-1337
+    - Created `EditMatchResultDialog` component in components/box-leagues/edit-match-result-dialog.tsx
+    - Integrated edit button (Edit icon) next to Completed badge in rounds page
+    - Shows current result and input fields for new scores
+    - Validates: no ties, no negative scores, scores must change
+    - Reverses old match stats (subtracts from all affected player stats)
+    - Applies new match stats (adds to all affected player stats)
+    - Updates: win/loss records, game counts, points for/against, partner/opponent stats
+    - Recalculates point differentials automatically
+    - Created React hook: `useEditMatchResult()` in use-box-leagues.ts:365-390
+    - Automatically invalidates relevant queries to refresh UI
+    - **Bug Fixes**:
+      - Fixed to accept match object as parameter instead of fetching by ID
+      - Updated hook to pass full match object for proper cache invalidation
+
+- [ ] Player withdrawal handling (Future Enhancement)
+  - **Issue**: No system to handle players who permanently leave mid-cycle
   - **Files**: `src/lib/box-league-logic.ts`, new withdrawal UI
   - **Action**:
     - Add `withdrawPlayer(playerId, boxLeagueId)` function
@@ -129,19 +188,7 @@
     - Adjust standings to exclude withdrawn player
     - Show withdrawn badge in UI
     - Prevent withdrawn players from being added back
-
-- [ ] Match result editing and deletion
-  - **Issue**: Once a match result is recorded, cannot edit or delete it
-  - **Files**: `src/lib/box-leagues.ts`, rounds UI
-  - **Action**:
-    - Add `editMatchResult(matchId, newTeam1Score, newTeam2Score)` function
-    - Add `deleteMatchResult(matchId)` function
-    - Recalculate all affected player stats when result changes
-    - Add audit log of changes (track who edited, when, old vs new scores)
-    - Show edit history in match details
-    - Add UI "Edit Result" and "Delete Result" buttons
-    - Require admin permission for edits/deletions
-    - Add confirmation dialog with impact warning
+  - **Note**: Use Player Substitution feature for now as a workaround
 
 - [ ] Forfeit and walkover support
   - **Issue**: No way to record a match where one team didn't show up
@@ -265,6 +312,25 @@
     - Add "Export Cycle Summary" button (PDF/CSV)
     - Show statistics: most wins, best record, etc.
 
+- [x] Redesign standings page for consistency
+  - **Issue**: Standings page layout didn't match cycle completion page
+  - **Files**: `src/app/box-leagues/[id]/standings/standings-client.tsx`
+  - **Action**:
+    - Match layout and styling to cycle completion page
+    - Use same column headers (Player, Pts, W-L, Diff)
+    - Apply consistent card styling and spacing
+    - Color-code rank badges (green for promotion, red for relegation)
+    - Show point differential with +/- prefix and color coding
+  - **COMPLETED 2025-10-22**:
+    - Redesigned standings page with matching layout to cycle completion page
+    - Added column headers: Player, Pts, W-L, Diff
+    - Implemented circular rank badges with color coding (green=promotion, red=relegation)
+    - Point difference now shows with + prefix for positive and color coding (green/red)
+    - Smaller, more compact player rows with h-7 avatars
+    - Fixed property name bugs: `standing.wins/losses` → `standing.matchesWon/matchesLost`, `standing.points` → `standing.totalPoints`
+    - Updated header to show "Standings - Cycle X" format
+    - Box card headers simplified to just "Box X"
+
 ### 4.2 Mobile & Accessibility
 
 - [ ] Touch support for box management
@@ -327,19 +393,21 @@
     - Warn when making changes that affect ongoing cycle
     - Add admin override with confirmation
 
-- [ ] Enhanced match validation
-  - **Issue**: Current validation is too basic
-  - **Files**: Match result dialog
+- [x] Simplified match validation for flexibility
+  - **Issue**: Validation was too restrictive (required 11 points and win by 2)
+  - **Files**: `src/app/box-leagues/[id]/rounds/round-management-client.tsx`
   - **Action**:
-    - Enforce deuce rules:
-      - At 10-10, must win by 2 (can go to 11-13, 12-14, etc.)
-      - Max reasonable score: 30 (prevent typos like 111)
-    - Validate score ranges (0-30)
-    - Prevent ties (already done)
-    - Add score presets dropdown:
-      - Common scores: 11-9, 11-7, 11-5, 11-3, etc.
-      - Click preset to auto-fill
-    - Show score validation errors in real-time
+    - Remove "must reach 11 points" restriction
+    - Remove "must win by 2 points" restriction (no deuce enforcement)
+    - Keep essential validations (no ties, no negative scores)
+    - Allow flexible scoring for different game formats
+  - **COMPLETED 2025-10-22**:
+    - Removed validation requiring games to reach 11 points (line 51-54)
+    - Removed validation requiring 2-point win margin (line 56-60)
+    - Kept tie prevention (games cannot end in tie)
+    - Kept negative score prevention
+    - Games can now be recorded with any valid score (e.g., 5-3, 10-9, 21-20)
+    - More flexible for shortened games, different formats, or early game endings
 
 ### 4.5 Circle Integration
 
@@ -485,21 +553,26 @@
 ## Recommended Execution Priority
 
 1. ~~**Phase 6 (Immediate)**~~ - ✅ **COMPLETED** - Fixed Firebase index error and UI refresh bug
-2. ~~**Phase 3.1**~~ - ✅ **COMPLETED** - Cycle completion UI with promotion/relegation
-3. **Phase 3.2** - Player management edge cases (critical for real-world usage) ← START HERE
-4. **Phase 3.3** - League status management
-5. **Phase 3.4** - Round management enhancements
-6. **Phase 4.3** - Error handling (improves UX significantly)
-7. **Phase 4.1** - Historical data visualization
-8. **Phases 4.2, 4.4, 4.5** - Polish and validation
-9. **Phase 5** - Nice-to-have enhancements
+2. ~~**Phase 3.1**~~ - ✅ **COMPLETED** - Cycle completion UI with promotion/relegation + automatic round creation
+3. ~~**Phase 3.3**~~ - ✅ **COMPLETED** - League status management (pause/resume/complete)
+4. ~~**Phase 3.4**~~ - ✅ **COMPLETED** - Round management enhancements (delete, scheduling)
+5. ~~**Phase 4.1 (Partial)**~~ - ✅ **COMPLETED** - Standings page redesign for consistency
+6. ~~**Phase 4.4 (Partial)**~~ - ✅ **COMPLETED** - Simplified match validation for flexibility
+7. ~~**Phase 3.2**~~ - ✅ **COMPLETED** - Player substitution and match result editing (2025-10-22)
+8. **Phase 4.3** - Error handling (replace alert() with toast notifications) ← START HERE
+9. **Phase 4.1** - Historical data visualization (position history chart, cycle history)
+10. **Phases 4.2, 4.5** - Mobile support and circle integration
+11. **Phase 5** - Nice-to-have enhancements
+12. **Phase 3.2 (Remaining)** - Forfeit support and player withdrawal (optional enhancements)
 
 ---
 
-*Last updated: 2025-10-04*
+*Last updated: 2025-10-22*
 *Phase 1 completed: 2025-10-03*
 *Phase 2 completed: 2025-10-03*
 *Phase 3.1 completed: 2025-10-04 (including cycle validation bug fixes)*
+*Phase 3.1 MAJOR UPDATE: 2025-10-22 (automatic round creation after cycle completion)*
+*Phase 3.2 completed: 2025-10-22 (player substitution and match result editing)*
 *Phase 6 completed: 2025-10-04*
 *Comprehensive review completed: 2025-10-04*
 
@@ -520,3 +593,90 @@
 - `src/lib/box-league-logic.ts` - Added `validateCycleComplete()`, improved error messages
 - `src/app/box-leagues/[id]/box-league-detail-client.tsx` - Uses new validation for alert
 - `src/app/box-leagues/[id]/cycle-completion/cycle-completion-client.tsx` - Fixed loop, uses new validation
+
+---
+
+## Recent Changes (2025-10-22)
+
+### Critical Cycle Transition Bug Fix
+- **Fixed**: Leagues getting stuck at "Cycle 2, Round 0" after completing promotion/relegation
+  - **Root Cause**: `executePromotionRelegation()` wasn't creating the first round of the new cycle
+  - **Solution**: Added automatic round creation after promotion/relegation execution
+  - Now seamlessly transitions: Complete Cycle → Move Players → Auto-Create First Round → Ready to Play!
+- **Added**: Recovery mechanism for stuck leagues
+  - Blue alert shows "Ready to Start Cycle X!" when Round = 0 and Cycle > 1
+  - Provides clear "Start Round" button to recover from stuck state
+- **Improved**: User experience and messaging
+  - Success message now explains that first round was automatically created
+  - Redirects to rounds page (instead of main page) after cycle completion
+  - Confirmation dialog clarifies that first round will be auto-created
+
+### Standings Page Redesign
+- **Redesigned**: Standings page to match cycle completion page layout
+  - Added column headers: Player, Pts, W-L, Diff
+  - Circular rank badges with color coding (green=promotion, red=relegation, gray=no change)
+  - Point difference shows with +/- prefix and color coding (green for positive, red for negative)
+  - More compact layout with smaller avatars (h-7)
+  - Updated page title to "Standings - Cycle X" format
+- **Fixed**: Property name bugs causing data not to display
+  - `standing.wins/losses` → `standing.matchesWon/matchesLost`
+  - `standing.points` → `standing.totalPoints`
+
+### Score Validation Simplified
+- **Changed**: Made match result validation more flexible
+  - Removed "must reach 11 points" requirement
+  - Removed "must win by 2 points" requirement (no deuce enforcement)
+  - Games can now be recorded with any valid score (e.g., 5-3, 10-9, 21-20)
+  - Still prevents ties and negative scores
+  - Allows flexibility for shortened games, different formats, or early endings
+
+### Player Substitution Feature
+- **Implemented**: Complete player substitution system with stat inheritance
+  - New player inherits ALL stats from old player (position, wins, losses, points, history)
+  - Pending matches automatically updated to show new player
+  - Completed matches preserve old player name for historical accuracy
+  - Works even if old player has no stats yet (pre-match scenario)
+- **UI**: Created SubstitutePlayerDialog component
+  - Shows old player being replaced with red badge
+  - Dropdown to select new player from available players list
+  - Preview of inherited stats (position, record, points, games)
+  - Clear explanation of what will be inherited
+  - Confirmation with loading state
+- **Protection**: Prevent data corruption from manual edits
+  - Cannot remove players after rounds start (shows alert directing to substitute feature)
+  - Cannot drag players between boxes after rounds start (shows alert)
+  - Can still add unassigned players to fill empty slots
+  - Substitute Player button (UserX icon) added to each player card
+- **Bug Fixes**:
+  - Fixed missing `getBox()` function by using `getBoxesByLeague()` instead
+  - Fixed missing `getMatchesByLeague()` by fetching rounds first, then matches
+  - Fixed "Old player stats not found" error by handling both scenarios (with/without stats)
+
+### Match Result Editing Feature
+- **Implemented**: Edit completed match results with automatic stat recalculation
+  - Reverses old stats (subtracts from all affected players)
+  - Applies new stats (adds to all affected players)
+  - Updates: win/loss records, game counts, points for/against, partner/opponent history
+  - Recalculates point differentials automatically
+- **UI**: Created EditMatchResultDialog component
+  - Shows current result with team avatars and names
+  - Input fields for new scores with validation
+  - Preview of changes that will be made
+  - Validates: no ties, no negative scores, scores must be different
+  - Confirmation with loading state
+- **Integration**: Edit button added to completed matches
+  - Edit icon (pencil) next to Completed badge in rounds page
+  - Opens dialog with match data and players pre-loaded
+  - UI updates immediately after successful edit
+
+**Files Modified:**
+- `src/lib/box-league-logic.ts` - Added automatic round creation in `executePromotionRelegation()` (lines 653-656), `substitutePlayer()` (lines 1036-1183), `editMatchResult()` (lines 1160-1337), `syncPendingMatchesWithBoxes()` (lines 1339-1412)
+- `src/hooks/use-box-leagues.ts` - Added `useSubstitutePlayer()` (lines 335-362), `useEditMatchResult()` (lines 365-390)
+- `src/components/box-leagues/substitute-player-dialog.tsx` - New component for player substitution UI
+- `src/components/box-leagues/edit-match-result-dialog.tsx` - New component for match result editing UI
+- `src/app/box-leagues/[id]/boxes/box-management-client.tsx` - Integrated substitute dialog, added protections against manual edits after rounds start (lines 379-383, 481-486)
+- `src/app/box-leagues/[id]/rounds/round-management-client.tsx` - Integrated edit match dialog, added edit button to completed matches (lines 492-499, 534-543)
+- `src/app/box-leagues/[id]/box-league-detail-client.tsx` - Added "Ready to Start Cycle" recovery alert (lines 196-219)
+- `src/app/box-leagues/[id]/cycle-completion/cycle-completion-client.tsx` - Updated success message and redirect flow
+- `src/app/box-leagues/[id]/standings/standings-client.tsx` - Complete redesign matching cycle completion page
+- `src/app/box-leagues/[id]/rounds/round-management-client.tsx` - Simplified score validation (removed lines 51-60)

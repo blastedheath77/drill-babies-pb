@@ -53,16 +53,9 @@ function BoxStandingsCard({ box, boxLeague, boxLeagueId, allPlayers }: BoxStandi
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span>Box {box.boxNumber}</span>
-            {box.boxNumber === 1 && <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Top Box</Badge>}
-            {box.boxNumber === boxLeague.totalBoxes && <Badge variant="outline" className="bg-blue-100 text-blue-800">Bottom Box</Badge>}
-          </div>
-          <Badge variant="secondary">
-            {standings.length} players
-          </Badge>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg sm:text-xl">
+          Box {box.boxNumber}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -72,21 +65,43 @@ function BoxStandingsCard({ box, boxLeague, boxLeagueId, allPlayers }: BoxStandi
             <p>No matches played yet</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {standings.map((standing, index) => {
-              const player = getPlayerById(standing.playerId);
-              return player ? (
-                <StandingRow
-                  key={standing.playerId}
-                  standing={standing}
-                  player={player}
-                  position={index + 1}
-                  boxNumber={box.boxNumber}
-                  totalPlayers={standings.length}
-                  boxLeagueId={boxLeagueId}
-                />
-              ) : null;
-            })}
+          <div className="space-y-2">
+            {/* Column Headers */}
+            <div className="flex items-center justify-between gap-2 pl-1 pr-2 pb-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="w-6 shrink-0"></div>
+                <div className="w-7 shrink-0"></div>
+                <span className="text-xs font-medium text-muted-foreground">Player</span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="text-center w-10">
+                  <span className="text-xs font-medium text-muted-foreground">Pts</span>
+                </div>
+                <div className="text-center w-12">
+                  <span className="text-xs font-medium text-muted-foreground">W-L</span>
+                </div>
+                <div className="text-center w-12">
+                  <span className="text-xs font-medium text-muted-foreground">Diff</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {standings.map((standing, index) => {
+                const player = getPlayerById(standing.playerId);
+                return player ? (
+                  <StandingRow
+                    key={standing.playerId}
+                    standing={standing}
+                    player={player}
+                    position={index + 1}
+                    boxNumber={box.boxNumber}
+                    totalPlayers={standings.length}
+                    boxLeagueId={boxLeagueId}
+                  />
+                ) : null;
+              })}
+            </div>
           </div>
         )}
       </CardContent>
@@ -95,68 +110,47 @@ function BoxStandingsCard({ box, boxLeague, boxLeagueId, allPlayers }: BoxStandi
 }
 
 function StandingRow({ standing, player, position, boxNumber, totalPlayers, boxLeagueId }: StandingRowProps) {
-  const getPositionIcon = () => {
-    if (position === 1) return <Trophy className="h-4 w-4 text-yellow-500" />;
-    if (position === 2) return <Medal className="h-4 w-4 text-gray-400" />;
-    if (position === 3) return <Medal className="h-4 w-4 text-amber-600" />;
-    return null;
-  };
+  // Determine rank badge color based on promotion/relegation
+  const isTopBox = boxNumber === 1;
+  const isFirstPlace = position === 1;
+  const isLastPlace = position === 4;
 
-  const getPromotionStatus = () => {
-    if (boxNumber === 1) {
-      if (position === 4) return { icon: TrendingDown, color: 'text-red-500', label: 'Relegation' };
-    } else if (position === 1) {
-      return { icon: TrendingUp, color: 'text-green-500', label: 'Promotion' };
-    } else if (position === 4) {
-      return { icon: TrendingDown, color: 'text-red-500', label: 'Relegation' };
-    }
-    return { icon: Minus, color: 'text-muted-foreground', label: 'No Change' };
-  };
-
-  const promotionStatus = getPromotionStatus();
-  const PromotionIcon = promotionStatus.icon;
+  let rankBadgeClass = "border-border";
+  if (isFirstPlace && !isTopBox) {
+    // Promoted player (green)
+    rankBadgeClass = "border-green-600 text-green-600 bg-green-500/10";
+  } else if (isLastPlace) {
+    // Relegated player (red)
+    rankBadgeClass = "border-red-600 text-red-600 bg-red-500/10";
+  }
 
   return (
-    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 min-w-[3rem]">
-          <span className="font-bold text-lg">{position}</span>
-          {getPositionIcon()}
-        </div>
-        <Avatar className="h-10 w-10">
+    <div className="flex items-center justify-between gap-2 pl-1 pr-2 py-2 bg-secondary/30 rounded-lg">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <Badge variant="outline" className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${rankBadgeClass}`}>
+          {position}
+        </Badge>
+        <Avatar className="h-7 w-7 shrink-0">
           <AvatarImage src={player.avatar} alt={player.name} />
-          <AvatarFallback>{player.name.charAt(0)}</AvatarFallback>
+          <AvatarFallback className="text-xs">{player.name.charAt(0)}</AvatarFallback>
         </Avatar>
-        <div>
-          <Link
-            href={`/box-leagues/${boxLeagueId}/players/${player.id}`}
-            className="font-medium hover:underline hover:text-primary"
-          >
-            {player.name}
-          </Link>
-          <div className="text-sm text-muted-foreground">
-            {standing.wins}-{standing.losses} • Rating: {player.rating.toFixed(0)}
-          </div>
-        </div>
+        <Link
+          href={`/box-leagues/${boxLeagueId}/players/${player.id}`}
+          className="font-medium text-sm truncate hover:underline hover:text-primary"
+        >
+          {player.name}
+        </Link>
       </div>
-
-      <div className="flex items-center gap-2 md:gap-6 text-sm">
-        <div className="text-center min-w-[3rem]">
-          <div className="font-semibold">{standing.points}</div>
-          <div className="text-muted-foreground text-xs">Points</div>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-center w-10">
+          <span className="font-semibold text-base">{standing.totalPoints}</span>
         </div>
-        <div className="text-center min-w-[3rem] hidden sm:block">
-          <div className="font-semibold">{standing.gamesWon}-{standing.gamesLost}</div>
-          <div className="text-muted-foreground text-xs">Games</div>
+        <div className="text-center w-12">
+          <span className="font-semibold text-base">{standing.matchesWon}-{standing.matchesLost}</span>
         </div>
-        <div className="text-center min-w-[3rem] hidden md:block">
-          <div className="font-semibold">{standing.pointsFor}-{standing.pointsAgainst}</div>
-          <div className="text-muted-foreground text-xs">Score</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <PromotionIcon className={`h-4 w-4 ${promotionStatus.color}`} />
-          <span className={`text-xs ${promotionStatus.color} hidden sm:inline`}>
-            {promotionStatus.label}
+        <div className="text-center w-12">
+          <span className={`font-semibold text-base ${standing.pointsDifference > 0 ? 'text-green-600' : standing.pointsDifference < 0 ? 'text-red-600' : ''}`}>
+            {standing.pointsDifference > 0 ? '+' : ''}{standing.pointsDifference}
           </span>
         </div>
       </div>
@@ -200,17 +194,17 @@ export function StandingsClient({ boxLeagueId }: StandingsClientProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/box-leagues/${boxLeagueId}`}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">Standings</h1>
-          <p className="text-muted-foreground">{boxLeague.name}</p>
+      <div className="flex items-center gap-3">
+        <Link href={`/box-leagues/${boxLeagueId}`}>
+          <Button variant="ghost" size="icon" className="shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold truncate">Standings - Cycle {boxLeague.currentCycle}</h1>
+          <p className="text-base text-muted-foreground truncate">{boxLeague.name}</p>
         </div>
       </div>
 
