@@ -121,23 +121,6 @@ export function RatingChartWithTimeRange({ playerId, playerName }: RatingChartWi
   const changeText = ratingChange >= 0 ? `+${ratingChange.toFixed(2)}` : ratingChange.toFixed(2);
   const changeColor = ratingChange >= 0 ? 'text-green-600' : 'text-red-600';
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white border border-gray-300 rounded-lg p-3 shadow-lg">
-          <p className="font-medium">{`Rating: ${payload[0].value.toFixed(2)}`}</p>
-          <p className="text-sm text-gray-600">{`Date: ${label}`}</p>
-          {data.opponent !== 'Current Rating' && data.opponent !== 'Starting Rating' && (
-            <p className="text-sm text-gray-600">{data.opponent}</p>
-          )}
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -172,20 +155,18 @@ export function RatingChartWithTimeRange({ playerId, playerName }: RatingChartWi
                 tick={{ fontSize: 12 }}
                 tickFormatter={(value) => value.toFixed(2)}
               />
-              <Tooltip content={<CustomTooltip />} />
               <Line
                 type="monotone"
                 dataKey="rating"
                 stroke="#2563eb"
                 strokeWidth={2}
-                dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, fill: '#2563eb' }}
+                dot={false}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
         <div className="mt-4 text-sm text-muted-foreground">
-          <p>Shows rating progression after each game. Hover over points for details.</p>
+          <p>Shows rating progression over time.</p>
         </div>
       </CardContent>
     </Card>
