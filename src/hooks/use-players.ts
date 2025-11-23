@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlayers, getPlayerById } from '@/lib/data';
+import { getPlayers, getPlayerById, getPlayerRatingHistory } from '@/lib/data';
 import type { Player } from '@/lib/types';
 
 // Query keys for consistent cache management
@@ -9,6 +9,7 @@ export const playerKeys = {
   list: (filters: any) => [...playerKeys.lists(), filters] as const,
   details: () => [...playerKeys.all, 'detail'] as const,
   detail: (id: string) => [...playerKeys.details(), id] as const,
+  ratingHistory: (id: string, days: number) => [...playerKeys.all, 'rating-history', id, days] as const,
 };
 
 // Hook to get all players with caching
@@ -78,4 +79,14 @@ export function useOptimisticPlayerUpdate() {
       );
     });
   };
+}
+
+// Hook to get player rating history with caching
+export function usePlayerRatingHistory(playerId: string, days: number = 30) {
+  return useQuery({
+    queryKey: playerKeys.ratingHistory(playerId, days),
+    queryFn: () => getPlayerRatingHistory(playerId, days),
+    enabled: !!playerId,
+    staleTime: 5 * 60 * 1000, // Rating history stays fresh for 5 minutes
+  });
 }

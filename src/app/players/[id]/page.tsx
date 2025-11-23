@@ -5,7 +5,6 @@ import {
   getHeadToHeadStats,
   getPartnershipStats,
   getPlayers,
-  getPlayerRatingHistory,
 } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +13,7 @@ import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { Trophy, Swords, Percent, BarChart } from 'lucide-react';
 import { HeadToHeadClient, PartnershipClient } from './client';
-import { RatingChart } from '@/components/rating-chart';
+import { RatingChartWithTimeRange } from '@/components/rating-chart-with-time-range';
 import { PlayerProfileClient } from './player-profile-client';
 import { GamesHistoryClient } from './games-history-client';
 
@@ -26,7 +25,6 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
 
   const allPlayers = (await getPlayers()).filter((p) => p.id !== player.id);
   const games = await getGamesForPlayer(player.id);
-  const ratingHistory = await getPlayerRatingHistory(player.id, 30);
 
   const partnerships = getPartnershipStats(player.id, games, allPlayers.concat(player));
   const firstOpponent = allPlayers[0];
@@ -73,7 +71,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
 
         <div className="lg:col-span-2 space-y-6">
           {/* Rating Chart */}
-          <RatingChart ratingHistory={ratingHistory} playerName={player.name} />
+          <RatingChartWithTimeRange playerId={player.id} playerName={player.name} />
 
           <Tabs defaultValue="history">
             <TabsList className="grid w-full grid-cols-3">
