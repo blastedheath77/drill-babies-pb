@@ -304,9 +304,9 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
           )}
           
           {/* Add Round button for Quick Play tournaments */}
-          {tournament.isQuickPlay && tournament.status === 'active' && canCreateTournaments() && (
-            <Button 
-              onClick={handleAddRound} 
+          {tournament.isQuickPlay && canCreateTournaments() && (
+            <Button
+              onClick={handleAddRound}
               disabled={isAddingRound}
               className="bg-green-600 hover:bg-green-700 ml-auto text-xs sm:text-sm"
               size="sm"

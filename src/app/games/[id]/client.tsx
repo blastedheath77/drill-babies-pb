@@ -126,37 +126,45 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
       </div>
 
       {/* Match Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Game Type"
-          value={game.type}
-          icon={<Users className="h-4 w-4" />}
-          description={game.type === 'Singles' ? '1v1 match' : '2v2 match'}
-        />
-        <StatCard
-          title="Date"
-          value={new Date(game.date).toLocaleDateString()}
-          icon={<Calendar className="h-4 w-4" />}
-          description={formatTime(game.date)}
-        />
-        <StatCard
-          title="Final Score"
-          value={`${game.team1.score}-${game.team2.score}`}
-          icon={<Target className="h-4 w-4" />}
-          description={isDraw ? 'Draw' : `${Math.abs(game.team1.score - game.team2.score)} point difference`}
-        />
-        <StatCard
-          title="Tournament"
-          value={game.tournamentId ? "Tournament Game" : "Casual Match"}
-          icon={<Trophy className="h-4 w-4" />}
-          description={game.tournamentId ? "Part of tournament" : "Regular game"}
-        />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Game Type</p>
+                <p className="font-semibold">{game.type}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Date</p>
+                <p className="font-semibold">{new Date(game.date).toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Target className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Final Score</p>
+                <p className="font-semibold">{game.team1.score}-{game.team2.score}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Trophy className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Tournament</p>
+                <p className="font-semibold">{game.tournamentId ? "Yes" : "No"}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Match Results */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Team 1 */}
-        <Card className={`${isTeam1Winner ? 'border-green-200 bg-green-50/50' : ''}`}>
+        <Card className={`${isTeam1Winner ? 'border-green-500 border-2' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -214,16 +222,11 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 )}
               </div>
             ))}
-            {isTeam1Winner && (
-              <div className="mt-4 p-3 bg-green-100 rounded-lg">
-                <p className="text-sm font-medium text-green-800 text-center">🏆 Winner</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
         {/* Team 2 */}
-        <Card className={`${isTeam2Winner ? 'border-green-200 bg-green-50/50' : ''}`}>
+        <Card className={`${isTeam2Winner ? 'border-green-500 border-2' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -281,11 +284,6 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 )}
               </div>
             ))}
-            {isTeam2Winner && (
-              <div className="mt-4 p-3 bg-green-100 rounded-lg">
-                <p className="text-sm font-medium text-green-800 text-center">🏆 Winner</p>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
