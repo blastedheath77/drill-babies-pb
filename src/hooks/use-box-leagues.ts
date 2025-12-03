@@ -30,7 +30,7 @@ import type {
 const BOX_LEAGUE_KEYS = {
   all: ['boxLeagues'] as const,
   lists: () => [...BOX_LEAGUE_KEYS.all, 'list'] as const,
-  list: (circleId?: string) => [...BOX_LEAGUE_KEYS.lists(), circleId] as const,
+  list: (circleId?: string, clubId?: string) => [...BOX_LEAGUE_KEYS.lists(), circleId, clubId] as const,
   details: () => [...BOX_LEAGUE_KEYS.all, 'detail'] as const,
   detail: (id: string) => [...BOX_LEAGUE_KEYS.details(), id] as const,
   boxes: (leagueId: string) => [...BOX_LEAGUE_KEYS.detail(leagueId), 'boxes'] as const,
@@ -44,10 +44,10 @@ const BOX_LEAGUE_KEYS = {
 };
 
 // Box League Hooks
-export function useBoxLeagues(circleId?: string) {
+export function useBoxLeagues(circleId?: string, clubId?: string) {
   return useQuery({
-    queryKey: BOX_LEAGUE_KEYS.list(circleId),
-    queryFn: () => getBoxLeagues(circleId),
+    queryKey: BOX_LEAGUE_KEYS.list(circleId, clubId),
+    queryFn: () => getBoxLeagues(circleId, clubId),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

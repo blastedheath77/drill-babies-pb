@@ -6,17 +6,17 @@ import type { Player } from '@/lib/types';
 export const playerKeys = {
   all: ['players'] as const,
   lists: () => [...playerKeys.all, 'list'] as const,
-  list: (filters: any) => [...playerKeys.lists(), filters] as const,
+  list: (clubId?: string, filters?: any) => [...playerKeys.lists(), clubId, filters] as const,
   details: () => [...playerKeys.all, 'detail'] as const,
   detail: (id: string) => [...playerKeys.details(), id] as const,
   ratingHistory: (id: string, days: number) => [...playerKeys.all, 'rating-history', id, days] as const,
 };
 
 // Hook to get all players with caching
-export function usePlayers() {
+export function usePlayers(clubId?: string) {
   return useQuery({
-    queryKey: playerKeys.lists(),
-    queryFn: getPlayers,
+    queryKey: playerKeys.list(clubId),
+    queryFn: () => getPlayers(clubId),
     staleTime: 10 * 1000, // Players list stays fresh for 10 seconds (shorter for consistency)
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: true, // Always refetch when component mounts
@@ -65,14 +65,14 @@ export function useInvalidatePlayers() {
 export function useOptimisticPlayerUpdate() {
   const queryClient = useQueryClient();
 
-  return (playerId: string, updates: Partial<Player>) => {
+  return (playerId: string, updates: Partial<Player>, clubId?: string) => {
     queryClient.setQueryData(playerKeys.detail(playerId), (old: Player | undefined) => {
       if (!old) return old;
       return { ...old, ...updates };
     });
 
     // Also update the player in the players list
-    queryClient.setQueryData(playerKeys.lists(), (old: Player[] | undefined) => {
+    queryClient.setQueryData(playerKeys.list(clubId), (old: Player[] | undefined) => {
       if (!old) return old;
       return old.map((player) =>
         player.id === playerId ? { ...player, ...updates } : player

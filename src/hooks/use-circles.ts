@@ -15,24 +15,25 @@ import type { Circle } from '@/lib/types';
 export const circleKeys = {
   all: ['circles'] as const,
   lists: () => [...circleKeys.all, 'list'] as const,
-  list: (filters: any) => [...circleKeys.lists(), filters] as const,
+  list: (clubId?: string, filters?: any) => [...circleKeys.lists(), clubId, filters] as const,
   details: () => [...circleKeys.all, 'detail'] as const,
   detail: (id: string) => [...circleKeys.details(), id] as const,
   forPlayer: (playerId: string) => [...circleKeys.all, 'player', playerId] as const,
-  withPlayerCount: () => [...circleKeys.all, 'withPlayerCount'] as const,
-  nameAvailable: (name: string, excludeId?: string) => [
+  withPlayerCount: (clubId?: string) => [...circleKeys.all, 'withPlayerCount', clubId] as const,
+  nameAvailable: (name: string, clubId?: string, excludeId?: string) => [
     ...circleKeys.all,
     'nameAvailable',
     name,
+    clubId,
     excludeId,
   ] as const,
 };
 
 // Hook to get all circles with caching
-export function useCircles() {
+export function useCircles(clubId?: string) {
   return useQuery({
-    queryKey: circleKeys.lists(),
-    queryFn: getCircles,
+    queryKey: circleKeys.list(clubId),
+    queryFn: () => getCircles(clubId),
     staleTime: 5 * 60 * 1000, // Circles stay fresh for 5 minutes (increased for better performance)
     cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false, // Don't refetch on window focus (reduces unnecessary calls)
@@ -43,10 +44,10 @@ export function useCircles() {
 }
 
 // Hook to get circles with player count
-export function useCirclesWithPlayerCount() {
+export function useCirclesWithPlayerCount(clubId?: string) {
   return useQuery({
-    queryKey: circleKeys.withPlayerCount(),
-    queryFn: getCirclesWithPlayerCount,
+    queryKey: circleKeys.withPlayerCount(clubId),
+    queryFn: () => getCirclesWithPlayerCount(clubId),
     staleTime: 5 * 60 * 1000, // Stay fresh for 5 minutes
     cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false, // Reduce unnecessary refetches
@@ -80,10 +81,10 @@ export function useCirclesForPlayer(playerId: string) {
 }
 
 // Hook to check if a circle name is available
-export function useCircleNameAvailable(name: string, excludeId?: string) {
+export function useCircleNameAvailable(name: string, clubId?: string, excludeId?: string) {
   return useQuery({
-    queryKey: circleKeys.nameAvailable(name, excludeId),
-    queryFn: () => isCircleNameAvailable(name, excludeId),
+    queryKey: circleKeys.nameAvailable(name, clubId, excludeId),
+    queryFn: () => isCircleNameAvailable(name, clubId, excludeId),
     enabled: !!name && name.trim().length > 0,
     staleTime: 10 * 1000, // Name availability checks stay fresh for 10 seconds
   });

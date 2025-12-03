@@ -73,13 +73,18 @@ export async function createBoxLeague(
   }
 }
 
-export async function getBoxLeagues(circleId?: string): Promise<BoxLeague[]> {
+export async function getBoxLeagues(circleId?: string, clubId?: string): Promise<BoxLeague[]> {
   try {
     const boxLeaguesRef = collection(db, BOX_LEAGUES_COLLECTION);
     let q;
 
-    if (circleId) {
+    if (circleId && clubId) {
+      // Filter by both circleId and clubId
+      q = query(boxLeaguesRef, where('circleId', '==', circleId), where('clubId', '==', clubId));
+    } else if (circleId) {
       q = query(boxLeaguesRef, where('circleId', '==', circleId));
+    } else if (clubId) {
+      q = query(boxLeaguesRef, where('clubId', '==', clubId));
     } else {
       q = query(boxLeaguesRef);
     }

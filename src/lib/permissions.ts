@@ -11,6 +11,12 @@ export interface Permission {
   canViewTournaments: boolean;
   canViewPlayers: boolean;
   canViewStatistics: boolean;
+  // Club permissions
+  canCreateClubs: boolean;
+  canManageAllClubs: boolean;
+  canManageOwnClub: boolean;
+  canInviteToClub: boolean;
+  canRemoveFromClub: boolean;
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
@@ -25,6 +31,28 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canViewTournaments: true,
     canViewPlayers: true,
     canViewStatistics: true,
+    canCreateClubs: true,
+    canManageAllClubs: true,
+    canManageOwnClub: true,
+    canInviteToClub: true,
+    canRemoveFromClub: true,
+  },
+  club_admin: {
+    canCreateTournaments: true,
+    canModifyTournaments: true,
+    canDeleteTournaments: true,
+    canCreatePlayers: true,
+    canModifyPlayers: true,
+    canDeletePlayers: true,
+    canRecordGameResults: true,
+    canViewTournaments: true,
+    canViewPlayers: true,
+    canViewStatistics: true,
+    canCreateClubs: false,
+    canManageAllClubs: false,
+    canManageOwnClub: true,
+    canInviteToClub: true,
+    canRemoveFromClub: true,
   },
   player: {
     canCreateTournaments: true,
@@ -37,6 +65,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canViewTournaments: true,
     canViewPlayers: true,
     canViewStatistics: true,
+    canCreateClubs: false,
+    canManageAllClubs: false,
+    canManageOwnClub: false,
+    canInviteToClub: false,
+    canRemoveFromClub: false,
   },
   viewer: {
     canCreateTournaments: false,
@@ -49,6 +82,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canViewTournaments: true,
     canViewPlayers: true,
     canViewStatistics: true,
+    canCreateClubs: false,
+    canManageAllClubs: false,
+    canManageOwnClub: false,
+    canInviteToClub: false,
+    canRemoveFromClub: false,
   },
 };
 
@@ -75,4 +113,17 @@ export function requirePermission(user: User | null, permission: keyof Permissio
   if (!hasPermission(user, permission)) {
     throw new PermissionError(`Permission required: ${permission}`);
   }
+}
+
+// Club-specific permission helpers
+export function isClubAdmin(user: User | null, clubId: string): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true; // Global admin has access to all clubs
+  return user.clubRoles?.[clubId] === 'club_admin';
+}
+
+export function hasClubAccess(user: User | null, clubId: string): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true; // Global admin has access to all clubs
+  return user.clubMemberships?.includes(clubId) ?? false;
 }

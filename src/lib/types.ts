@@ -1,3 +1,16 @@
+export interface Club {
+  id: string;
+  name: string;
+  description?: string;
+  createdDate: string;
+  createdBy: string;
+  isActive: boolean;
+  settings?: {
+    allowPublicJoin?: boolean;
+    defaultPlayerRating?: number;
+  };
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -8,6 +21,7 @@ export interface Player {
   draws: number;
   pointsFor: number;
   pointsAgainst: number;
+  clubId: string;
 }
 
 export interface Game {
@@ -27,6 +41,7 @@ export interface Game {
   playerIds: string[]; // For easier querying
   tournamentId?: string;
   ratingChanges?: { [playerId: string]: { before: number; after: number } }; // Rating history
+  clubId: string;
 }
 
 export interface Partnership {
@@ -67,6 +82,7 @@ export interface Tournament {
   estimatedDuration?: number; // Estimated duration in minutes
   isQuickPlay?: boolean; // Quick Play mode allows adding rounds dynamically
   currentRound?: number; // Track current round for Quick Play
+  clubId: string;
 }
 
 export interface TournamentMatch {
@@ -104,6 +120,7 @@ export interface Circle {
   playerIds: string[];
   createdDate: string;
   createdBy: string;
+  clubId: string;
 }
 
 // Box League Interfaces
@@ -127,6 +144,7 @@ export interface BoxLeague {
   pauseReason?: string; // Reason for pausing the league
   pausedDate?: string; // When the league was paused
   completedDate?: string; // When the league was completed
+  clubId: string;
 }
 
 export interface Box {

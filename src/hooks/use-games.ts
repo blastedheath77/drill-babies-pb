@@ -6,17 +6,17 @@ import type { Game, Tournament } from '@/lib/types';
 export const gameKeys = {
   all: ['games'] as const,
   lists: () => [...gameKeys.all, 'list'] as const,
-  allGames: () => [...gameKeys.lists(), 'all'] as const,
-  recent: (count?: number) => [...gameKeys.lists(), 'recent', count] as const,
-  player: (playerId: string) => [...gameKeys.lists(), 'player', playerId] as const,
-  count: () => [...gameKeys.all, 'count'] as const,
+  allGames: (clubId?: string) => [...gameKeys.lists(), 'all', clubId] as const,
+  recent: (count?: number, clubId?: string) => [...gameKeys.lists(), 'recent', count, clubId] as const,
+  player: (playerId: string, clubId?: string) => [...gameKeys.lists(), 'player', playerId, clubId] as const,
+  count: (clubId?: string) => [...gameKeys.all, 'count', clubId] as const,
 };
 
 // Hook to get all games with caching
-export function useAllGames() {
+export function useAllGames(clubId?: string) {
   return useQuery({
-    queryKey: gameKeys.allGames(),
-    queryFn: getAllGames,
+    queryKey: gameKeys.allGames(clubId),
+    queryFn: () => getAllGames(clubId),
     staleTime: 5 * 60 * 1000, // All games stay fresh for 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
@@ -24,29 +24,29 @@ export function useAllGames() {
 }
 
 // Hook to get recent games with caching
-export function useRecentGames(count: number = 5) {
+export function useRecentGames(count: number = 5, clubId?: string) {
   return useQuery({
-    queryKey: gameKeys.recent(count),
-    queryFn: () => getRecentGames(count),
+    queryKey: gameKeys.recent(count, clubId),
+    queryFn: () => getRecentGames(count, clubId),
     staleTime: 2 * 60 * 1000, // Recent games stay fresh for 2 minutes
   });
 }
 
 // Hook to get games for a specific player
-export function usePlayerGames(playerId: string) {
+export function usePlayerGames(playerId: string, clubId?: string) {
   return useQuery({
-    queryKey: gameKeys.player(playerId),
-    queryFn: () => getGamesForPlayer(playerId),
+    queryKey: gameKeys.player(playerId, clubId),
+    queryFn: () => getGamesForPlayer(playerId, clubId),
     enabled: !!playerId,
     staleTime: 5 * 60 * 1000, // Player games stay fresh for 5 minutes
   });
 }
 
 // Hook to get total games count
-export function useTotalGamesCount() {
+export function useTotalGamesCount(clubId?: string) {
   return useQuery({
-    queryKey: gameKeys.count(),
-    queryFn: getTotalGamesCount,
+    queryKey: gameKeys.count(clubId),
+    queryFn: () => getTotalGamesCount(clubId),
     staleTime: 5 * 60 * 1000, // Games count stays fresh for 5 minutes
   });
 }
@@ -116,25 +116,25 @@ export function usePartnershipsData() {
 export const tournamentKeys = {
   all: ['tournaments'] as const,
   lists: () => [...tournamentKeys.all, 'list'] as const,
-  allTournaments: () => [...tournamentKeys.lists(), 'all'] as const,
-  status: (status: Tournament['status']) => [...tournamentKeys.lists(), 'status', status] as const,
+  allTournaments: (clubId?: string) => [...tournamentKeys.lists(), 'all', clubId] as const,
+  status: (status: Tournament['status'], clubId?: string) => [...tournamentKeys.lists(), 'status', status, clubId] as const,
 };
 
 // Hook to get all tournaments with caching
-export function useAllTournaments() {
+export function useAllTournaments(clubId?: string) {
   return useQuery({
-    queryKey: tournamentKeys.allTournaments(),
-    queryFn: getTournaments,
+    queryKey: tournamentKeys.allTournaments(clubId),
+    queryFn: () => getTournaments(clubId),
     staleTime: 2 * 60 * 1000, // Tournaments stay fresh for 2 minutes
     refetchOnWindowFocus: true,
   });
 }
 
 // Hook to get tournaments by status
-export function useTournamentsByStatus(status: Tournament['status']) {
+export function useTournamentsByStatus(status: Tournament['status'], clubId?: string) {
   return useQuery({
-    queryKey: tournamentKeys.status(status),
-    queryFn: () => getTournamentsByStatus(status),
+    queryKey: tournamentKeys.status(status, clubId),
+    queryFn: () => getTournamentsByStatus(status, clubId),
     staleTime: 1 * 60 * 1000, // Status-specific tournaments stay fresh for 1 minute
     refetchOnWindowFocus: true,
   });

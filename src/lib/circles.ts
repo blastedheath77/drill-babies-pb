@@ -19,10 +19,14 @@ import type { Circle } from './types';
 import { handleDatabaseError, logError } from './errors';
 import { logger } from './logger';
 
-export async function getCircles(): Promise<Circle[]> {
+export async function getCircles(clubId?: string): Promise<Circle[]> {
   try {
     const circlesCollection = collection(db, 'circles');
-    const q = query(circlesCollection, orderBy('name', 'asc'));
+
+    // Build query with clubId filter if provided
+    const q = clubId
+      ? query(circlesCollection, where('clubId', '==', clubId), orderBy('name', 'asc'))
+      : query(circlesCollection, orderBy('name', 'asc'));
 
     // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) => {
@@ -86,14 +90,14 @@ export async function createCircle(data: Omit<Circle, 'id' | 'createdDate'>): Pr
       throw new Error('Circle name is required');
     }
 
-    // Check for duplicate names
-    const existingCircles = await getCircles();
+    // Check for duplicate names within the same club
+    const existingCircles = await getCircles(data.clubId);
     const nameExists = existingCircles.some(
       circle => circle.name.toLowerCase().trim() === data.name.toLowerCase().trim()
     );
 
     if (nameExists) {
-      throw new Error('A circle with this name already exists');
+      throw new Error('A circle with this name already exists in this club');
     }
 
     // Validate playerIds array
@@ -106,6 +110,7 @@ export async function createCircle(data: Omit<Circle, 'id' | 'createdDate'>): Pr
       description: data.description?.trim() || '',
       playerIds: data.playerIds,
       createdBy: data.createdBy,
+      clubId: data.clubId,
       createdAt: serverTimestamp(),
     };
 
@@ -133,14 +138,14 @@ export async function updateCircle(id: string, data: Partial<Omit<Circle, 'id' |
         throw new Error('Circle name cannot be empty');
       }
 
-      // Check for duplicate names (excluding current circle)
-      const existingCircles = await getCircles();
+      // Check for duplicate names within the same club (excluding current circle)
+      const existingCircles = await getCircles(existingCircle.clubId);
       const nameExists = existingCircles.some(
         circle => circle.id !== id && circle.name.toLowerCase().trim() === data.name!.toLowerCase().trim()
       );
 
       if (nameExists) {
-        throw new Error('A circle with this name already exists');
+        throw new Error('A circle with this name already exists in this club');
       }
     }
 
@@ -230,9 +235,9 @@ export async function getCirclesForPlayer(playerId: string): Promise<Circle[]> {
 }
 
 // Utility function to validate circle name uniqueness (for client-side validation)
-export async function isCircleNameAvailable(name: string, excludeId?: string): Promise<boolean> {
+export async function isCircleNameAvailable(name: string, clubId?: string, excludeId?: string): Promise<boolean> {
   try {
-    const circles = await getCircles();
+    const circles = await getCircles(clubId);
     return !circles.some(
       circle =>
         circle.id !== excludeId &&
@@ -246,9 +251,9 @@ export async function isCircleNameAvailable(name: string, excludeId?: string): P
 }
 
 // Utility function to get circles with player count
-export async function getCirclesWithPlayerCount(): Promise<Array<Circle & { playerCount: number }>> {
+export async function getCirclesWithPlayerCount(clubId?: string): Promise<Array<Circle & { playerCount: number }>> {
   try {
-    const circles = await getCircles();
+    const circles = await getCircles(clubId);
     return circles.map(circle => ({
       ...circle,
       playerCount: circle.playerIds.length,

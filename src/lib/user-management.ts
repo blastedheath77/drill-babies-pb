@@ -103,6 +103,9 @@ export async function getUserDocument(uid: string): Promise<User | null> {
       avatar: userData.avatar,
       createdAt: userData.createdAt.toDate().toISOString(),
       updatedAt: userData.updatedAt?.toDate().toISOString(),
+      clubMemberships: userData.clubMemberships,
+      selectedClubId: userData.selectedClubId,
+      clubRoles: userData.clubRoles,
     };
   } catch (error) {
     logger.error('Error fetching user document', error);
@@ -279,6 +282,9 @@ export async function getAllUsers(): Promise<User[]> {
         avatar: userData.avatar,
         createdAt: userData.createdAt.toDate().toISOString(),
         updatedAt: userData.updatedAt?.toDate().toISOString(),
+        clubMemberships: userData.clubMemberships,
+        selectedClubId: userData.selectedClubId,
+        clubRoles: userData.clubRoles,
       };
     });
   } catch (error) {

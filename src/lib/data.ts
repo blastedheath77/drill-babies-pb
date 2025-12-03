@@ -30,21 +30,25 @@ import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './con
 import { handleDatabaseError, logError } from './errors';
 import { logger } from './logger';
 
-export async function getPlayers(): Promise<Player[]> {
+export async function getPlayers(clubId?: string): Promise<Player[]> {
   try {
     const playersCollection = collection(db, 'players');
-    const q = query(playersCollection, orderBy('rating', 'desc'));
-    
+
+    // Build query with clubId filter if provided
+    const q = clubId
+      ? query(playersCollection, where('clubId', '==', clubId), orderBy('rating', 'desc'))
+      : query(playersCollection, orderBy('rating', 'desc'));
+
     // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Firebase request timeout')), 10000); // 10 second timeout
     });
-    
+
     const snapshot = await Promise.race([
       getDocs(q),
       timeoutPromise
     ]) as any;
-    
+
     // Clean data to remove Firestore-specific objects that cause hydration issues
     return snapshot.docs.map((doc) => {
       const data = doc.data();
@@ -54,14 +58,14 @@ export async function getPlayers(): Promise<Player[]> {
     });
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayers');
-    
+
     // Return empty array with specific error handling
     if (error instanceof Error) {
       if (error.message.includes('timeout') || error.message.includes('UNAVAILABLE')) {
         logger.warn('Firebase connection timeout, returning empty players list');
       }
     }
-    
+
     return [];
   }
 }
@@ -122,10 +126,13 @@ async function fetchPlayersByIds(playerIds: string[]): Promise<Map<string, Playe
   return playerMap;
 }
 
-export async function getTotalGamesCount(): Promise<number> {
+export async function getTotalGamesCount(clubId?: string): Promise<number> {
   try {
     const gamesCollection = collection(db, 'games');
-    const snapshot = await getDocs(gamesCollection);
+    const q = clubId
+      ? query(gamesCollection, where('clubId', '==', clubId))
+      : gamesCollection;
+    const snapshot = await getDocs(q);
     return snapshot.size;
   } catch (error) {
     console.error('Error fetching total games count: ', error);
@@ -133,10 +140,15 @@ export async function getTotalGamesCount(): Promise<number> {
   }
 }
 
-export async function getRecentGames(count: number = 5): Promise<Game[]> {
+export async function getRecentGames(count: number = 5, clubId?: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    const q = query(gamesCollection, orderBy('date', 'desc'), limit(count));
+
+    // Build query with clubId filter if provided
+    const q = clubId
+      ? query(gamesCollection, where('clubId', '==', clubId), orderBy('date', 'desc'), limit(count))
+      : query(gamesCollection, orderBy('date', 'desc'), limit(count));
+
     const snapshot = await getDocs(q);
 
     const allPlayerIds = new Set<string>();
@@ -173,16 +185,20 @@ export async function getRecentGames(count: number = 5): Promise<Game[]> {
   }
 }
 
-export async function getAllGames(): Promise<Game[]> {
+export async function getAllGames(clubId?: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    const q = query(gamesCollection, orderBy('date', 'desc'));
-    
+
+    // Build query with clubId filter if provided
+    const q = clubId
+      ? query(gamesCollection, where('clubId', '==', clubId), orderBy('date', 'desc'))
+      : query(gamesCollection, orderBy('date', 'desc'));
+
     // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Firebase request timeout')), 15000); // 15 second timeout for games
     });
-    
+
     const snapshot = await Promise.race([
       getDocs(q),
       timeoutPromise
@@ -254,17 +270,26 @@ export async function getAllGames(): Promise<Game[]> {
   }
 }
 
-export async function getGamesForPlayer(playerId: string): Promise<Game[]> {
+export async function getGamesForPlayer(playerId: string, clubId?: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
-    
+
     // First, try the optimized query with index (if available)
     try {
-      const q = query(
-        gamesCollection,
-        where('playerIds', 'array-contains', playerId),
-        orderBy('date', 'desc')
-      );
+      // Build query with optional clubId filter
+      const q = clubId
+        ? query(
+            gamesCollection,
+            where('clubId', '==', clubId),
+            where('playerIds', 'array-contains', playerId),
+            orderBy('date', 'desc')
+          )
+        : query(
+            gamesCollection,
+            where('playerIds', 'array-contains', playerId),
+            orderBy('date', 'desc')
+          );
+
       const gamesSnapshot = await getDocs(q);
 
       const allPlayerIds = new Set<string>([playerId]);
@@ -640,11 +665,14 @@ export async function getPlayerRatingHistory(
 }
 
 // Tournament-related functions
-export async function getTournaments(): Promise<Tournament[]> {
+export async function getTournaments(clubId?: string): Promise<Tournament[]> {
   try {
-    const tournamentsSnapshot = await getDocs(
-      query(collection(db, 'tournaments'), orderBy('createdDate', 'desc'))
-    );
+    const tournamentsCollection = collection(db, 'tournaments');
+    const q = clubId
+      ? query(tournamentsCollection, where('clubId', '==', clubId), orderBy('createdDate', 'desc'))
+      : query(tournamentsCollection, orderBy('createdDate', 'desc'));
+
+    const tournamentsSnapshot = await getDocs(q);
     return tournamentsSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -668,10 +696,13 @@ export async function getTournamentById(tournamentId: string): Promise<Tournamen
   }
 }
 
-export async function getTournamentsByStatus(status: Tournament['status']): Promise<Tournament[]> {
+export async function getTournamentsByStatus(status: Tournament['status'], clubId?: string): Promise<Tournament[]> {
   try {
-    // Get all tournaments and filter in memory (simpler for initial development)
-    const tournamentsSnapshot = await getDocs(collection(db, 'tournaments'));
+    const tournamentsCollection = collection(db, 'tournaments');
+    const q = clubId
+      ? query(tournamentsCollection, where('clubId', '==', clubId))
+      : tournamentsCollection;
+    const tournamentsSnapshot = await getDocs(q);
 
     if (tournamentsSnapshot.empty) {
       return [];

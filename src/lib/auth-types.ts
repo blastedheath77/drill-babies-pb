@@ -1,7 +1,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'viewer' | 'player' | 'admin';
+export type UserRole = 'viewer' | 'player' | 'admin' | 'club_admin';
 
 export interface User {
   id: string; // Firebase UID
@@ -11,6 +11,10 @@ export interface User {
   avatar?: string;
   createdAt: string;
   updatedAt?: string;
+  // Club membership fields (optional for backward compatibility)
+  clubMemberships?: string[]; // Array of club IDs user has access to
+  selectedClubId?: string | null; // Currently selected club
+  clubRoles?: { [clubId: string]: 'club_admin' | 'member' }; // Per-club roles
 }
 
 export interface UserDocument {
@@ -21,6 +25,10 @@ export interface UserDocument {
   avatar?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Club membership fields (optional for backward compatibility)
+  clubMemberships?: string[];
+  selectedClubId?: string | null;
+  clubRoles?: { [clubId: string]: 'club_admin' | 'member' };
 }
 
 export interface AuthState {

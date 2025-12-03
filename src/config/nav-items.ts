@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2, Grid3x3 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2, Grid3x3, Building2 } from 'lucide-react';
 import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
@@ -153,10 +153,10 @@ export const specialNavItems: NavItem[] = [
 
 // Admin-only items
 export const adminNavItems: NavItem[] = [
-  { 
-    title: 'Admin Dashboard', 
-    href: '/admin/dashboard', 
-    icon: Shield, 
+  {
+    title: 'Admin Dashboard',
+    href: '/admin/dashboard',
+    icon: Shield,
     category: 'admin',
     priority: 'tertiary',
     adminOnly: true,
@@ -164,6 +164,18 @@ export const adminNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Admin controls'
+  },
+  {
+    title: 'Clubs',
+    href: '/clubs',
+    icon: Building2,
+    category: 'admin',
+    priority: 'tertiary',
+    adminOnly: true,
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Manage clubs'
   },
 ];
 
