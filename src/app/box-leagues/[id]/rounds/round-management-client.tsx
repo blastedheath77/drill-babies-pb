@@ -15,7 +15,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { EditMatchResultDialog } from '@/components/box-leagues/edit-match-result-dialog';
 import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound, useUpdateBoxLeagueMatch, useDeleteRound } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import { createNewRound, updatePlayerStatsAfterMatch } from '@/lib/box-league-logic';
+import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
 import type { BoxLeagueMatch, Player } from '@/lib/types';
 
 interface RoundManagementClientProps {
@@ -33,9 +35,14 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
   const [team1Score, setTeam1Score] = useState(0);
   const [team2Score, setTeam2Score] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const getPlayerName = (playerId: string) => {
     return players.find(p => p.id === playerId)?.name || 'Unknown';
+  };
+
+  const getPlayer = (playerId: string) => {
+    return players.find(p => p.id === playerId);
   };
 
   const handleSubmit = () => {
@@ -49,7 +56,13 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
       return;
     }
 
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = () => {
     onSubmit(match.id, team1Score, team2Score);
+    setShowConfirmDialog(false);
     setIsOpen(false);
     setTeam1Score(0);
     setTeam2Score(0);
@@ -118,15 +131,28 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
           </div>
         </div>
       </DialogContent>
+
+      {/* Score Confirmation Dialog */}
+      <ScoreConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmSubmit}
+        gameType={match.team1PlayerIds.length > 1 ? 'doubles' : 'singles'}
+        team1Players={match.team1PlayerIds.map(id => getPlayer(id)).filter(Boolean) as Player[]}
+        team2Players={match.team2PlayerIds.map(id => getPlayer(id)).filter(Boolean) as Player[]}
+        team1Score={team1Score}
+        team2Score={team2Score}
+      />
     </Dialog>
   );
 }
 
 export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProps) {
+  const { selectedClub } = useClub();
   const { data: boxLeague, isLoading: leagueLoading, refetch: refetchBoxLeague } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading } = useBoxesByLeague(boxLeagueId);
   const { data: rounds = [], isLoading: roundsLoading, refetch: refetchRounds } = useRoundsByLeague(boxLeagueId);
-  const { data: allPlayers = [] } = usePlayers();
+  const { data: allPlayers = [] } = usePlayers(selectedClub?.id);
   const updateMatch = useUpdateBoxLeagueMatch();
   const deleteRound = useDeleteRound();
 

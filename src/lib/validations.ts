@@ -158,6 +158,7 @@ export const createTournamentSchema = z
     playerIds: z
       .array(z.string().min(1, 'Player ID cannot be empty'))
       .min(2, 'Tournament must have at least 2 players'),
+    clubId: z.string().min(1, 'Club ID is required'),
     maxRounds: z
       .number()
       .int('Maximum rounds must be a whole number')

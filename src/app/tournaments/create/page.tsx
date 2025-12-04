@@ -6,9 +6,11 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { AuthWrapper } from '@/components/auth-wrapper';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 
 function CreateTournamentContent() {
-  const { data: players, isLoading, error } = usePlayers();
+  const { selectedClub } = useClub();
+  const { data: players, isLoading, error } = usePlayers(selectedClub?.id);
 
   if (isLoading) {
     return (

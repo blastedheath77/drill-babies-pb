@@ -36,10 +36,12 @@ import {
 import type { Player, Game } from '@/lib/types';
 import { getHeadToHeadStats } from '@/lib/data';
 import { usePartnershipsData } from '@/hooks/use-games';
+import { useClub } from '@/contexts/club-context';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 export function HeadToHeadClient() {
-  const { games, players, isLoading, error } = usePartnershipsData();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { games, players, isLoading, error } = usePartnershipsData(selectedClub?.id);
   const [player1Id, setPlayer1Id] = React.useState<string>('');
   const [player2Id, setPlayer2Id] = React.useState<string>('');
   const [comparisonMode, setComparisonMode] = React.useState<'head-to-head' | 'overall'>('head-to-head');
@@ -103,6 +105,36 @@ export function HeadToHeadClient() {
         }, 0) / h2hGames.length : 0
     };
   }, [player1Id, player2Id, games, h2hStats]);
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Head-to-Head Analysis"
+          description="Compare players and analyze direct matchups with comprehensive statistics."
+        />
+        <div className="flex flex-col items-center justify-center min-h-[40vh]">
+          <Card className="max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="flex items-center justify-center gap-2 text-xl">
+                <Users className="h-6 w-6" />
+                No Club Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Once you have club access, you'll be able to analyze head-to-head matchups.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {

@@ -4,9 +4,11 @@ import { LogGameClientPage } from './log-game-client-page';
 import { usePlayers } from '@/hooks/use-players';
 import { PageHeader } from '@/components/page-header';
 import { AuthWrapper } from '@/components/auth-wrapper';
+import { useClub } from '@/contexts/club-context';
 
 function LogGameContent() {
-  const { data: players, isLoading, error } = usePlayers();
+  const { selectedClub } = useClub();
+  const { data: players, isLoading, error } = usePlayers(selectedClub?.id);
 
   if (isLoading) {
     return (

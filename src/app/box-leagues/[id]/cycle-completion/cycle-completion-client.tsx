@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { useBoxLeague, useBoxesByLeague, usePlayerStatsByLeague } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import {
   calculatePromotionRelegation,
   executePromotionRelegation,
@@ -97,10 +98,11 @@ function PlayerMoveCard({ move, player, boxes }: PlayerMoveCardProps) {
 
 export function CycleCompletionClient({ boxLeagueId }: CycleCompletionClientProps) {
   const router = useRouter();
+  const { selectedClub } = useClub();
   const { data: boxLeague, isLoading: leagueLoading } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading } = useBoxesByLeague(boxLeagueId);
   const { data: playerStats = [], isLoading: statsLoading } = usePlayerStatsByLeague(boxLeagueId);
-  const { data: allPlayers = [] } = usePlayers();
+  const { data: allPlayers = [] } = usePlayers(selectedClub?.id);
 
   const [moves, setMoves] = useState<PromotionRelegationMove[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);

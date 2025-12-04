@@ -22,6 +22,7 @@ interface CreateTournamentData {
   format: 'singles' | 'doubles';
   type: 'round-robin' | 'single-elimination' | 'double-elimination';
   playerIds: string[];
+  clubId: string;
   maxRounds?: number;
   availableCourts?: number;
 }
@@ -54,6 +55,7 @@ export async function createTournament(data: CreateTournamentData) {
       type: validatedData.type,
       status: 'active',
       playerIds: validatedData.playerIds,
+      clubId: validatedData.clubId,
       createdDate: new Date().toISOString(),
       createdBy: 'admin', // TODO: Replace with actual user ID
       availableCourts: validatedData.availableCourts || 2,

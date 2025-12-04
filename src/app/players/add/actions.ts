@@ -6,7 +6,7 @@ import { createPlayerSchema, validateData } from '@/lib/validations';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
 
-export async function addPlayer(values: { name: string; email?: string }) {
+export async function addPlayer(values: { name: string; clubId: string; email?: string }) {
   // Check authentication and permissions
   const currentUser = await getCurrentUser();
   requireAuthentication(currentUser);
@@ -14,18 +14,24 @@ export async function addPlayer(values: { name: string; email?: string }) {
 
   const validatedData = validateData(createPlayerSchema, values);
   const { name } = validatedData;
+  const { clubId } = values;
+
+  // Ensure clubId is provided
+  if (!clubId) {
+    throw new Error('Club ID is required to create a player');
+  }
 
   try {
     // Use the safe add method that checks for duplicates
-    const result = await safeAddPlayer({ name });
-    
+    const result = await safeAddPlayer({ name, clubId });
+
     if (result.success) {
       // Invalidate server-side caches
       revalidatePath('/');
       revalidatePath('/players');
       revalidatePath('/statistics');
       revalidatePath('/log-game');
-      
+
       return { success: true, playerId: result.playerId, message: result.message };
     } else {
       // Player already exists or other error

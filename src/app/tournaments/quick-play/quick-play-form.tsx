@@ -28,6 +28,7 @@ import { isOnline, offlineQueue } from '@/lib/offline-queue';
 import { useQuery } from '@tanstack/react-query';
 import { getPlayers } from '@/lib/data';
 import { useCircles } from '@/hooks/use-circles';
+import { useClub } from '@/contexts/club-context';
 import { CircleSelector } from '@/components/circle-selector';
 import { PageHeader } from '@/components/page-header';
 import { ArrowLeft, Zap, Users, Clock, Target } from 'lucide-react';
@@ -64,14 +65,15 @@ export function QuickPlayForm() {
   const { toast } = useToast();
   const router = useRouter();
   const playerSelectionRef = useRef<HTMLDivElement>(null);
+  const { selectedClub } = useClub();
 
-  // Fetch players and circles
+  // Fetch players and circles filtered by club
   const { data: players = [], isLoading: playersLoading } = useQuery({
-    queryKey: ['players'],
-    queryFn: getPlayers,
+    queryKey: ['players', selectedClub?.id],
+    queryFn: () => getPlayers(selectedClub?.id),
   });
 
-  const { data: circles = [] } = useCircles();
+  const { data: circles = [] } = useCircles(selectedClub?.id);
 
   // Filter and sort players
   const filteredAndSortedPlayers = useMemo(() => {

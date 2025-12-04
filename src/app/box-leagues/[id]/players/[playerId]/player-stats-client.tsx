@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import { calculateStandings } from '@/lib/box-league-logic';
 import type { BoxLeagueMatch, BoxLeagueStanding } from '@/lib/types';
 
@@ -31,10 +32,11 @@ interface PlayerMatchHistory {
 }
 
 export function PlayerStatsClient({ boxLeagueId, playerId }: PlayerStatsClientProps) {
+  const { selectedClub } = useClub();
   const { data: boxLeague, isLoading: leagueLoading } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading } = useBoxesByLeague(boxLeagueId);
   const { data: rounds = [], isLoading: roundsLoading } = useRoundsByLeague(boxLeagueId);
-  const { data: allPlayers = [] } = usePlayers();
+  const { data: allPlayers = [] } = usePlayers(selectedClub?.id);
 
   const isLoading = leagueLoading || boxesLoading || roundsLoading;
 

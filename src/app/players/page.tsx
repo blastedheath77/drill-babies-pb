@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePlayers } from '@/hooks/use-players';
 import { usePartnershipsData } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
+import { useClub } from '@/contexts/club-context';
 import { PlusCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, ArrowUpRight, ArrowDownRight, Users2, Swords } from 'lucide-react';
 import { getPartnershipStats, getHeadToHeadStats, getGamesForPlayer, calculateExpectedWinRate } from '@/lib/data';
 import type { Player, Game } from '@/lib/types';
@@ -210,19 +211,50 @@ function usePlayerStats(players: Player[], games: Game[]) {
 }
 
 export default function PlayersPage() {
-  const { data: players, isLoading, error, isError } = usePlayers();
-  const { games, isLoading: gamesLoading } = usePartnershipsData();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: players, isLoading, error, isError } = usePlayers(selectedClub?.id);
+  const { games, isLoading: gamesLoading } = usePartnershipsData(selectedClub?.id);
   const { canManagePlayers } = useAuth();
-  
+
   // Calculate enhanced stats
   const playerStats = usePlayerStats(players || [], games || []);
+
+  const clubName = selectedClub ? selectedClub.name : 'All Clubs';
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <>
+        <PageHeader
+          title="Players"
+          description="Browse the list of all active players."
+        />
+        <div className="flex flex-col items-center justify-center min-h-[40vh]">
+          <Card className="max-w-md">
+            <CardContent className="flex flex-col items-center justify-center text-center py-12 space-y-4">
+              <Users2 className="h-12 w-12 text-muted-foreground" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">No Club Access</h3>
+                <p className="text-muted-foreground mb-2">
+                  You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Once you have club access, you'll be able to view players.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   if (isError) {
     return (
       <>
         <PageHeader
-          title="Club Players"
-          description="Browse the list of all active players in the club."
+          title={`${clubName} Players`}
+          description={`Browse the list of all active players${selectedClub ? ` in ${clubName}` : ''}.`}
         >
           {canManagePlayers() && (
             <Link href="/players/add">
@@ -247,8 +279,8 @@ export default function PlayersPage() {
     return (
       <>
         <PageHeader
-          title="Club Players"
-          description="Browse the list of all active players in the club."
+          title={`${clubName} Players`}
+          description={`Browse the list of all active players${selectedClub ? ` in ${clubName}` : ''}.`}
         >
           {canManagePlayers() && (
             <Link href="/players/add">
@@ -285,8 +317,8 @@ export default function PlayersPage() {
   return (
     <>
       <PageHeader
-        title="Club Players"
-        description={`Browse the list of all ${players.length} active players in the club.`}
+        title={`${clubName} Players`}
+        description={`Browse the list of all ${players.length} active players${selectedClub ? ` in ${clubName}` : ''}.`}
       >
         <Link href="/players/add">
           <Button>

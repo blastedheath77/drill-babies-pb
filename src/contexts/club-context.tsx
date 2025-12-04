@@ -12,6 +12,7 @@ interface ClubContextType {
   selectedClub: Club | null;
   availableClubs: Club[];
   isLoading: boolean;
+  hasAnyClubs: boolean;
   selectClub: (clubId: string) => Promise<void>;
   refreshClubs: () => Promise<void>;
   hasClubAccess: (clubId: string) => boolean;
@@ -131,12 +132,15 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
     return user.clubMemberships?.includes(clubId) ?? false;
   };
 
+  const hasAnyClubs = availableClubs.length > 0;
+
   return (
     <ClubContext.Provider
       value={{
         selectedClub,
         availableClubs,
         isLoading,
+        hasAnyClubs,
         selectClub,
         refreshClubs,
         hasClubAccess: hasClubAccessFn,

@@ -34,8 +34,8 @@ export async function getPlayers(clubId?: string): Promise<Player[]> {
   try {
     const playersCollection = collection(db, 'players');
 
-    // Build query with clubId filter if provided
-    const q = clubId
+    // Try query with orderBy first
+    let q = clubId
       ? query(playersCollection, where('clubId', '==', clubId), orderBy('rating', 'desc'))
       : query(playersCollection, orderBy('rating', 'desc'));
 
@@ -44,18 +44,39 @@ export async function getPlayers(clubId?: string): Promise<Player[]> {
       setTimeout(() => reject(new Error('Firebase request timeout')), 10000); // 10 second timeout
     });
 
-    const snapshot = await Promise.race([
-      getDocs(q),
-      timeoutPromise
-    ]) as any;
+    let snapshot: any;
+    try {
+      snapshot = await Promise.race([
+        getDocs(q),
+        timeoutPromise
+      ]) as any;
+    } catch (indexError: any) {
+      // If index error, fall back to query without orderBy and sort client-side
+      if (indexError?.code === 'failed-precondition' || indexError?.message?.includes('index')) {
+        logger.warn('Index not ready, falling back to client-side sorting for players');
+        q = clubId
+          ? query(playersCollection, where('clubId', '==', clubId))
+          : query(playersCollection);
+
+        snapshot = await Promise.race([
+          getDocs(q),
+          timeoutPromise
+        ]) as any;
+      } else {
+        throw indexError;
+      }
+    }
 
     // Clean data to remove Firestore-specific objects that cause hydration issues
-    return snapshot.docs.map((doc) => {
+    const players = snapshot.docs.map((doc) => {
       const data = doc.data();
       // Remove problematic fields like createdAt that have toJSON methods
       const { createdAt, nameLower, ...cleanData } = data;
       return { id: doc.id, ...cleanData } as Player;
     });
+
+    // Sort by rating on client side (in case we fell back to simple query)
+    return players.sort((a, b) => b.rating - a.rating);
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getPlayers');
 
@@ -144,12 +165,27 @@ export async function getRecentGames(count: number = 5, clubId?: string): Promis
   try {
     const gamesCollection = collection(db, 'games');
 
-    // Build query with clubId filter if provided
-    const q = clubId
+    // Try query with orderBy first
+    let q = clubId
       ? query(gamesCollection, where('clubId', '==', clubId), orderBy('date', 'desc'), limit(count))
       : query(gamesCollection, orderBy('date', 'desc'), limit(count));
 
-    const snapshot = await getDocs(q);
+    let snapshot: any;
+    try {
+      snapshot = await getDocs(q);
+    } catch (indexError: any) {
+      // If index error, fall back to query without orderBy and sort client-side
+      if (indexError?.code === 'failed-precondition' || indexError?.message?.includes('index')) {
+        logger.warn('Index not ready, falling back to client-side sorting for recent games');
+        q = clubId
+          ? query(gamesCollection, where('clubId', '==', clubId), limit(count * 2)) // Get more to compensate for sorting
+          : query(gamesCollection, limit(count * 2));
+
+        snapshot = await getDocs(q);
+      } else {
+        throw indexError;
+      }
+    }
 
     const allPlayerIds = new Set<string>();
     const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
@@ -178,7 +214,10 @@ export async function getRecentGames(count: number = 5, clubId?: string): Promis
       } as Game;
     });
 
-    return games;
+    // Sort by date descending and limit to requested count
+    return games
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, count);
   } catch (error) {
     console.error('Error fetching recent games: ', error);
     return [];
@@ -189,8 +228,8 @@ export async function getAllGames(clubId?: string): Promise<Game[]> {
   try {
     const gamesCollection = collection(db, 'games');
 
-    // Build query with clubId filter if provided
-    const q = clubId
+    // Try query with orderBy first
+    let q = clubId
       ? query(gamesCollection, where('clubId', '==', clubId), orderBy('date', 'desc'))
       : query(gamesCollection, orderBy('date', 'desc'));
 
@@ -199,10 +238,28 @@ export async function getAllGames(clubId?: string): Promise<Game[]> {
       setTimeout(() => reject(new Error('Firebase request timeout')), 15000); // 15 second timeout for games
     });
 
-    const snapshot = await Promise.race([
-      getDocs(q),
-      timeoutPromise
-    ]) as any;
+    let snapshot: any;
+    try {
+      snapshot = await Promise.race([
+        getDocs(q),
+        timeoutPromise
+      ]) as any;
+    } catch (indexError: any) {
+      // If index error, fall back to query without orderBy and sort client-side
+      if (indexError?.code === 'failed-precondition' || indexError?.message?.includes('index')) {
+        logger.warn('Index not ready, falling back to client-side sorting for all games');
+        q = clubId
+          ? query(gamesCollection, where('clubId', '==', clubId))
+          : query(gamesCollection);
+
+        snapshot = await Promise.race([
+          getDocs(q),
+          timeoutPromise
+        ]) as any;
+      } else {
+        throw indexError;
+      }
+    }
 
     const allPlayerIds = new Set<string>();
     const gameDocsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as any);
@@ -263,7 +320,8 @@ export async function getAllGames(clubId?: string): Promise<Game[]> {
       } as Game;
     });
 
-    return games;
+    // Sort by date descending (in case we fell back to simple query)
+    return games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   } catch (error) {
     console.error('Error fetching all games: ', error);
     return [];

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAllGames } from '@/hooks/use-games';
+import { useClub } from '@/contexts/club-context';
 import type { Game } from '@/lib/types';
 import {
   Select,
@@ -40,9 +41,12 @@ import {
 } from '@/components/ui/select';
 
 export function GamesClient() {
-  const { data: allGames, isLoading, error } = useAllGames();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: allGames, isLoading, error } = useAllGames(selectedClub?.id);
   const [timeFilter, setTimeFilter] = React.useState<string>('14');
   const [typeFilter, setTypeFilter] = React.useState<string>('all');
+
+  const clubName = selectedClub ? selectedClub.name : 'All Clubs';
 
   // Filter games based on selected criteria
   const filteredGames = React.useMemo(() => {
@@ -110,12 +114,40 @@ export function GamesClient() {
     };
   }, [filteredGames]);
 
-  if (isLoading) {
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="Games"
           description="View all recent games and match results."
+        />
+        <div className="flex flex-col items-center justify-center min-h-[40vh]">
+          <Card className="max-w-md">
+            <CardContent className="flex flex-col items-center justify-center text-center py-12 space-y-4">
+              <Swords className="h-12 w-12 text-muted-foreground" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">No Club Access</h3>
+                <p className="text-muted-foreground mb-2">
+                  You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Once you have club access, you'll be able to view game history.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={`${clubName} Games`}
+          description={`View all recent games and match results${selectedClub ? ` in ${clubName}` : ''}.`}
         />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -131,8 +163,8 @@ export function GamesClient() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Games"
-          description="View all recent games and match results."
+          title={`${clubName} Games`}
+          description={`View all recent games and match results${selectedClub ? ` in ${clubName}` : ''}.`}
         />
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -172,8 +204,8 @@ export function GamesClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Games"
-        description="View all recent games and match results."
+        title={`${clubName} Games`}
+        description={`View all recent games and match results${selectedClub ? ` in ${clubName}` : ''}.`}
       />
 
       {/* Condensed Stats Overview */}

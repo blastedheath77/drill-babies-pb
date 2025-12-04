@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,7 +24,8 @@ export function CirclePlayerSelector({
   onSelectionChange,
   className,
 }: CirclePlayerSelectorProps) {
-  const { data: players, isLoading, error, isError } = usePlayers();
+  const { selectedClub } = useClub();
+  const { data: players, isLoading, error, isError } = usePlayers(selectedClub?.id);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter players based on search query

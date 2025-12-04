@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import type { Player } from '@/lib/types';
 import { logGame } from '@/app/log-game/actions';
 import { PageHeader } from '@/components/page-header';
@@ -25,6 +25,9 @@ import { cn } from '@/lib/utils';
 import { ScoreSelector } from '@/components/ui/score-selector';
 import { CircleSelector } from '@/components/circle-selector';
 import { useCircles } from '@/hooks/use-circles';
+import { useClub } from '@/contexts/club-context';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
 
 interface LogGameClientPageProps {
   players: Player[];
@@ -42,7 +45,8 @@ const logGameSchema = z.object({
 
 export function LogGameClientPage({ players }: LogGameClientPageProps) {
   const { toast } = useToast();
-  const { data: circles } = useCircles();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: circles } = useCircles(selectedClub?.id);
   const [gameType, setGameType] = useState<'singles' | 'doubles'>('doubles');
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
   const [team1Player1, setTeam1Player1] = useState<Player | null>(null);
@@ -51,6 +55,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
   const [team2Player1, setTeam2Player1] = useState<Player | null>(null);
   const [team2Player2, setTeam2Player2] = useState<Player | null>(null);
   const [team2Score, setTeam2Score] = useState(0);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Filter players based on selected circle
   const filteredPlayers = useMemo(() => {
@@ -251,7 +256,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
   }
 
 
-  async function onSubmit() {
+  function onSubmit() {
     // Validate required fields
     if (!team1Player1 || !team2Player1) {
       toast({
@@ -271,6 +276,22 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       return;
     }
 
+    if (!selectedClub?.id) {
+      toast({
+        variant: 'destructive',
+        title: 'No Club Selected',
+        description: 'Please select a club before logging a game.',
+      });
+      return;
+    }
+
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  }
+
+  async function handleConfirmSubmit() {
+    if (!team1Player1 || !team2Player1 || !selectedClub?.id) return;
+
     const values = {
       gameType,
       team1Player1: team1Player1.id,
@@ -279,10 +300,12 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
       team2Player1: team2Player1.id,
       team2Player2: gameType === 'doubles' ? team2Player2?.id || '' : '',
       team2Score,
+      clubId: selectedClub.id,
     };
 
     try {
       await logGame(values);
+      setShowConfirmDialog(false);
       toast({
         title: 'Game logged!',
         description: 'The game has been successfully added to the records.',
@@ -303,8 +326,29 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     }
   }
 
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <>
+        <PageHeader title="Log Game" description="Record a new game result." />
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            You need to be assigned to a club before you can log games. Please contact an administrator.
+          </AlertDescription>
+        </Alert>
+      </>
+    );
+  }
+
+  const clubName = selectedClub ? selectedClub.name : 'your club';
+
   return (
     <>
+      <PageHeader
+        title="Log Game"
+        description={`Record a new game result for ${clubName}.`}
+      />
       <div className="space-y-6">
         <Card>
           <CardContent className="space-y-6 pt-6">
@@ -479,6 +523,20 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Score Confirmation Dialog */}
+      {team1Player1 && team2Player1 && (
+        <ScoreConfirmationDialog
+          open={showConfirmDialog}
+          onOpenChange={setShowConfirmDialog}
+          onConfirm={handleConfirmSubmit}
+          gameType={gameType}
+          team1Players={gameType === 'doubles' && team1Player2 ? [team1Player1, team1Player2] : [team1Player1]}
+          team2Players={gameType === 'doubles' && team2Player2 ? [team2Player1, team2Player2] : [team2Player1]}
+          team1Score={team1Score}
+          team2Score={team2Score}
+        />
+      )}
     </>
   );
 }

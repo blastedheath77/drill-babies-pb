@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useBoxLeague, useBoxesByLeague } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import { validateCycleComplete } from '@/lib/box-league-logic';
 
 interface BoxLeagueDetailClientProps {
@@ -17,9 +18,10 @@ interface BoxLeagueDetailClientProps {
 }
 
 export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProps) {
+  const { selectedClub } = useClub();
   const { data: boxLeague, isLoading, error } = useBoxLeague(boxLeagueId);
   const { data: boxes = [] } = useBoxesByLeague(boxLeagueId);
-  const { data: allPlayers = [] } = usePlayers();
+  const { data: allPlayers = [] } = usePlayers(selectedClub?.id);
   const [cycleValidation, setCycleValidation] = React.useState<{ complete: boolean; reason?: string } | null>(null);
 
   // Validate cycle completion status

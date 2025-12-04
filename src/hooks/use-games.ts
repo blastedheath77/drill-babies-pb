@@ -92,11 +92,11 @@ export function useOptimisticGameAdd() {
 }
 
 // Helper hook for partnership calculations
-export function usePartnershipsData() {
-  const allGamesQuery = useAllGames();
+export function usePartnershipsData(clubId?: string) {
+  const allGamesQuery = useAllGames(clubId);
   const playersQuery = useQuery({
-    queryKey: ['players'],
-    queryFn: getPlayers,
+    queryKey: ['players', clubId],
+    queryFn: () => getPlayers(clubId),
     staleTime: 10 * 1000,
   });
 

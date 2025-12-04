@@ -112,6 +112,7 @@ async function playerExistsByName(name: string): Promise<boolean> {
  */
 export async function safeAddPlayer(playerData: {
   name: string;
+  clubId: string;
   rating?: number;
   wins?: number;
   losses?: number;
@@ -120,19 +121,20 @@ export async function safeAddPlayer(playerData: {
 }): Promise<{ success: boolean; playerId?: string; message: string }> {
   try {
     const normalizedName = playerData.name.toLowerCase().trim();
-    
+
     // Check if player already exists
     if (await playerExistsByName(playerData.name)) {
-      return { 
-        success: false, 
-        message: `Player "${playerData.name}" already exists` 
+      return {
+        success: false,
+        message: `Player "${playerData.name}" already exists`
       };
     }
-    
-    // Add player with normalized name field for uniqueness
+
+    // Add player with normalized name field for uniqueness and clubId
     const docRef = await addDoc(collection(db, 'players'), {
       name: playerData.name.trim(),
       nameLower: normalizedName, // For uniqueness queries
+      clubId: playerData.clubId,
       avatar: DEFAULT_AVATAR_URL,
       rating: playerData.rating ?? DEFAULT_RATING,
       wins: playerData.wins ?? 0,
@@ -141,12 +143,12 @@ export async function safeAddPlayer(playerData: {
       pointsAgainst: playerData.pointsAgainst ?? 0,
       createdAt: serverTimestamp(),
     });
-    
-    logger.info(`Player added: ${playerData.name} (${docRef.id})`);
-    return { 
-      success: true, 
-      playerId: docRef.id, 
-      message: `Player "${playerData.name}" added successfully` 
+
+    logger.info(`Player added: ${playerData.name} (${docRef.id}) to club ${playerData.clubId}`);
+    return {
+      success: true,
+      playerId: docRef.id,
+      message: `Player "${playerData.name}" added successfully`
     };
   } catch (error) {
     logger.error('Failed to add player:', error);

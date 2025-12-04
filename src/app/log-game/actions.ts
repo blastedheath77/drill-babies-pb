@@ -27,6 +27,7 @@ const logGameSchema = z.object({
   team2Player1: z.string().min(1, 'Player is required'),
   team2Player2: z.string().optional(),
   team2Score: z.coerce.number().min(0).max(50, 'Score cannot exceed 50'),
+  clubId: z.string().min(1, 'Club ID is required'),
 })
   .refine(
     (data) => {
@@ -119,6 +120,7 @@ export async function logGame(values: z.infer<typeof logGameSchema>) {
     team2Player1,
     team2Player2,
     team2Score,
+    clubId,
   } = validatedData;
 
   const team1PlayerIds = [team1Player1];
@@ -216,13 +218,14 @@ export async function logGame(values: z.infer<typeof logGameSchema>) {
       }
     }
 
-    // 7. Add the game document with rating changes
+    // 7. Add the game document with rating changes and clubId
     await addDoc(collection(db, 'games'), {
       type: gameType === 'singles' ? 'Singles' : 'Doubles',
       date: serverTimestamp(),
       team1: { playerIds: team1PlayerIds, score: team1Score },
       team2: { playerIds: team2PlayerIds, score: team2Score },
       playerIds: allPlayerIds,
+      clubId,
       ratingChanges,
     });
 

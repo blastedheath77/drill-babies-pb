@@ -10,11 +10,14 @@ import { Trophy, Calendar, Users, Plus, Trash2, Loader2, AlertCircle, RefreshCw,
 import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { subscribeTournamentsRealtime, getTournamentsByStatus } from '@/lib/data';
 import { useAuth } from '@/contexts/auth-context';
+import { useClub } from '@/contexts/club-context';
 import Link from 'next/link';
 import type { Tournament } from '@/lib/types';
 
 export function TournamentsClient() {
   const { canCreateTournaments } = useAuth();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const clubName = selectedClub ? selectedClub.name : 'All Clubs';
   const [activeTournaments, setActiveTournaments] = useState<Tournament[]>([]);
   const [completedTournaments, setCompletedTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,8 +39,8 @@ export function TournamentsClient() {
       setLastRefresh(now);
       
       const [active, completed] = await Promise.all([
-        getTournamentsByStatus('active'),
-        getTournamentsByStatus('completed'),
+        getTournamentsByStatus('active', selectedClub?.id),
+        getTournamentsByStatus('completed', selectedClub?.id),
       ]);
       setActiveTournaments(active);
       setCompletedTournaments(completed);
@@ -75,7 +78,8 @@ export function TournamentsClient() {
     // Set up real-time listener as primary method
     const unsubscribe = subscribeTournamentsRealtime(
       handleTournamentsUpdate,
-      handleRealtimeError
+      handleRealtimeError,
+      selectedClub?.id
     );
 
     // Multiple refresh triggers for fool-proof updates
@@ -207,13 +211,43 @@ export function TournamentsClient() {
     </Card>
   );
 
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <>
+        <PageHeader
+          title="Tournaments"
+          description="Organise recreational play and tournaments."
+        />
+        <div className="flex flex-col items-center justify-center min-h-[40vh]">
+          <Card className="max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="flex items-center justify-center gap-2 text-xl">
+                <Users className="h-6 w-6" />
+                No Club Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Once you have club access, you'll be able to view and create tournaments.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
   // Loading state
   if (isLoading) {
     return (
       <>
         <PageHeader
-          title="Rec Play and Tournaments"
-          description="Organise recreational play and tournaments."
+          title={`${clubName} Tournaments`}
+          description={`Organise recreational play and tournaments${selectedClub ? ` in ${clubName}` : ''}.`}
         />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
@@ -230,8 +264,8 @@ export function TournamentsClient() {
     return (
       <>
         <PageHeader
-          title="Rec Play and Tournaments"
-          description="Organise recreational play and tournaments."
+          title={`${clubName} Tournaments`}
+          description={`Organise recreational play and tournaments${selectedClub ? ` in ${clubName}` : ''}.`}
         />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
@@ -251,8 +285,8 @@ export function TournamentsClient() {
   return (
     <>
       <PageHeader
-        title="Rec Play and Tournaments"
-        description="Organise recreational play and tournaments."
+        title={`${clubName} Tournaments`}
+        description={`Organise recreational play and tournaments${selectedClub ? ` in ${clubName}` : ''}.`}
       />
 
       {canCreateTournaments() && (

@@ -28,6 +28,7 @@ import { recordTournamentMatchResult } from '@/app/tournaments/match-actions';
 import { Trophy, Users } from 'lucide-react';
 import type { TournamentMatch, Player } from '@/lib/types';
 import { ScoreSelector } from '@/components/ui/score-selector';
+import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
 
 const matchResultFormSchema = z.object({
   team1Score: z.coerce
@@ -57,14 +58,16 @@ interface MatchResultDialogProps {
   children: React.ReactNode;
 }
 
-export function MatchResultDialog({ 
-  match, 
-  players, 
-  tournamentId, 
-  children 
+export function MatchResultDialog({
+  match,
+  players,
+  tournamentId,
+  children
 }: MatchResultDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingScores, setPendingScores] = useState<{ team1Score: number; team2Score: number } | null>(null);
   const { toast } = useToast();
 
   const form = useForm<MatchResultForm>({
@@ -94,16 +97,22 @@ export function MatchResultDialog({
 
   const { team1, team2 } = getMatchPlayers();
 
-  const onSubmit = async (data: MatchResultForm) => {
-    if (isSubmitting) return;
-    
+  const onSubmit = (data: MatchResultForm) => {
+    // Show confirmation dialog
+    setPendingScores({ team1Score: data.team1Score, team2Score: data.team2Score });
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!pendingScores || isSubmitting) return;
+
     setIsSubmitting(true);
 
     try {
       await recordTournamentMatchResult({
         matchId: match.id,
-        team1Score: data.team1Score,
-        team2Score: data.team2Score,
+        team1Score: pendingScores.team1Score,
+        team2Score: pendingScores.team2Score,
         tournamentId,
       });
 
@@ -112,8 +121,10 @@ export function MatchResultDialog({
         description: 'The match result has been saved and player ratings updated.',
       });
 
+      setShowConfirmDialog(false);
       setOpen(false);
       form.reset();
+      setPendingScores(null);
 
     } catch (error) {
       toast({
@@ -242,6 +253,20 @@ export function MatchResultDialog({
           </form>
         </Form>
       </DialogContent>
+
+      {/* Score Confirmation Dialog */}
+      {pendingScores && (
+        <ScoreConfirmationDialog
+          open={showConfirmDialog}
+          onOpenChange={setShowConfirmDialog}
+          onConfirm={handleConfirmSubmit}
+          gameType={match.player1Id && match.player2Id ? 'singles' : 'doubles'}
+          team1Players={team1}
+          team2Players={team2}
+          team1Score={pendingScores.team1Score}
+          team2Score={pendingScores.team2Score}
+        />
+      )}
     </Dialog>
   );
 }

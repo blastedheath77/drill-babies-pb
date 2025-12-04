@@ -1,6 +1,7 @@
 'use client';
 
 import { useCircles } from '@/hooks/use-circles';
+import { useClub } from '@/contexts/club-context';
 import {
   Select,
   SelectContent,
@@ -33,7 +34,8 @@ export function CircleSelector({
   className,
   size = 'default',
 }: CircleSelectorProps) {
-  const { data: circles, isLoading, error, isError } = useCircles();
+  const { selectedClub } = useClub();
+  const { data: circles, isLoading, error, isError } = useCircles(selectedClub?.id);
 
   const handleValueChange = (value: string) => {
     if (value === ALL_PLAYERS_VALUE) {

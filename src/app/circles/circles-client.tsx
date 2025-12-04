@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCirclesWithPlayerCount } from '@/hooks/use-circles';
+import { useClub } from '@/contexts/club-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +24,38 @@ interface CirclesClientProps {
 }
 
 export function CirclesClient({ initialCircles }: CirclesClientProps) {
-  const { data: circles, isLoading, error, isError } = useCirclesWithPlayerCount();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: circles, isLoading, error, isError } = useCirclesWithPlayerCount(selectedClub?.id);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const clubName = selectedClub ? selectedClub.name : 'All Clubs';
 
   // Use React Query data if available, otherwise fall back to initial data
   const allCircles = circles || initialCircles;
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <Users2 className="h-6 w-6" />
+              No Club Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Once you have club access, you'll be able to view and manage circles.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isError) {
     return (
@@ -85,9 +113,9 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Circles</h1>
+            <h1 className="text-2xl font-bold">{clubName} Circles</h1>
             <p className="text-muted-foreground">
-              No circles created yet. Create your first circle to start organizing players.
+              No circles created yet{selectedClub ? ` in ${clubName}` : ''}. Create your first circle to start organizing players.
             </p>
           </div>
           <CircleFormDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -124,7 +152,7 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Circles</h1>
+          <h1 className="text-2xl font-bold">{clubName} Circles</h1>
         </div>
         <CircleFormDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <Button>

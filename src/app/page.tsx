@@ -15,19 +15,45 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePlayers } from '@/hooks/use-players';
 import { useRecentGames } from '@/hooks/use-games';
+import { useClub } from '@/contexts/club-context';
 import { BarChart, Trophy, Users, Swords, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
 
 export default function Home() {
-  const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers();
-  const { data: recentGames, isLoading: gamesLoading, error: gamesError } = useRecentGames(5);
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: allPlayers, isLoading: playersLoading, error: playersError } = usePlayers(selectedClub?.id);
+  const { data: recentGames, isLoading: gamesLoading, error: gamesError } = useRecentGames(5, selectedClub?.id);
 
   // Filter out players with no games played
   const players = allPlayers?.filter(player => (player.wins + player.losses) > 0) || [];
 
-  const isLoading = playersLoading || gamesLoading;
+  const isLoading = playersLoading || gamesLoading || clubsLoading;
   const hasError = playersError || gamesError;
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Card className="max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <Users className="h-6 w-6" />
+              No Club Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Once you have club access, you'll be able to view players, games, and statistics.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (hasError) {
     return (

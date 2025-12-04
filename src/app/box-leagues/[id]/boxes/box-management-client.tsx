@@ -14,6 +14,7 @@ import { SwapPlayersDialog } from '@/components/box-leagues/swap-players-dialog'
 import { SubstitutePlayerDialog } from '@/components/box-leagues/substitute-player-dialog';
 import { useBoxLeague, useBoxesByLeague, useCreateBox, useUpdateBox, usePlayerStatsByBox } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
+import { useClub } from '@/contexts/club-context';
 import type { Box, Player } from '@/lib/types';
 
 interface BoxManagementClientProps {
@@ -263,9 +264,10 @@ function UnassignedPlayer({ player, onDragStart, onDragEnd, isBeingDragged, isDr
 }
 
 export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
+  const { selectedClub } = useClub();
   const { data: boxLeague, isLoading: leagueLoading } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading, refetch: refetchBoxes } = useBoxesByLeague(boxLeagueId);
-  const { data: allPlayers = [], isLoading: playersLoading } = usePlayers();
+  const { data: allPlayers = [], isLoading: playersLoading } = usePlayers(selectedClub?.id);
   const createBox = useCreateBox();
   const updateBox = useUpdateBox();
 

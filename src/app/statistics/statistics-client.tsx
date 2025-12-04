@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePlayers } from '@/hooks/use-players';
 import { useCircles } from '@/hooks/use-circles';
+import { useClub } from '@/contexts/club-context';
 import { SortableStatisticsTable } from '@/components/sortable-statistics-table';
 import { CircleSelector } from '@/components/circle-selector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,8 +21,9 @@ interface StatisticsClientProps {
 export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: players, isLoading, error, isError } = usePlayers();
-  const { data: circles } = useCircles();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { data: players, isLoading, error, isError } = usePlayers(selectedClub?.id);
+  const { data: circles } = useCircles(selectedClub?.id);
 
   // Initialize state from URL params
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(() => {
@@ -74,6 +76,30 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
       selectedCircle.playerIds.includes(player.id)
     );
   }, [activePlayersData, selectedCircleId, circles]);
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <Users className="h-6 w-6" />
+              No Club Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Once you have club access, you'll be able to view player statistics.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isError) {
     return (

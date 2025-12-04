@@ -3,8 +3,8 @@
 ## Status Overview
 
 **Started:** Phase 1
-**Current Phase:** Phase 4 (Partially Complete)
-**Completion:** ~50%
+**Current Phase:** Phase 4 & Phase 5 (Advanced)
+**Completion:** ~75%
 
 ---
 
@@ -75,59 +75,63 @@
 - [ ] Implement member management UI
 - [ ] Add role assignment controls
 
-### 3. Update Existing Pages to Use Selected Club
+### 3. Update Existing Pages to Use Selected Club ✓
 
-#### Players Page
+#### Players Page ✓
 **File:** `/src/app/players/page.tsx`
-- [ ] Import `useClub` hook
-- [ ] Pass `selectedClub?.id` to `usePlayers()` hook
-- [ ] Update page title to show club context
-- [ ] Handle no club selected state
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to `usePlayers()` hook
+- [x] Update page title to show club context
+- [x] Handle no club selected state (shows "No Club Access" message)
 
-**File:** `/src/app/players/players-client.tsx`
-- [ ] Update to use clubId from props
-- [ ] Ensure player list filters by club
-
-#### Games Page
-**File:** `/src/app/games/page.tsx`
-- [ ] Import `useClub` hook
-- [ ] Pass `selectedClub?.id` to `useAllGames()` hook
-- [ ] Update page title with club context
-
+#### Games Page ✓
 **File:** `/src/app/games/games-client.tsx`
-- [ ] Update to use clubId from props
-- [ ] Ensure games list filters by club
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to `useAllGames()` hook
+- [x] Update page title with club context
+- [x] Ensure games list filters by club
+- [x] Handle no club selected state
 
-#### Tournaments Page
-**File:** `/src/app/tournaments/page.tsx`
-- [ ] Import `useClub` hook
-- [ ] Pass `selectedClub?.id` to `useAllTournaments()` hook
-- [ ] Update page title with club context
-
+#### Tournaments Page ✓
 **File:** `/src/app/tournaments/tournaments-client.tsx`
-- [ ] Update to use clubId from props
-- [ ] Ensure tournaments filter by club
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to tournament queries
+- [x] Update page title with club context
+- [x] Ensure tournaments filter by club
+- [x] Handle no club selected state
 
-#### Circles Page
-**File:** `/src/app/circles/page.tsx`
-- [ ] Import `useClub` hook
-- [ ] Pass `selectedClub?.id` to `useCircles()` hook
-- [ ] Update page title with club context
-
+#### Circles Page ✓
 **File:** `/src/app/circles/circles-client.tsx`
-- [ ] Update to use clubId from props
-- [ ] Ensure circles filter by club
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to `useCircles()` hook
+- [x] Update page title with club context
+- [x] Ensure circles filter by club
+- [x] Handle no club selected state
 
-#### Statistics Page
-**File:** `/src/app/statistics/page.tsx`
-- [ ] Import `useClub` hook
-- [ ] Scope all statistics to selected club
-- [ ] Update queries to include clubId
+#### Statistics Page ✓
+**File:** `/src/app/statistics/statistics-client.tsx`
+- [x] Import `useClub` hook
+- [x] Scope all statistics to selected club
+- [x] Update queries to include clubId
+- [x] Handle no club selected state
 
-#### Dashboard/Home Page
+#### Head-to-Head Page ✓
+**File:** `/src/app/head-to-head/head-to-head-client.tsx`
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to data queries
+- [x] Handle no club selected state
+
+#### Partnerships Page ✓
+**File:** `/src/app/partnerships/partnerships-client-v2.tsx`
+- [x] Import `useClub` hook
+- [x] Pass `selectedClub?.id` to data queries
+- [x] Handle no club selected state
+
+#### Dashboard/Home Page ✓
 **File:** `/src/app/page.tsx`
-- [ ] Update to use selected club context
-- [ ] Show club-specific stats and recent activity
+- [x] Update to use selected club context
+- [x] Show club-specific stats and recent activity
+- [x] Handle no club selected state
 
 ### 4. Update Create Forms to Include ClubId
 
@@ -177,37 +181,43 @@
 
 ---
 
-## 📋 Phase 5: Migration Script & Testing
+## 📋 Phase 5: Migration Script & Testing (Partial) ✓
 
-### 1. Create Migration Script
-**File:** `/scripts/migrate-to-clubs.ts`
+### 1. Create Migration Script (Partial) ✓
+**Files Created:**
+- `/scripts/migrate-to-clubs.ts` ✓
+- `/scripts/assign-players-to-dlwest.ts` ✓
+- `/scripts/assign-games-to-dlwest.ts` ✓
+- `/scripts/remove-user.ts` ✓
+- `/scripts/delete-user-account.ts` ✓
 
-- [ ] Create script to add clubId to all existing data
-- [ ] Create default "DLWest" club
-- [ ] Assign all existing players to DLWest
-- [ ] Assign all existing games to DLWest
+- [x] Create script to add clubId to all existing data
+- [x] Create default "DLWest" club
+- [x] Assign all existing players to DLWest (22 players migrated)
+- [x] Assign all existing games to DLWest (188 games migrated)
 - [ ] Assign all existing tournaments to DLWest
 - [ ] Assign all existing circles to DLWest
 - [ ] Assign all existing box leagues to DLWest
-- [ ] Update all user accounts with DLWest membership
-- [ ] Set DLWest as selectedClubId for all users
-- [ ] Add logging and progress tracking
+- [x] Update user accounts with DLWest membership
+- [x] Set DLWest as selectedClubId for users
+- [x] Add logging and progress tracking
 - [ ] Add rollback capability
 
-### 2. Testing
-- [ ] Test migration script on development database
-- [ ] Verify all data has clubId field
-- [ ] Test club switching functionality
-- [ ] Test data isolation (users only see their club's data)
+### 2. Testing (Partial) ✓
+- [x] Test migration script on development database
+- [x] Verify all data has clubId field (players & games verified)
+- [x] Test club switching functionality
+- [x] Test data isolation (users without clubs see "No Club Access")
+- [x] Test data privacy (users without clubs cannot see other clubs' data)
 - [ ] Test permissions (global admin vs club admin)
-- [ ] Test creating new clubs
-- [ ] Test adding members to clubs
+- [x] Test creating new clubs (tested via Firebase console)
+- [x] Test adding members to clubs (tested via Firebase console)
 - [ ] Test removing members from clubs
-- [ ] Test all CRUD operations with club filtering
-- [ ] Test multi-club scenarios (user in multiple clubs)
-- [ ] Test single-club scenarios
-- [ ] Test UI with no clubs
-- [ ] Verify all indexes are working
+- [x] Test queries with club filtering
+- [x] Test multi-club scenarios (tested with second club)
+- [x] Test single-club scenarios
+- [x] Test UI with no clubs (displays appropriate empty states)
+- [x] Verify indexes are working (with fallback for building indexes)
 
 ---
 
@@ -351,9 +361,20 @@ const { data } = useData(selectedClub?.id);
 ## Current Status
 
 **Last Updated:** 2025-12-03
-**Current Phase:** Phase 4 - UI Components (50% complete)
-**Next Task:** Create club management page
-**Estimated Completion:** Phase 4 remaining tasks + Phases 5-8
+**Current Phase:** Phase 4 & 5 (75% complete)
+**Latest Completed:** Data privacy implementation - users without clubs cannot see any data
+**Next Priority Tasks:**
+1. Update create forms to include clubId (Phase 4.4)
+2. Create club management page (Phase 4.1)
+3. Complete tournament/circle/box league migrations (Phase 5)
+4. Implement Firestore security rules (Phase 6)
+
+**Recent Achievements:**
+- ✅ All major pages updated with club filtering
+- ✅ Data privacy: Users without clubs see "No Club Access" message
+- ✅ Players and games migrated to DLWest club
+- ✅ Club context integrated across entire app
+- ✅ Fallback mechanisms for Firestore index building
 
 ---
 

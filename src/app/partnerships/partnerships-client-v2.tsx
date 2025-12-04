@@ -18,6 +18,7 @@ import { Users, Swords, Trophy, TrendingUp } from 'lucide-react';
 import type { Player, Partnership } from '@/lib/types';
 import Link from 'next/link';
 import { usePartnershipsData } from '@/hooks/use-games';
+import { useClub } from '@/contexts/club-context';
 import { getPartnershipStats } from '@/lib/data';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -33,7 +34,8 @@ interface BestPartnership extends Partnership {
 }
 
 export function PartnershipsClientV2() {
-  const { games, players, isLoading, error } = usePartnershipsData();
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { games, players, isLoading, error } = usePartnershipsData(selectedClub?.id);
 
   // Calculate partnerships - always call useMemo hooks
   const allPartnerships: PartnershipData[] = React.useMemo(() => {
@@ -126,6 +128,36 @@ export function PartnershipsClientV2() {
       return { totalPartnerships: 0, totalGames: 0, avgWinRate: 0, qualifiedPairs: 0 };
     }
   }, [allPartnerships, bestPartnerships]);
+
+  // Show message if user has no clubs
+  if (!clubsLoading && !hasAnyClubs) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Partnership Analysis"
+          description="Comprehensive analysis of doubles partnerships across all players."
+        />
+        <div className="flex flex-col items-center justify-center min-h-[40vh]">
+          <Card className="max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="flex items-center justify-center gap-2 text-xl">
+                <Users className="h-6 w-6" />
+                No Club Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Once you have club access, you'll be able to view partnership analysis.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Render loading state
   if (isLoading) {
