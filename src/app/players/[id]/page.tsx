@@ -5,6 +5,7 @@ import {
   getHeadToHeadStats,
   getPartnershipStats,
   getPlayers,
+  calculatePlayerForm,
 } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +37,9 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
       : '0';
   const pointsDiff = player.pointsFor - player.pointsAgainst;
 
+  // Calculate player form
+  const form = calculatePlayerForm(player.id, games, player.rating);
+
   return (
     <>
       <PageHeader
@@ -44,7 +48,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-8">
-          <PlayerProfileClient player={player} />
+          <PlayerProfileClient player={player} form={form} />
           <Card>
             <CardContent className="p-4">
               <div className="grid grid-cols-4 gap-4 text-center">

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { useClubs, useCreateClub, useUpdateClub } from '@/hooks/use-clubs';
+import { useClubs, useCreateClub } from '@/hooks/use-clubs';
+import { getClubMemberCount } from '@/lib/clubs';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,7 +23,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Plus, Settings, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Plus, Users, Search } from 'lucide-react';
 import type { Club } from '@/lib/types';
 import Link from 'next/link';
 
@@ -30,16 +32,45 @@ export function ClubsClient() {
   const { user, isAdmin } = useAuth();
   const { data: clubs, isLoading } = useClubs();
   const createClub = useCreateClub();
-  const updateClub = useUpdateClub();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
   });
+
+  // Load member counts for all clubs
+  useEffect(() => {
+    async function loadMemberCounts() {
+      if (!clubs) return;
+
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        clubs.map(async (club) => {
+          counts[club.id] = await getClubMemberCount(club.id);
+        })
+      );
+      setMemberCounts(counts);
+    }
+
+    loadMemberCounts();
+  }, [clubs]);
+
+  // Filter clubs based on search query
+  const filteredClubs = useMemo(() => {
+    if (!clubs) return [];
+    if (!searchQuery.trim()) return clubs;
+
+    const query = searchQuery.toLowerCase();
+    return clubs.filter(
+      (club) =>
+        club.name.toLowerCase().includes(query) ||
+        club.description?.toLowerCase().includes(query)
+    );
+  }, [clubs, searchQuery]);
 
   // Redirect if not admin
   if (!isAdmin()) {
@@ -79,38 +110,9 @@ export function ClubsClient() {
     }
   };
 
-  const handleEditClub = async () => {
-    if (!selectedClub) return;
-
-    try {
-      await updateClub.mutateAsync({
-        id: selectedClub.id,
-        data: {
-          name: formData.name,
-          description: formData.description,
-        },
-      });
-
-      setIsEditDialogOpen(false);
-      setSelectedClub(null);
-      setFormData({ name: '', description: '' });
-    } catch (error) {
-      console.error('Error updating club:', error);
-    }
-  };
-
   const openCreateDialog = () => {
     setFormData({ name: '', description: '' });
     setIsCreateDialogOpen(true);
-  };
-
-  const openEditDialog = (club: Club) => {
-    setSelectedClub(club);
-    setFormData({
-      name: club.name,
-      description: club.description || '',
-    });
-    setIsEditDialogOpen(true);
   };
 
   if (isLoading) {
@@ -139,6 +141,19 @@ export function ClubsClient() {
         </Button>
       </div>
 
+      {/* Search */}
+      {clubs && clubs.length > 0 && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search clubs..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      )}
+
       {/* Clubs List */}
       {!clubs || clubs.length === 0 ? (
         <Card>
@@ -149,47 +164,54 @@ export function ClubsClient() {
             </CardDescription>
           </CardHeader>
         </Card>
+      ) : filteredClubs.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>No clubs found</CardTitle>
+            <CardDescription>
+              No clubs match your search query.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {clubs.map((club) => (
-            <Card key={club.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
+          {filteredClubs.map((club) => {
+            const memberCount = memberCounts[club.id] ?? 0;
+
+            return (
+              <Card key={club.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
                   <div className="space-y-1">
-                    <CardTitle>{club.name}</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="truncate">{club.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">
                       {club.description || 'No description'}
                     </CardDescription>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(club)}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Members</span>
+                      </div>
+                      <Badge variant="secondary">
+                        {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Created {new Date(club.createdDate).toLocaleDateString()}
+                    </div>
+                    <Link href={`/clubs/${club.id}/settings`}>
+                      <Button variant="outline" className="w-full mt-2">
+                        Manage Club
+                      </Button>
+                    </Link>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Users className="mr-2 h-4 w-4" />
-                    <span>Members</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Created {new Date(club.createdDate).toLocaleDateString()}
-                  </div>
-                  <Link href={`/clubs/${club.id}/settings`}>
-                    <Button variant="outline" className="w-full mt-4">
-                      Manage Club
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -245,64 +267,6 @@ export function ClubsClient() {
                 </>
               ) : (
                 'Create Club'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Club Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Club</DialogTitle>
-            <DialogDescription>
-              Update club information.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Club Name *</Label>
-              <Input
-                id="edit-name"
-                placeholder="Enter club name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                placeholder="Enter club description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleEditClub}
-              disabled={!formData.name || updateClub.isPending}
-            >
-              {updateClub.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                'Update Club'
               )}
             </Button>
           </DialogFooter>

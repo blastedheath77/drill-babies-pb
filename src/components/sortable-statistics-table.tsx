@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useMemo, useEffect } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, BarChart3 } from 'lucide-react';
@@ -27,29 +26,40 @@ import { cn } from '@/lib/utils';
 
 interface SortableStatisticsTableProps {
   players: Player[];
+  showRating?: boolean; // Whether to show the rating column (only for "All Time" filter)
+  initialSortField?: SortField; // Optional initial sort field
 }
 
-type SortField = 'rating' | 'wins' | 'winPercentage' | 'pointsDiff' | 'name';
+type SortField = 'rating' | 'wins' | 'winPercentage' | 'pointsDiff' | 'name' | 'form';
 type SortDirection = 'asc' | 'desc';
-type StatDisplay = 'winloss' | 'winpercentage' | 'pointsdiff';
+type FourthStatDisplay = 'winloss' | 'pointsdiff';
 
 interface SortConfig {
   field: SortField;
   direction: SortDirection;
 }
 
-const statDisplayOptions = [
+const fourthStatOptions = [
   { value: 'winloss', label: 'Win/Loss', shortLabel: 'W/L' },
-  { value: 'winpercentage', label: 'Win Percentage', shortLabel: 'Win %' },
-  { value: 'pointsdiff', label: 'Points Difference', shortLabel: 'Pts Diff' },
+  { value: 'pointsdiff', label: 'Points Diff', shortLabel: 'Pts Diff' },
 ] as const;
 
-export function SortableStatisticsTable({ players }: SortableStatisticsTableProps) {
+export function SortableStatisticsTable({ players, showRating = true, initialSortField }: SortableStatisticsTableProps) {
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    field: 'rating',
+    field: initialSortField || (showRating ? 'rating' : 'winPercentage'),
     direction: 'desc',
   });
-  const [statDisplay, setStatDisplay] = useState<StatDisplay>('winloss');
+  const [fourthStat, setFourthStat] = useState<FourthStatDisplay>('winloss');
+
+  // Update sort when initialSortField changes (e.g., when date filter changes)
+  useEffect(() => {
+    if (initialSortField) {
+      setSortConfig({
+        field: initialSortField,
+        direction: 'desc',
+      });
+    }
+  }, [initialSortField]);
 
   const sortedPlayers = useMemo(() => {
     const sorted = [...players].sort((a, b) => {
@@ -72,6 +82,10 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
         case 'pointsDiff':
           aValue = a.pointsFor - a.pointsAgainst;
           bValue = b.pointsFor - b.pointsAgainst;
+          break;
+        case 'form':
+          aValue = (a as any).form?.score ?? 50;
+          bValue = (b as any).form?.score ?? 50;
           break;
         case 'name':
           aValue = a.name.toLowerCase();
@@ -105,6 +119,7 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
       case 'wins':
       case 'winPercentage':
       case 'pointsDiff':
+      case 'form':
         // Higher values are better - if sorted ascending, reverse the rank
         return sortConfig.direction === 'asc' ? players.length - playerIndex : playerIndex + 1;
       case 'name':
@@ -186,40 +201,23 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
     );
   };
 
-  const selectedOption = statDisplayOptions.find(opt => opt.value === statDisplay);
+  const selectedOption = fourthStatOptions.find(opt => opt.value === fourthStat);
 
-  const renderStatCell = (player: Player) => {
-    const winPercentage = player.wins + player.losses > 0
-      ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(0)
-      : '0';
+  const renderFourthStatCell = (player: Player) => {
     const pointsDiff = player.pointsFor - player.pointsAgainst;
 
-    switch (statDisplay) {
+    switch (fourthStat) {
       case 'winloss':
         return (
           <div className="font-medium text-sm sm:text-base">{player.wins} / {player.losses}</div>
         );
-      case 'winpercentage':
-        return (
-          <div className="space-y-0.5">
-            <div className="font-medium text-sm sm:text-base lg:text-lg">{winPercentage}%</div>
-            <div className="text-xs text-muted-foreground">
-              {player.wins} of {player.wins + player.losses}
-            </div>
-          </div>
-        );
       case 'pointsdiff':
         return (
-          <div className="space-y-0.5">
-            <div className={cn(
-              "font-medium text-sm sm:text-base lg:text-lg",
-              pointsDiff > 0 ? 'text-green-600' : pointsDiff < 0 ? 'text-red-600' : 'text-muted-foreground'
-            )}>
-              {pointsDiff > 0 ? `+${pointsDiff}` : pointsDiff}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {player.pointsFor} - {player.pointsAgainst}
-            </div>
+          <div className={cn(
+            "font-medium text-sm sm:text-base",
+            pointsDiff > 0 ? 'text-green-600' : pointsDiff < 0 ? 'text-red-600' : 'text-muted-foreground'
+          )}>
+            {pointsDiff > 0 ? `+${pointsDiff}` : pointsDiff}
           </div>
         );
       default:
@@ -227,12 +225,10 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
     }
   };
 
-  const getStatSortField = (): SortField => {
-    switch (statDisplay) {
+  const getFourthStatSortField = (): SortField => {
+    switch (fourthStat) {
       case 'winloss':
         return 'wins';
-      case 'winpercentage':
-        return 'winPercentage';
       case 'pointsdiff':
         return 'pointsDiff';
       default:
@@ -247,23 +243,23 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
           <div>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Click headers to sort • Select stat to display
+              Click headers to sort
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-              Show:
+              4th Column:
             </span>
-            <Select value={statDisplay} onValueChange={(value: StatDisplay) => setStatDisplay(value)}>
-              <SelectTrigger className="w-[140px] lg:w-[160px]">
+            <Select value={fourthStat} onValueChange={(value: FourthStatDisplay) => setFourthStat(value)}>
+              <SelectTrigger className="w-[120px] lg:w-[140px]">
                 <SelectValue>
                   <span className="lg:hidden">{selectedOption?.shortLabel}</span>
                   <span className="hidden lg:inline">{selectedOption?.label}</span>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {statDisplayOptions.map((option) => (
+                {fourthStatOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -278,65 +274,89 @@ export function SortableStatisticsTable({ players }: SortableStatisticsTableProp
           <Table className="table-fixed w-full min-w-[320px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[30px] sm:w-[40px] lg:w-[50px] text-center px-1 sm:px-2">
-                  <span className="lg:hidden">#</span>
-                  <span className="hidden lg:inline">Rank</span>
+                <TableHead className="w-[40px] sm:w-[50px] text-center px-1 sm:px-2">
+                  <span className="text-xs sm:text-sm">#</span>
                 </TableHead>
-                <SortableHeader field="name" className="min-w-[120px] sm:min-w-[140px] px-2 sm:px-3 lg:px-4">
+                <SortableHeader field="name" className="min-w-[100px] sm:min-w-[120px] px-2 sm:px-3">
                   Player
                 </SortableHeader>
-                <SortableHeader field="rating" className="w-[60px] sm:w-[80px] lg:w-[100px] text-center px-1 sm:px-2">
-                  <span className="lg:hidden text-xs">Rating</span>
-                  <span className="hidden lg:inline">Rating</span>
+                {showRating && (
+                  <SortableHeader field="rating" className="w-[60px] sm:w-[70px] text-center px-1 sm:px-2">
+                    <span className="text-xs sm:text-sm">Rating</span>
+                  </SortableHeader>
+                )}
+                <SortableHeader field="winPercentage" className="w-[60px] sm:w-[70px] text-center px-1 sm:px-2">
+                  <span className="text-xs sm:text-sm">Win %</span>
                 </SortableHeader>
-                <SortableHeader field={getStatSortField()} className="w-[70px] sm:w-[90px] lg:w-[120px] text-center px-1 sm:px-2">
-                  <span className="lg:hidden text-xs">{selectedOption?.shortLabel}</span>
-                  <span className="hidden lg:inline">{selectedOption?.label}</span>
+                <SortableHeader field="form" className="w-[60px] sm:w-[70px] text-center px-1 sm:px-2">
+                  <span className="text-xs sm:text-sm">Form</span>
+                </SortableHeader>
+                <SortableHeader field={getFourthStatSortField()} className="w-[70px] sm:w-[80px] text-center px-1 sm:px-2">
+                  <span className="text-xs sm:text-sm">{selectedOption?.shortLabel}</span>
                 </SortableHeader>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedPlayers.map((player, index) => (
-                <TableRow key={player.id}>
-                  <TableCell className="text-center font-bold text-base lg:text-lg px-1 sm:px-2">
-                    {(() => {
-                      const rank = getPlayerRank(index);
-                      const badgeProps = getRankBadgeProps(rank);
-                      return (
-                        <Badge variant={badgeProps.variant} className={badgeProps.className}>
-                          {rank}
-                        </Badge>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell className="p-2 sm:p-3 lg:p-4">
-                    <div className="flex items-center gap-2 sm:gap-3 lg:gap-3 min-w-0">
-                      <Avatar className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 shrink-0">
-                        <AvatarImage
-                          src={player.avatar}
-                          alt={player.name}
-                          data-ai-hint="player avatar"
-                        />
-                        <AvatarFallback className="text-xs lg:text-sm">
-                          {player.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
+              {sortedPlayers.map((player, index) => {
+                const rank = getPlayerRank(index);
+                const badgeProps = getRankBadgeProps(rank);
+                const winPercentage = player.wins + player.losses > 0
+                  ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(0)
+                  : '0';
+                const form = (player as any).form;
+                const formScore = form?.score ?? 50;
+                const formColorClass = formScore >= 65
+                  ? 'text-green-600'
+                  : formScore <= 35
+                  ? 'text-red-600'
+                  : 'text-yellow-600';
+
+                // Format name based on whether rating column is shown
+                const displayName = showRating
+                  ? (() => {
+                      const parts = player.name.trim().split(/\s+/);
+                      if (parts.length === 1) return player.name;
+                      const firstName = parts[0];
+                      const lastName = parts.slice(1).join(' ');
+                      return `${firstName.charAt(0)}. ${lastName}`;
+                    })()
+                  : player.name;
+
+                return (
+                  <TableRow key={player.id}>
+                    <TableCell className="text-center font-bold text-sm sm:text-base px-1 sm:px-2">
+                      <Badge variant={badgeProps.variant} className={badgeProps.className}>
+                        {rank}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="p-2 sm:p-3">
                       <Link
                         href={`/players/${player.id}`}
-                        className="font-medium hover:underline text-sm sm:text-base lg:text-base truncate"
+                        className="font-medium hover:underline text-sm sm:text-base truncate"
+                        title={player.name}
                       >
-                        {player.name}
+                        {displayName}
                       </Link>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-center text-sm sm:text-base lg:text-base font-medium px-1 sm:px-2">
-                    {player.rating.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-center px-1 sm:px-2">
-                    {renderStatCell(player)}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    {showRating && (
+                      <TableCell className="font-mono text-center text-sm sm:text-base font-medium px-1 sm:px-2">
+                        {player.rating.toFixed(2)}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-center text-sm sm:text-base font-medium px-1 sm:px-2">
+                      {winPercentage}%
+                    </TableCell>
+                    <TableCell className="text-center px-1 sm:px-2">
+                      <div className={cn("text-sm sm:text-base font-bold", formColorClass)}>
+                        {formScore}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center px-1 sm:px-2">
+                      {renderFourthStatCell(player)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

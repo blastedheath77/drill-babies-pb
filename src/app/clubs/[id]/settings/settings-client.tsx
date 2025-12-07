@@ -8,6 +8,7 @@ import {
   useUpdateClub,
   useAddUserToClub,
   useRemoveUserFromClub,
+  useDeleteClub,
 } from '@/hooks/use-clubs';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +26,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, ArrowLeft, UserPlus, Trash2, Shield } from 'lucide-react';
+import { Loader2, ArrowLeft, UserPlus, Trash2, Shield, AlertTriangle } from 'lucide-react';
 import { getAllUsers } from '@/lib/user-management';
 import type { User } from '@/lib/auth-types';
 import { Badge } from '@/components/ui/badge';
@@ -51,11 +62,13 @@ export function ClubSettingsClient({ clubId }: ClubSettingsClientProps) {
   const updateClub = useUpdateClub();
   const addUserToClub = useAddUserToClub();
   const removeUserFromClub = useRemoveUserFromClub();
+  const deleteClub = useDeleteClub();
 
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [clubMembers, setClubMembers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedRole, setSelectedRole] = useState<'member' | 'club_admin'>('member');
 
@@ -211,6 +224,16 @@ export function ClubSettingsClient({ clubId }: ClubSettingsClientProps) {
     }
   };
 
+  const handleDeleteClub = async () => {
+    try {
+      await deleteClub.mutateAsync(clubId);
+      setIsDeleteDialogOpen(false);
+      router.push('/clubs');
+    } catch (error) {
+      console.error('Error deleting club:', error);
+    }
+  };
+
   const availableUsers = allUsers.filter(
     (u) => !u.clubMemberships?.includes(clubId)
   );
@@ -357,6 +380,43 @@ export function ClubSettingsClient({ clubId }: ClubSettingsClientProps) {
         </CardContent>
       </Card>
 
+      {/* Danger Zone */}
+      <Card className="border-destructive">
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+            <div>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>
+                Irreversible and destructive actions
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/50 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-sm">Delete Club</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    This will deactivate the club and make it no longer visible.
+                    All data will be preserved but inaccessible.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Club
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Add Member Dialog */}
       <Dialog
         open={isAddMemberDialogOpen}
@@ -432,6 +492,37 @@ export function ClubSettingsClient({ clubId }: ClubSettingsClientProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Club Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Club?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{club.name}</strong>?
+              This action will deactivate the club and it will no longer be visible.
+              All data associated with this club will be preserved but inaccessible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClub}
+              disabled={deleteClub.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteClub.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Club'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

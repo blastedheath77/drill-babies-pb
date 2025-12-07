@@ -5,6 +5,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -233,5 +234,43 @@ export async function removeUserFromClub(userId: string, clubId: string): Promis
   } catch (error) {
     logger.error(`Error removing user ${userId} from club ${clubId}:`, error);
     throw error;
+  }
+}
+
+/**
+ * Delete a club (admin only)
+ * Note: This performs a soft delete by setting isActive to false
+ */
+export async function deleteClub(clubId: string): Promise<void> {
+  try {
+    const clubRef = doc(clubsCollection, clubId);
+
+    // Soft delete - set isActive to false instead of actually deleting
+    await updateDoc(clubRef, {
+      isActive: false,
+      updatedAt: serverTimestamp(),
+    });
+
+    logger.info(`Deleted (soft) club: ${clubId}`);
+  } catch (error) {
+    logger.error(`Error deleting club ${clubId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get the number of members in a club
+ */
+export async function getClubMemberCount(clubId: string): Promise<number> {
+  try {
+    const q = query(
+      usersCollection,
+      where('clubMemberships', 'array-contains', clubId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    logger.error(`Error getting member count for club ${clubId}:`, error);
+    return 0;
   }
 }

@@ -17,7 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import type { Game, Player } from '@/lib/types';
 
@@ -26,13 +28,32 @@ interface GamesHistoryClientProps {
   player: Player;
 }
 
+const GAMES_PER_PAGE = 20;
+
 export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
   const [gameTypeFilter, setGameTypeFilter] = React.useState<string>('Doubles');
+  const [displayCount, setDisplayCount] = React.useState<number>(GAMES_PER_PAGE);
 
   // Filter games based on selected type
   const filteredGames = React.useMemo(() => {
     return games.filter(game => game.type === gameTypeFilter);
   }, [games, gameTypeFilter]);
+
+  // Reset display count when filter changes
+  React.useEffect(() => {
+    setDisplayCount(GAMES_PER_PAGE);
+  }, [gameTypeFilter]);
+
+  // Slice games to display based on current count
+  const displayedGames = React.useMemo(() => {
+    return filteredGames.slice(0, displayCount);
+  }, [filteredGames, displayCount]);
+
+  const hasMoreGames = displayCount < filteredGames.length;
+
+  const handleLoadMore = () => {
+    setDisplayCount(prev => prev + GAMES_PER_PAGE);
+  };
 
   const getPartner = (game: Game) => {
     const playerTeam = game.team1.players.some((p) => p.id === player.id)
@@ -100,7 +121,7 @@ export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredGames.map((game) => {
+            {displayedGames.map((game) => {
               const playerTeam = game.team1.players.some((p) => p.id === player.id)
                 ? game.team1
                 : game.team2;
@@ -150,9 +171,29 @@ export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
             })}
           </TableBody>
         </Table>
+
         {filteredGames.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             No {gameTypeFilter.toLowerCase()} games found for this player.
+          </div>
+        )}
+
+        {hasMoreGames && (
+          <div className="flex justify-center pt-4">
+            <Button
+              variant="outline"
+              onClick={handleLoadMore}
+              className="w-full sm:w-auto"
+            >
+              <ChevronDown className="mr-2 h-4 w-4" />
+              Load More ({filteredGames.length - displayCount} remaining)
+            </Button>
+          </div>
+        )}
+
+        {!hasMoreGames && filteredGames.length > GAMES_PER_PAGE && (
+          <div className="text-center pt-4 text-sm text-muted-foreground">
+            Showing all {filteredGames.length} games
           </div>
         )}
       </CardContent>

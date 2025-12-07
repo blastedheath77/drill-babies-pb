@@ -116,12 +116,7 @@ export function ClubSelector({ iconOnly = false, className }: ClubSelectorProps)
       <SelectContent>
         {availableClubs.map((club) => (
           <SelectItem key={club.id} value={club.id}>
-            <div className="flex flex-col">
-              <span>{club.name}</span>
-              {club.description && (
-                <span className="text-xs text-muted-foreground">{club.description}</span>
-              )}
-            </div>
+            {club.name}
           </SelectItem>
         ))}
       </SelectContent>

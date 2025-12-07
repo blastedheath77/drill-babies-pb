@@ -49,10 +49,10 @@ function getPerformanceMultiplier(playerRating: number, teamRating: number, game
   if (gameType === 'singles') {
     return 1.0; // No adjustment for singles
   }
-  
+
   // In doubles, adjust based on player strength relative to their own team
   const ratingDifference = playerRating - teamRating;
-  
+
   if (isWinner) {
     // For WINS: Weaker players (below team average) get larger bonuses
     // Stronger players (above team average) get smaller bonuses
@@ -68,10 +68,61 @@ function getPerformanceMultiplier(playerRating: number, teamRating: number, game
   }
 }
 
-function getNewRating(rating: number, expectedScore: number, actualScore: number, marginMultiplier: number = 1.0, performanceMultiplier: number = 1.0) {
-  // Calculate rating change with DUPR-appropriate scaling, margin adjustment, and performance weighting
+// Underdog multiplier: adjusts rating changes based on team matchup and individual rating
+// - Underdogs who win get bonus, favorites who win get reduced gains
+// - Low-rated players who lose get protection, high-rated losers get extra penalty
+const UNDERDOG_COEFFICIENT = 0.10; // Team-level underdog bonus/penalty
+const INDIVIDUAL_COEFFICIENT = 0.45; // Individual rating adjustment
+
+function getUnderdogMultiplier(
+  playerRating: number,
+  ownTeamRating: number,
+  opponentTeamRating: number,
+  isWinner: boolean
+): number {
+  // Team rating difference: positive means player's team is favored
+  const teamRatingDiff = ownTeamRating - opponentTeamRating;
+
+  // Player's rating relative to global average (DEFAULT_RATING = 3.5)
+  // Positive = above average (high-rated), Negative = below average (low-rated)
+  const playerVsGlobal = playerRating - DEFAULT_RATING;
+
+  if (isWinner) {
+    // WINNERS get underdog bonus based on team comparison
+    // Low-rated players on underdog teams get the biggest bonus
+    const teamMultiplier = 1.0 - teamRatingDiff * UNDERDOG_COEFFICIENT;
+
+    // Additional bonus for low-rated winners (they're proving themselves)
+    // High-rated winners get slightly less (expected to win)
+    const individualBonus = 1.0 - playerVsGlobal * 0.15;
+
+    const combined = teamMultiplier * Math.max(0.8, Math.min(1.2, individualBonus));
+    return Math.max(0.7, Math.min(1.5, combined));
+  } else {
+    // LOSERS:
+    // Team-based: favorites who lose get penalized more (but smaller factor)
+    const teamMultiplier = 1.0 + teamRatingDiff * UNDERDOG_COEFFICIENT;
+
+    // Individual-based (STRONGER): HIGH-rated players who lose should lose MORE
+    // LOW-rated players who lose should lose LESS (they're expected to struggle)
+    const individualMultiplier = 1.0 + playerVsGlobal * INDIVIDUAL_COEFFICIENT;
+
+    const combined = teamMultiplier * Math.max(0.5, Math.min(1.5, individualMultiplier));
+    return Math.max(0.5, Math.min(1.6, combined));
+  }
+}
+
+function getNewRating(
+  rating: number,
+  expectedScore: number,
+  actualScore: number,
+  marginMultiplier: number = 1.0,
+  performanceMultiplier: number = 1.0,
+  underdogMultiplier: number = 1.0
+) {
+  // Calculate rating change with DUPR-appropriate scaling, margin adjustment, performance weighting, and underdog adjustment
   const baseChange = RATING_K_FACTOR * (actualScore - expectedScore) * 2;
-  const ratingChange = baseChange * marginMultiplier * performanceMultiplier;
+  const ratingChange = baseChange * marginMultiplier * performanceMultiplier * underdogMultiplier;
   const newRating = rating + ratingChange;
 
   // Clamp rating within DUPR bounds
@@ -176,19 +227,29 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
       if (player) {
         const isTeam1 = team1PlayerIds.includes(playerId);
         const oldRating = player.rating;
-        
+
         // Calculate individual performance multiplier
         const teamRating = isTeam1 ? team1Rating : team2Rating;
+        const opponentTeamRating = isTeam1 ? team2Rating : team1Rating;
         const gameType = team1PlayerIds.length === 1 ? 'singles' : 'doubles';
         const isWinner = isDraw ? false : ((isTeam1 && team1Won) || (!isTeam1 && !team1Won));
         const performanceMultiplier = isDraw ? 1.0 : getPerformanceMultiplier(player.rating, teamRating, gameType, isWinner);
-        
+
+        // Calculate underdog multiplier based on team matchup and individual rating
+        const underdogMultiplier = isDraw ? 1.0 : getUnderdogMultiplier(
+          player.rating,
+          teamRating,
+          opponentTeamRating,
+          isWinner
+        );
+
         const newRating = getNewRating(
           player.rating,
           isTeam1 ? expectedScoreTeam1 : expectedScoreTeam2,
           isTeam1 ? actualScoreTeam1 : actualScoreTeam2,
           marginMultiplier,
-          performanceMultiplier
+          performanceMultiplier,
+          underdogMultiplier
         );
 
         ratingChanges[playerId] = { before: oldRating, after: newRating };

@@ -25,6 +25,7 @@ import type {
   TournamentMatch,
   TournamentStanding,
   Circle,
+  FormMetric,
 } from './types';
 import { DEFAULT_RATING, DEFAULT_AVATAR_URL, FIRESTORE_BATCH_LIMIT } from './constants';
 import { handleDatabaseError, logError } from './errors';
@@ -956,4 +957,181 @@ export function subscribeTournamentsRealtime(
     onError?.(err);
     return () => {}; // Return empty unsubscribe function
   }
+}
+
+// Form Metric Calculation
+
+interface GameAnalysis {
+  result: 'win' | 'loss' | 'draw';
+  opponentAvgRating: number;
+  scoreMargin: number;
+  playerScore: number;
+  opponentScore: number;
+}
+
+function analyzeGameForPlayer(
+  game: Game,
+  playerId: string,
+  playerCurrentRating: number
+): GameAnalysis {
+  // Determine which team the player was on
+  const isTeam1 = game.team1.playerIds.includes(playerId);
+  const playerTeam = isTeam1 ? game.team1 : game.team2;
+  const opponentTeam = isTeam1 ? game.team2 : game.team1;
+
+  // Get ratings at time of game (from ratingChanges if available)
+  const getPlayerRatingAtGame = (pid: string): number => {
+    if (game.ratingChanges?.[pid]?.before) {
+      return game.ratingChanges[pid].before;
+    }
+    // Fallback: use current rating (less accurate but better than nothing)
+    return playerCurrentRating;
+  };
+
+  // Calculate opponent average rating
+  const opponentRatings = opponentTeam.playerIds.map(getPlayerRatingAtGame);
+  const opponentAvgRating = opponentRatings.reduce((sum, r) => sum + r, 0) / opponentRatings.length;
+
+  // Determine result
+  const playerScore = playerTeam.score;
+  const opponentScore = opponentTeam.score;
+  let result: 'win' | 'loss' | 'draw';
+
+  if (playerScore > opponentScore) result = 'win';
+  else if (playerScore < opponentScore) result = 'loss';
+  else result = 'draw';
+
+  // Calculate score margin (absolute difference)
+  const scoreMargin = Math.abs(playerScore - opponentScore);
+
+  return {
+    result,
+    opponentAvgRating,
+    scoreMargin,
+    playerScore,
+    opponentScore
+  };
+}
+
+/**
+ * Calculate quality multiplier for form scoring
+ * - For wins: Higher multiplier when beating stronger opponents
+ * - For losses: Higher multiplier (penalty) when losing to weaker opponents
+ */
+function getQualityMultiplier(
+  playerRating: number,
+  opponentAvgRating: number,
+  isWin: boolean
+): number {
+  const ratingDiff = opponentAvgRating - playerRating;
+
+  if (isWin) {
+    // WINS: Beating stronger opponents = higher multiplier
+    // Examples (player rating 4.0):
+    //   - Beat 5.0 opponent: diff = +1.0 → multiplier = 1.25 (25% bonus)
+    //   - Beat 4.0 opponent: diff = 0.0  → multiplier = 1.00 (normal)
+    //   - Beat 3.0 opponent: diff = -1.0 → multiplier = 0.75 (25% reduction)
+    const multiplier = 1.0 + (ratingDiff * 0.25);
+    return Math.max(0.5, Math.min(1.5, multiplier));
+  } else {
+    // LOSSES: Losing to weaker opponents = higher penalty
+    // Examples (player rating 4.0):
+    //   - Lost to 5.0 opponent: diff = +1.0 → multiplier = 0.75 (25% reduction in penalty)
+    //   - Lost to 4.0 opponent: diff = 0.0  → multiplier = 1.00 (normal penalty)
+    //   - Lost to 3.0 opponent: diff = -1.0 → multiplier = 1.25 (25% INCREASE in penalty)
+    const multiplier = 1.0 - (ratingDiff * 0.25);
+    return Math.max(0.5, Math.min(1.5, multiplier));
+  }
+}
+
+export function calculatePlayerForm(
+  playerId: string,
+  allGames: Game[],
+  playerRating: number
+): FormMetric {
+  const WINDOW_SIZE = 10;
+
+  // Get player's recent games (sorted by date desc - already sorted from getAllGames)
+  const recentGames = allGames
+    .filter(g => g.playerIds.includes(playerId))
+    .slice(0, WINDOW_SIZE);
+
+  if (recentGames.length === 0) {
+    return {
+      score: 50,
+      trend: 'neutral',
+      recentWins: 0,
+      recentLosses: 0,
+      recentDraws: 0,
+      winRate: 0,
+      qualityScore: 0,
+      gamesPlayed: 0
+    };
+  }
+
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
+  let qualityPoints = 0;
+
+  for (const game of recentGames) {
+    const analysis = analyzeGameForPlayer(game, playerId, playerRating);
+
+    // Skip draws (contribute 0 points)
+    if (analysis.result === 'draw') {
+      draws++;
+      continue;
+    }
+
+    const isWin = analysis.result === 'win';
+
+    // Base points: +1 for win, -1 for loss
+    const basePoints = isWin ? 1 : -1;
+
+    // Quality multiplier: uses OPPOSITE logic for wins vs losses
+    // - Wins: Higher multiplier when beating stronger opponents
+    // - Losses: Higher multiplier (penalty) when losing to weaker opponents
+    const qualityMultiplier = getQualityMultiplier(
+      playerRating,
+      analysis.opponentAvgRating,
+      isWin
+    );
+
+    // Margin factor: bigger wins/losses have more impact
+    // Range: 0.7 (close game) to 1.0 (blowout)
+    const marginFactor = 0.7 + Math.min(analysis.scoreMargin / 10, 0.3);
+
+    // Combined game score
+    const gameScore = basePoints * qualityMultiplier * marginFactor;
+
+    qualityPoints += gameScore;
+
+    if (isWin) wins++;
+    else losses++;
+  }
+
+  // Calculate form score
+  const winRate = (wins / recentGames.length) * 100;
+  const avgQualityPerGame = qualityPoints / recentGames.length;
+
+  // Form score: baseline 50 + quality-adjusted performance
+  // avgQualityPerGame ranges roughly from -2 to +2
+  // Scale by 25 to get score range of 0-100
+  const formScore = Math.max(0, Math.min(100, 50 + avgQualityPerGame * 25));
+
+  // Determine trend
+  let trend: 'up' | 'neutral' | 'down' = 'neutral';
+  if (formScore >= 65) trend = 'up';
+  else if (formScore <= 35) trend = 'down';
+
+  return {
+    score: Math.round(formScore),
+    trend,
+    recentWins: wins,
+    recentLosses: losses,
+    recentDraws: draws,
+    winRate: Math.round(winRate),
+    qualityScore: avgQualityPerGame,
+    gamesPlayed: recentGames.length
+  };
 }

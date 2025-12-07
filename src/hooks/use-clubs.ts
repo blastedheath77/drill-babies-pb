@@ -5,6 +5,7 @@ import {
   getClubsForUser,
   createClub,
   updateClub,
+  deleteClub,
   addUserToClub,
   removeUserFromClub,
 } from '@/lib/clubs';
@@ -105,6 +106,32 @@ export function useUpdateClub() {
     onError: (error: Error) => {
       toast({
         title: 'Error updating club',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to delete a club (soft delete)
+ */
+export function useDeleteClub() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (clubId: string) => deleteClub(clubId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: clubKeys.all });
+      toast({
+        title: 'Club deleted',
+        description: 'The club has been deleted successfully.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error deleting club',
         description: error.message,
         variant: 'destructive',
       });

@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "pickleball-stats-tracker-yk8tb"
+    "default": "pbstats-claude",
+    "old": "pickleball-stats-tracker-yk8tb"
   }
 }

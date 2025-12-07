@@ -67,6 +67,17 @@ export interface RatingHistoryPoint {
   opponent?: string;
 }
 
+export interface FormMetric {
+  score: number;              // Overall form score (0-100)
+  trend: 'up' | 'neutral' | 'down';
+  recentWins: number;
+  recentLosses: number;
+  recentDraws: number;
+  winRate: number;            // Recent win percentage
+  qualityScore: number;       // Quality-adjusted performance
+  gamesPlayed: number;        // Number of games in sample
+}
+
 export interface Tournament {
   id: string;
   name: string;

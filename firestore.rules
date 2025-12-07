@@ -1,0 +1,261 @@
+rules_version = '2';
+
+/**
+ * PBstats Firestore Security Rules
+ *
+ * Multi-Club Support Implementation
+ *
+ * Security Model:
+ * - Users can only access data from clubs they belong to
+ * - Global admins have full access to all data
+ * - Club admins can manage their club's data
+ * - All data must have a clubId (except users and clubs collections)
+ * - Users can only read/update their own user document
+ *
+ * Role Hierarchy:
+ * 1. Global Admin (role: 'admin') - Full system access
+ * 2. Club Admin (clubRoles[clubId]: 'club_admin') - Full access to their club
+ * 3. Member (clubMemberships includes clubId) - Read access to their club
+ * 4. Viewer (role: 'viewer') - Read-only access to their clubs
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // HELPER FUNCTIONS
+    // ============================================================
+
+    /**
+     * Check if user is authenticated
+     */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /**
+     * Check if user is a global admin
+     */
+    function isGlobalAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    /**
+     * Check if user has access to a specific club
+     * User must be a member of the club (clubId in their clubMemberships array)
+     */
+    function hasClubAccess(clubId) {
+      return isAuthenticated() &&
+             clubId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.clubMemberships;
+    }
+
+    /**
+     * Check if user is a club admin for a specific club
+     */
+    function isClubAdmin(clubId) {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isAuthenticated() &&
+             clubId in userData.clubMemberships &&
+             userData.clubRoles[clubId] == 'club_admin';
+    }
+
+    /**
+     * Check if user is either global admin or club admin for a specific club
+     */
+    function isAdminForClub(clubId) {
+      return isGlobalAdmin() || isClubAdmin(clubId);
+    }
+
+    /**
+     * Check if user created the resource
+     */
+    function isCreator() {
+      return isAuthenticated() &&
+             resource.data.createdBy == request.auth.uid;
+    }
+
+    /**
+     * Validate that clubId is not being changed on update
+     */
+    function clubIdUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['clubId']);
+    }
+
+    // ============================================================
+    // USERS COLLECTION
+    // ============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // Users can update their own profile (except role and club memberships)
+      allow update: if isAuthenticated() &&
+                       request.auth.uid == userId &&
+                       !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['role', 'clubMemberships', 'clubRoles']);
+
+      // Global admins can read all users
+      allow read: if isGlobalAdmin();
+
+      // Global admins and club admins can update user club memberships
+      allow update: if isGlobalAdmin();
+
+      // Only global admins can create users (typically done via Firebase Auth)
+      allow create: if isGlobalAdmin();
+
+      // Users cannot be deleted (deactivate instead)
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // CLUBS COLLECTION
+    // ============================================================
+
+    match /clubs/{clubId} {
+      // Club members can read their club
+      allow read: if hasClubAccess(clubId);
+
+      // Only global admins can create clubs
+      allow create: if isGlobalAdmin() &&
+                       request.resource.data.isActive == true;
+
+      // Global admins and club admins can update their club
+      allow update: if isAdminForClub(clubId);
+
+      // Only global admins can delete clubs (soft delete by setting isActive to false)
+      allow delete: if isGlobalAdmin();
+    }
+
+    // ============================================================
+    // PLAYERS COLLECTION
+    // ============================================================
+
+    match /players/{playerId} {
+      // Users can read players from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create players in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Users can update players in their clubs (clubId cannot be changed)
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged();
+
+      // Only admins can delete players
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
+    // GAMES COLLECTION
+    // ============================================================
+
+    match /games/{gameId} {
+      // Users can read games from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create games in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Game creator or club admins can update games (for corrections)
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged() &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+
+      // Only admins can delete games
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
+    // TOURNAMENTS COLLECTION
+    // ============================================================
+
+    match /tournaments/{tournamentId} {
+      // Users can read tournaments from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create tournaments in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Tournament creator or club admins can update tournaments
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged() &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+
+      // Only admins can delete tournaments
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
+    // CIRCLES COLLECTION
+    // ============================================================
+
+    match /circles/{circleId} {
+      // Users can read circles from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create circles in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Circle creator or club admins can update circles
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged() &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+
+      // Circle creator or club admins can delete circles
+      allow delete: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+    }
+
+    // ============================================================
+    // BOX LEAGUES COLLECTION
+    // ============================================================
+
+    match /boxLeagues/{boxLeagueId} {
+      // Users can read box leagues from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create box leagues in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Box league creator or club admins can update box leagues
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged() &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+
+      // Only admins can delete box leagues
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
+    // DEFAULT DENY ALL
+    // ============================================================
+
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

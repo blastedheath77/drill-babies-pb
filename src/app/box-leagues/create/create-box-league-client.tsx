@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCreateBoxLeague } from '@/hooks/use-box-leagues';
 import { useAuth } from '@/contexts/auth-context';
+import { useClub } from '@/contexts/club-context';
 import { ArrowLeft, Grid3x3, Users, Settings, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 export function CreateBoxLeagueClient() {
   const router = useRouter();
   const { user } = useAuth();
+  const { selectedClub } = useClub();
   const createBoxLeague = useCreateBoxLeague();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,6 +43,11 @@ export function CreateBoxLeagueClient() {
       return;
     }
 
+    if (!selectedClub?.id) {
+      console.error('No club selected');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -49,6 +56,7 @@ export function CreateBoxLeagueClient() {
         description: formData.description.trim(),
         status: 'active' as const,
         createdBy: user.id,
+        clubId: selectedClub.id,
         roundsPerCycle: formData.roundsPerCycle,
         newPlayerEntryBox: formData.totalBoxes, // Default to bottom box
         totalBoxes: formData.totalBoxes,
@@ -85,7 +93,10 @@ export function CreateBoxLeagueClient() {
         <div>
           <h1 className="text-3xl font-bold">Create Box League</h1>
           <p className="text-muted-foreground">
-            Set up a new competitive box league system
+            {selectedClub
+              ? `Set up a new competitive box league system for ${selectedClub.name}`
+              : 'Set up a new competitive box league system'
+            }
           </p>
         </div>
       </div>

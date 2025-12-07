@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateCircle, useUpdateCircle, useCircleNameAvailable } from '@/hooks/use-circles';
 import { useAuth } from '@/contexts/auth-context';
+import { useClub } from '@/contexts/club-context';
 import { CirclePlayerSelector } from './circle-player-selector';
 import { Loader2 } from 'lucide-react';
 import type { Circle } from '@/lib/types';
@@ -62,6 +63,7 @@ export function CircleFormDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { selectedClub } = useClub();
 
   const createCircleMutation = useCreateCircle();
   const updateCircleMutation = useUpdateCircle();
@@ -111,6 +113,16 @@ export function CircleFormDialog({
         variant: 'destructive',
         title: 'Authentication Error',
         description: 'You must be logged in to create or edit circles.',
+      });
+      return;
+    }
+
+    // Validation: Check club selection (only for creating new circles)
+    if (!isEditing && !selectedClub?.id) {
+      toast({
+        variant: 'destructive',
+        title: 'No Club Selected',
+        description: 'Please select a club before creating a circle.',
       });
       return;
     }
@@ -167,11 +179,12 @@ export function CircleFormDialog({
           description: data.description,
           playerIds: data.playerIds,
           createdBy: user.id,
+          clubId: selectedClub!.id,
         });
 
         toast({
           title: 'Circle Created',
-          description: `"${data.name}" has been created successfully.`,
+          description: `"${data.name}" has been created successfully for ${selectedClub!.name}.`,
         });
       }
 
@@ -223,6 +236,8 @@ export function CircleFormDialog({
           <DialogDescription>
             {isEditing
               ? 'Update the circle details and player membership.'
+              : selectedClub
+              ? `Create a new circle in ${selectedClub.name} to group players for filtering statistics.`
               : 'Create a new circle to group players for filtering statistics.'
             }
           </DialogDescription>

@@ -1,25 +1,11 @@
-import { PageHeader } from '@/components/page-header';
-import { getPlayers } from '@/lib/data';
+import { Suspense } from 'react';
 import { StatisticsClient } from './statistics-client';
-import { ClientOnly } from '@/components/client-only';
 import { DataErrorBoundary } from '@/components/data-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 
-export default async function StatisticsPage() {
-  let initialPlayers: any[] = [];
-  
-  try {
-    // Get initial data on server for SEO and faster first load
-    const allPlayers = await getPlayers();
-    // Filter out players who haven't played any games for rankings
-    initialPlayers = allPlayers.filter(player => (player.wins + player.losses) > 0);
-  } catch (error) {
-    console.error('Failed to load initial players:', error);
-    // Continue with empty array, client will handle loading
-  }
-
-  const LoadingSkeleton = () => (
+function LoadingSkeleton() {
+  return (
     <Card>
       <CardContent className="p-6">
         <div className="space-y-4">
@@ -47,15 +33,17 @@ export default async function StatisticsPage() {
       </CardContent>
     </Card>
   );
+}
 
+export default function StatisticsPage() {
   return (
-    <ClientOnly fallback={<LoadingSkeleton />}>
+    <Suspense fallback={<LoadingSkeleton />}>
       <DataErrorBoundary
         fallbackTitle="Statistics Unavailable"
         fallbackDescription="Unable to load player statistics. This may be due to a connection issue."
       >
-        <StatisticsClient initialPlayers={initialPlayers} />
+        <StatisticsClient initialPlayers={[]} />
       </DataErrorBoundary>
-    </ClientOnly>
+    </Suspense>
   );
 }
