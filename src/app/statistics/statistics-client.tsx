@@ -333,8 +333,13 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
     });
   }, [allPlayersData, games, dateFilter, dateRange]);
 
-  // Filter out players who haven't played any games for rankings
-  const activePlayersData = filteredPlayersData.filter(player => (player.wins + player.losses) > 0);
+  // Filter out players with 5 or fewer games for rankings (minimum threshold for meaningful stats)
+  const MIN_GAMES_THRESHOLD = 5;
+  const activePlayersData = filteredPlayersData.filter(player => (player.wins + player.losses) > MIN_GAMES_THRESHOLD);
+  const excludedPlayersCount = filteredPlayersData.filter(player => {
+    const totalGames = player.wins + player.losses;
+    return totalGames > 0 && totalGames <= MIN_GAMES_THRESHOLD;
+  }).length;
 
   // Apply circle filtering
   const playersData = useMemo(() => {
@@ -615,6 +620,20 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
           </Badge>
         </div>
       </div>
+
+      {/* Minimum Games Notice */}
+      {excludedPlayersCount > 0 && (
+        <Alert className="mb-4">
+          <AlertDescription>
+            <span className="font-medium">Note:</span> Players with {MIN_GAMES_THRESHOLD} or fewer games in this period are excluded from rankings.
+            {excludedPlayersCount > 0 && (
+              <span className="text-muted-foreground ml-1">
+                ({excludedPlayersCount} player{excludedPlayersCount !== 1 ? 's' : ''} excluded)
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Statistics Table */}
       <SortableStatisticsTable
