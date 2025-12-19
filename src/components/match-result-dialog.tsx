@@ -30,31 +30,45 @@ import type { TournamentMatch, Player } from '@/lib/types';
 import { ScoreSelector } from '@/components/ui/score-selector';
 import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
 
-const matchResultFormSchema = z.object({
-  team1Score: z.coerce
-    .number()
-    .int('Score must be a whole number')
-    .min(0, 'Score cannot be negative')
-    .max(50, 'Score cannot exceed 50'),
-  team2Score: z.coerce
-    .number()
-    .int('Score must be a whole number')
-    .min(0, 'Score cannot be negative')
-    .max(50, 'Score cannot exceed 50'),
-}).refine(
-  (data) => data.team1Score !== data.team2Score,
-  {
-    message: 'Match cannot end in a tie',
-    path: ['team2Score'],
-  }
-);
+const createMatchResultFormSchema = (isQuickPlay: boolean) => {
+  const baseSchema = z.object({
+    team1Score: z.coerce
+      .number()
+      .int('Score must be a whole number')
+      .min(0, 'Score cannot be negative')
+      .max(50, 'Score cannot exceed 50'),
+    team2Score: z.coerce
+      .number()
+      .int('Score must be a whole number')
+      .min(0, 'Score cannot be negative')
+      .max(50, 'Score cannot exceed 50'),
+  });
 
-type MatchResultForm = z.infer<typeof matchResultFormSchema>;
+  // For Quick Play tournaments, allow draws
+  if (isQuickPlay) {
+    return baseSchema;
+  }
+
+  // For other tournament types, prevent ties
+  return baseSchema.refine(
+    (data) => data.team1Score !== data.team2Score,
+    {
+      message: 'Match cannot end in a tie',
+      path: ['team2Score'],
+    }
+  );
+};
+
+type MatchResultForm = {
+  team1Score: number;
+  team2Score: number;
+};
 
 interface MatchResultDialogProps {
   match: TournamentMatch;
   players: Map<string, Player>;
   tournamentId: string;
+  isQuickPlay?: boolean;
   children: React.ReactNode;
 }
 
@@ -62,6 +76,7 @@ export function MatchResultDialog({
   match,
   players,
   tournamentId,
+  isQuickPlay = false,
   children
 }: MatchResultDialogProps) {
   const [open, setOpen] = useState(false);
@@ -69,6 +84,8 @@ export function MatchResultDialog({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingScores, setPendingScores] = useState<{ team1Score: number; team2Score: number } | null>(null);
   const { toast } = useToast();
+
+  const matchResultFormSchema = createMatchResultFormSchema(isQuickPlay);
 
   const form = useForm<MatchResultForm>({
     resolver: zodResolver(matchResultFormSchema),

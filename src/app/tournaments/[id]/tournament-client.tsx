@@ -28,10 +28,11 @@ interface MatchCardProps {
   match: TournamentMatch;
   players: Map<string, Player>;
   tournamentId: string;
+  isQuickPlay?: boolean;
   canCreateTournaments: () => boolean;
 }
 
-function MatchCard({ match, players, tournamentId, canCreateTournaments }: MatchCardProps) {
+function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournaments }: MatchCardProps) {
   const getMatchPlayers = () => {
     if (match.player1Id && match.player2Id) {
       // Singles match
@@ -138,10 +139,11 @@ function MatchCard({ match, players, tournamentId, canCreateTournaments }: Match
           )}
           
           {match.status === 'pending' && canCreateTournaments() && (
-            <MatchResultDialog 
-              match={match} 
-              players={players} 
+            <MatchResultDialog
+              match={match}
+              players={players}
               tournamentId={tournamentId}
+              isQuickPlay={isQuickPlay}
             >
               <Button variant="outline" size="sm" className="ml-auto">
                 <Edit className="h-3 w-3 mr-1" />
@@ -418,11 +420,12 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                         {roundMatches
                           .sort((a, b) => a.matchNumber - b.matchNumber)
                           .map((match) => (
-                            <MatchCard 
-                              key={match.id} 
-                              match={match} 
-                              players={playerMap} 
+                            <MatchCard
+                              key={match.id}
+                              match={match}
+                              players={playerMap}
                               tournamentId={tournament.id}
+                              isQuickPlay={tournament.isQuickPlay}
                               canCreateTournaments={canCreateTournaments}
                             />
                           ))}

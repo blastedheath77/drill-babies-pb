@@ -285,6 +285,7 @@ export async function recordTournamentMatchResult(data: MatchResultData) {
       },
       playerIds: allPlayerIds,
       tournamentId: tournamentId,
+      clubId: tournament.clubId,
       ratingChanges,
     };
 

@@ -249,6 +249,7 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
         ...player,
         wins: 0,
         losses: 0,
+        draws: 0,
         pointsFor: 0,
         pointsAgainst: 0,
         form: calculatePlayerForm(player.id, [], player.rating)
@@ -259,6 +260,7 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
     const playerStatsMap = new Map<string, {
       wins: number;
       losses: number;
+      draws: number;
       pointsFor: number;
       pointsAgainst: number;
     }>();
@@ -271,16 +273,19 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
 
       const team1Score = team1.score || 0;
       const team2Score = team2.score || 0;
+      const isDraw = team1Score === team2Score;
       const team1Won = team1Score > team2Score;
 
       // Process team1 players
       if (team1.playerIds && Array.isArray(team1.playerIds)) {
         team1.playerIds.forEach(playerId => {
           const stats = playerStatsMap.get(playerId) || {
-            wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0
+            wins: 0, losses: 0, draws: 0, pointsFor: 0, pointsAgainst: 0
           };
 
-          if (team1Won) {
+          if (isDraw) {
+            stats.draws++;
+          } else if (team1Won) {
             stats.wins++;
           } else {
             stats.losses++;
@@ -296,10 +301,12 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
       if (team2.playerIds && Array.isArray(team2.playerIds)) {
         team2.playerIds.forEach(playerId => {
           const stats = playerStatsMap.get(playerId) || {
-            wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0
+            wins: 0, losses: 0, draws: 0, pointsFor: 0, pointsAgainst: 0
           };
 
-          if (!team1Won) {
+          if (isDraw) {
+            stats.draws++;
+          } else if (!team1Won) {
             stats.wins++;
           } else {
             stats.losses++;
@@ -320,12 +327,13 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
 
       if (!stats) {
         // Player has no games in this period
-        return { ...player, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, form };
+        return { ...player, wins: 0, losses: 0, draws: 0, pointsFor: 0, pointsAgainst: 0, form };
       }
       return {
         ...player,
         wins: stats.wins,
         losses: stats.losses,
+        draws: stats.draws,
         pointsFor: stats.pointsFor,
         pointsAgainst: stats.pointsAgainst,
         form
@@ -335,9 +343,9 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
 
   // Filter out players with 5 or fewer games for rankings (minimum threshold for meaningful stats)
   const MIN_GAMES_THRESHOLD = 5;
-  const activePlayersData = filteredPlayersData.filter(player => (player.wins + player.losses) > MIN_GAMES_THRESHOLD);
+  const activePlayersData = filteredPlayersData.filter(player => (player.wins + player.losses + player.draws) > MIN_GAMES_THRESHOLD);
   const excludedPlayersCount = filteredPlayersData.filter(player => {
-    const totalGames = player.wins + player.losses;
+    const totalGames = player.wins + player.losses + player.draws;
     return totalGames > 0 && totalGames <= MIN_GAMES_THRESHOLD;
   }).length;
 
