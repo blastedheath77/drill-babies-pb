@@ -22,6 +22,7 @@ export interface Player {
   pointsFor: number;
   pointsAgainst: number;
   clubId: string;
+  excludeFromRankings?: boolean;
 }
 
 export interface Game {

@@ -9,6 +9,7 @@ import {
   getDocs,
   serverTimestamp,
   getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Player, Game } from './types';
@@ -253,5 +254,32 @@ export async function getAllGamesWithPlayerNames(): Promise<Array<Game & {
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getAllGamesWithPlayerNames');
     return [];
+  }
+}
+
+export async function togglePlayerRankingExclusion(
+  playerId: string,
+  exclude: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!playerId) {
+      return {
+        success: false,
+        error: 'Player ID is required'
+      };
+    }
+
+    const playerRef = doc(db, 'players', playerId);
+    await updateDoc(playerRef, {
+      excludeFromRankings: exclude
+    });
+
+    return { success: true };
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'togglePlayerRankingExclusion');
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update player ranking exclusion'
+    };
   }
 }

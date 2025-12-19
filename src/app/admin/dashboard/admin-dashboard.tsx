@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -28,12 +29,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings } from 'lucide-react';
-import { 
-  deletePlayer, 
-  createPlayer, 
-  deleteGame, 
-  getPlayersWithGameCount, 
-  getAllGamesWithPlayerNames 
+import {
+  deletePlayer,
+  createPlayer,
+  deleteGame,
+  getPlayersWithGameCount,
+  getAllGamesWithPlayerNames,
+  togglePlayerRankingExclusion
 } from '@/lib/admin-actions';
 import { convertExistingRatings } from '@/lib/convert-ratings';
 import { updateGameDatesForTesting } from '@/lib/update-game-dates';
@@ -148,13 +150,24 @@ export function AdminDashboard() {
 
   const handleDeleteGame = async (gameId: string, gameDescription: string) => {
     const result = await deleteGame(gameId);
-    
+
     if (result.success) {
       setAlert({ type: 'success', message: `Game "${gameDescription}" deleted successfully!` });
       loadGames(); // Refresh the list
       loadPlayers(); // Also refresh players to update game counts
     } else {
       setAlert({ type: 'error', message: result.error || 'Failed to delete game' });
+    }
+  };
+
+  const handleToggleRankingExclusion = async (playerId: string, exclude: boolean) => {
+    const result = await togglePlayerRankingExclusion(playerId, exclude);
+
+    if (result.success) {
+      // Silent update - just refresh the player list
+      await loadPlayers();
+    } else {
+      setAlert({ type: 'error', message: result.error || 'Failed to update player ranking exclusion' });
     }
   };
 
@@ -354,6 +367,7 @@ export function AdminDashboard() {
                         <TableHead className="min-w-[80px]">Rating</TableHead>
                         <TableHead className="min-w-[80px]">Record</TableHead>
                         <TableHead className="min-w-[60px]">Games</TableHead>
+                        <TableHead className="min-w-[140px] text-center">Exclude from Rankings</TableHead>
                         <TableHead className="min-w-[80px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -369,6 +383,12 @@ export function AdminDashboard() {
                           <Badge variant={player.gameCount === 0 ? 'secondary' : 'default'}>
                             {player.gameCount}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={!!player.excludeFromRankings}
+                            onCheckedChange={(checked) => handleToggleRankingExclusion(player.id, checked)}
+                          />
                         </TableCell>
                         <TableCell>
                           <AlertDialog>

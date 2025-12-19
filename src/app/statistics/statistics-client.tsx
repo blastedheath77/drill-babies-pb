@@ -344,27 +344,31 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
   // Filter out players with 5 or fewer games for rankings (minimum threshold for meaningful stats)
   const MIN_GAMES_THRESHOLD = 5;
   const activePlayersData = filteredPlayersData.filter(player => (player.wins + player.losses + player.draws) > MIN_GAMES_THRESHOLD);
-  const excludedPlayersCount = filteredPlayersData.filter(player => {
+  const minGamesExcludedCount = filteredPlayersData.filter(player => {
     const totalGames = player.wins + player.losses + player.draws;
     return totalGames > 0 && totalGames <= MIN_GAMES_THRESHOLD;
   }).length;
 
+  // Filter out players excluded from rankings by admin
+  const rankablePlayersData = activePlayersData.filter(player => !player.excludeFromRankings);
+  const adminExcludedCount = activePlayersData.filter(player => !!player.excludeFromRankings).length;
+
   // Apply circle filtering
   const playersData = useMemo(() => {
     if (!selectedCircleId || !circles) {
-      return activePlayersData;
+      return rankablePlayersData;
     }
 
     const selectedCircle = circles.find(c => c.id === selectedCircleId);
     if (!selectedCircle) {
-      return activePlayersData;
+      return rankablePlayersData;
     }
 
     // Filter players to only include those in the selected circle
-    return activePlayersData.filter(player =>
+    return rankablePlayersData.filter(player =>
       selectedCircle.playerIds.includes(player.id)
     );
-  }, [activePlayersData, selectedCircleId, circles]);
+  }, [rankablePlayersData, selectedCircleId, circles]);
 
   // Show message if user has no clubs
   if (!clubsLoading && !hasAnyClubs) {
@@ -629,16 +633,23 @@ export function StatisticsClient({ initialPlayers }: StatisticsClientProps) {
         </div>
       </div>
 
-      {/* Minimum Games Notice */}
-      {excludedPlayersCount > 0 && (
+      {/* Excluded Players Notice */}
+      {(minGamesExcludedCount > 0 || adminExcludedCount > 0) && (
         <Alert className="mb-4">
           <AlertDescription>
-            <span className="font-medium">Note:</span> Players with {MIN_GAMES_THRESHOLD} or fewer games in this period are excluded from rankings.
-            {excludedPlayersCount > 0 && (
-              <span className="text-muted-foreground ml-1">
-                ({excludedPlayersCount} player{excludedPlayersCount !== 1 ? 's' : ''} excluded)
-              </span>
-            )}
+            <span className="font-medium">Note:</span> Some players are excluded from rankings:
+            <div className="mt-1 space-y-1">
+              {minGamesExcludedCount > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  • {minGamesExcludedCount} player{minGamesExcludedCount !== 1 ? 's' : ''} with ≤{MIN_GAMES_THRESHOLD} games in this period
+                </div>
+              )}
+              {adminExcludedCount > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  • {adminExcludedCount} player{adminExcludedCount !== 1 ? 's' : ''} excluded by admin
+                </div>
+              )}
+            </div>
           </AlertDescription>
         </Alert>
       )}
