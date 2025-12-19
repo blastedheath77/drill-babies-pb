@@ -126,62 +126,43 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Enhanced Top Ranked Player Section */}
+      {/* Top Ranked Player Section */}
       <div className="w-full">
         {players.length > 0 ? (
-          <Card className="relative overflow-hidden bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 dark:from-indigo-600 dark:via-purple-600 dark:to-pink-600 border-none shadow-xl dark:shadow-2xl">
-            {/* Decorative elements */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-32 translate-x-32" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-y-24 -translate-x-24" />
-
-            <CardHeader className="text-center pb-4 pt-6 relative z-10">
-              <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-white drop-shadow-md">
-                <Trophy className="h-7 w-7 text-yellow-200 drop-shadow-lg" />
-                Top Ranked Player
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center pb-8 relative z-10">
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-white/30 rounded-full blur-xl scale-110" />
-                  <Avatar className="relative h-24 w-24 border-4 border-white/80 shadow-2xl ring-4 ring-purple-300/50 dark:ring-purple-400/50">
-                    <AvatarImage
-                      src={players[0].avatar}
-                      alt={players[0].name}
-                      data-ai-hint="top player avatar"
-                    />
-                    <AvatarFallback className="bg-white text-purple-600 text-3xl font-bold">
-                      {players[0].name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="space-y-1">
-                  <Link
-                    href={`/players/${players[0].id}`}
-                    className="text-3xl font-extrabold text-white hover:text-purple-100 transition-colors drop-shadow-lg block"
-                  >
-                    {players[0].name}
-                  </Link>
-                  <div className="flex items-center justify-center gap-2 text-white/90">
-                    <span className="text-sm font-medium">Rating:</span>
-                    <span className="text-xl font-bold bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                      {players[0].rating.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+          <Card className="bg-muted/30 border-muted-foreground/20">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center gap-3">
+                <Trophy className="h-4 w-4 text-muted-foreground/60" />
+                <span className="text-xs font-medium text-muted-foreground">Top Ranked:</span>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={players[0].avatar}
+                    alt={players[0].name}
+                    data-ai-hint="top player avatar"
+                  />
+                  <AvatarFallback className="text-xs">
+                    {players[0].name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <Link
+                  href={`/players/${players[0].id}`}
+                  className="font-medium text-sm hover:underline"
+                >
+                  {players[0].name}
+                </Link>
+                <span className="ml-auto text-sm font-mono text-muted-foreground">
+                  {players[0].rating.toFixed(2)}
+                </span>
               </div>
             </CardContent>
           </Card>
         ) : (
-          <Card className="bg-gray-50 dark:bg-gray-800/50 border-2 border-gray-200 dark:border-gray-600">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-xl text-gray-600 dark:text-gray-300">
-                <Trophy className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-                No Players Yet
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-gray-500 dark:text-gray-400">Start by adding players and logging games!</p>
+          <Card className="bg-muted/30 border-muted-foreground/20">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-muted-foreground/60" />
+                <span className="text-xs text-muted-foreground">No players yet - start by adding players and logging games!</span>
+              </div>
             </CardContent>
           </Card>
         )}
