@@ -178,9 +178,10 @@ export async function getRecentGames(count: number = 5, clubId?: string): Promis
       // If index error, fall back to query without orderBy and sort client-side
       if (indexError?.code === 'failed-precondition' || indexError?.message?.includes('index')) {
         logger.warn('Index not ready, falling back to client-side sorting for recent games');
+        // Fetch more records to ensure we get the most recent ones when doing client-side sorting
         q = clubId
-          ? query(gamesCollection, where('clubId', '==', clubId), limit(count * 2)) // Get more to compensate for sorting
-          : query(gamesCollection, limit(count * 2));
+          ? query(gamesCollection, where('clubId', '==', clubId), limit(100))
+          : query(gamesCollection, limit(100));
 
         snapshot = await getDocs(q);
       } else {

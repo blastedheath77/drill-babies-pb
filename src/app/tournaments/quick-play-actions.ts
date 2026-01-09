@@ -22,6 +22,7 @@ interface CreateQuickPlayData {
   description: string;
   format: 'singles' | 'doubles';
   playerIds: string[];
+  clubId: string;
   availableCourts: number;
   maxRounds: number;
   isQuickPlay: boolean;
@@ -62,6 +63,7 @@ export async function createQuickPlayTournament(data: CreateQuickPlayData) {
       type: 'round-robin', // Quick Play is always round-robin
       status: 'active',
       playerIds: data.playerIds,
+      clubId: data.clubId,
       createdDate: new Date().toISOString(),
       createdBy: 'admin', // TODO: Replace with actual user ID
       availableCourts: data.availableCourts,

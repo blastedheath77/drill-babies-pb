@@ -131,6 +131,17 @@ export function QuickPlayForm() {
     setIsSubmitting(true);
 
     try {
+      // Validate club selection
+      if (!selectedClub?.id) {
+        toast({
+          variant: 'destructive',
+          title: 'No Club Selected',
+          description: 'Please select a club before creating a quick play session.',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Additional validation based on format
       if (data.format === 'singles' && data.playerIds.length < 2) {
         toast({
@@ -138,6 +149,7 @@ export function QuickPlayForm() {
           title: 'Invalid Selection',
           description: 'At least 2 players are required for singles.',
         });
+        setIsSubmitting(false);
         return;
       }
 
@@ -147,12 +159,14 @@ export function QuickPlayForm() {
           title: 'Invalid Selection',
           description: 'At least 4 players are required for doubles.',
         });
+        setIsSubmitting(false);
         return;
       }
 
       const quickPlayData = {
         ...data,
         description: data.description || '',
+        clubId: selectedClub.id,
         isQuickPlay: true,
         currentRound: data.maxRounds, // Set to maxRounds since all rounds will be generated
       };

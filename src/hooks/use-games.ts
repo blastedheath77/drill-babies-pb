@@ -28,7 +28,9 @@ export function useRecentGames(count: number = 5, clubId?: string) {
   return useQuery({
     queryKey: gameKeys.recent(count, clubId),
     queryFn: () => getRecentGames(count, clubId),
-    staleTime: 2 * 60 * 1000, // Recent games stay fresh for 2 minutes
+    staleTime: 30 * 1000, // Recent games stay fresh for 30 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to the page
+    refetchOnMount: true, // Refetch when component mounts
   });
 }
 
