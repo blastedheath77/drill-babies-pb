@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addQuickPlayRound, deleteQuickPlayRound } from '../quick-play-actions';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { getDisplayRating } from '@/lib/player-privacy';
 import type { Tournament, TournamentMatch, TournamentStanding, Player } from '@/lib/types';
 
 interface TournamentClientProps {
@@ -30,9 +31,10 @@ interface MatchCardProps {
   tournamentId: string;
   isQuickPlay?: boolean;
   canCreateTournaments: () => boolean;
+  isAdmin: () => boolean;
 }
 
-function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournaments }: MatchCardProps) {
+function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournaments, isAdmin }: MatchCardProps) {
   const getMatchPlayers = () => {
     if (match.player1Id && match.player2Id) {
       // Singles match
@@ -100,7 +102,11 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
           <div className="flex-1">
             <p className="font-medium text-base sm:text-sm">{team1.map((p) => p.name).join(' & ')}</p>
             <p className="text-sm sm:text-xs text-muted-foreground">
-              Avg. Rating: {(team1.reduce((sum, p) => sum + p.rating, 0) / team1.length).toFixed(1)}
+              Avg. Rating: {
+                isAdmin() || !team1.some(p => p.excludeFromRankings)
+                  ? (team1.reduce((sum, p) => sum + p.rating, 0) / team1.length).toFixed(1)
+                  : '---'
+              }
             </p>
           </div>
         </div>
@@ -114,7 +120,11 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
           <div className="flex-1 sm:text-right">
             <p className="font-medium text-base sm:text-sm">{team2.map((p) => p.name).join(' & ')}</p>
             <p className="text-sm sm:text-xs text-muted-foreground">
-              Avg. Rating: {(team2.reduce((sum, p) => sum + p.rating, 0) / team2.length).toFixed(1)}
+              Avg. Rating: {
+                isAdmin() || !team2.some(p => p.excludeFromRankings)
+                  ? (team2.reduce((sum, p) => sum + p.rating, 0) / team2.length).toFixed(1)
+                  : '---'
+              }
             </p>
           </div>
           <div className="flex -space-x-2 order-first sm:order-last">
@@ -427,6 +437,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                               tournamentId={tournament.id}
                               isQuickPlay={tournament.isQuickPlay}
                               canCreateTournaments={canCreateTournaments}
+                              isAdmin={isAdmin}
                             />
                           ))}
                       </div>

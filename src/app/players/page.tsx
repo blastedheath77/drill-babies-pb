@@ -7,11 +7,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { usePlayers } from '@/hooks/use-players';
 import { usePartnershipsData } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
-import { PlusCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, ArrowUpRight, ArrowDownRight, Users2, Swords } from 'lucide-react';
+import { PlusCircle, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, ArrowUpRight, ArrowDownRight, Users2, Swords, EyeOff } from 'lucide-react';
 import { getPartnershipStats, getHeadToHeadStats, getGamesForPlayer, calculateExpectedWinRate } from '@/lib/data';
 import type { Player, Game } from '@/lib/types';
 import Link from 'next/link';
@@ -214,10 +215,24 @@ export default function PlayersPage() {
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
   const { data: players, isLoading, error, isError } = usePlayers(selectedClub?.id);
   const { games, isLoading: gamesLoading } = usePartnershipsData(selectedClub?.id);
-  const { canManagePlayers } = useAuth();
+  const { canManagePlayers, isAdmin } = useAuth();
 
   // Calculate enhanced stats
   const playerStats = usePlayerStats(players || [], games || []);
+
+  // Filter players based on admin status and excludeFromRankings
+  const displayedPlayers = React.useMemo(() => {
+    if (!players) return [];
+    if (isAdmin()) {
+      // Admins see all players
+      return players;
+    }
+    // Regular users don't see excluded players
+    return players.filter(player => !player.excludeFromRankings);
+  }, [players, isAdmin]);
+
+  // Count excluded players for admin info
+  const excludedCount = players ? players.filter(player => player.excludeFromRankings).length : 0;
 
   const clubName = selectedClub ? selectedClub.name : 'All Clubs';
 
@@ -318,7 +333,7 @@ export default function PlayersPage() {
     <>
       <PageHeader
         title={`${clubName} Players`}
-        description={`Browse the list of all ${players.length} active players${selectedClub ? ` in ${clubName}` : ''}.`}
+        description={`Browse the list of all ${displayedPlayers.length} active players${selectedClub ? ` in ${clubName}` : ''}.${isAdmin() && excludedCount > 0 ? ` (${excludedCount} hidden from users)` : ''}`}
       >
         <Link href="/players/add">
           <Button>
@@ -328,9 +343,9 @@ export default function PlayersPage() {
         </Link>
       </PageHeader>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {players.map((player) => (
+        {displayedPlayers.map((player) => (
           <Link href={`/players/${player.id}`} key={player.id}>
-            <Card className="hover:shadow-lg transition-shadow duration-300">
+            <Card className={`hover:shadow-lg transition-shadow duration-300 ${isAdmin() && player.excludeFromRankings ? 'opacity-70' : ''}`}>
               <CardContent className="p-4 flex items-center gap-3">
                 <Avatar className="h-16 w-16 flex-shrink-0 border-2 border-background ring-2 ring-primary">
                   <AvatarImage src={player.avatar} alt={player.name} data-ai-hint="player avatar" />
@@ -338,8 +353,16 @@ export default function PlayersPage() {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-base truncate">{player.name}</h3>
-                    <span className="font-medium text-sm">{player.rating.toFixed(2)}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className="font-semibold text-base truncate">{player.name}</h3>
+                      {isAdmin() && player.excludeFromRankings && (
+                        <Badge variant="secondary" className="text-xs flex items-center gap-1 flex-shrink-0">
+                          <EyeOff className="h-3 w-3" />
+                          Hidden
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="font-medium text-sm flex-shrink-0">{player.rating.toFixed(2)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 text-sm">
                     <div className="space-y-1">

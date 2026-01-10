@@ -6,16 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ImageUpload } from '@/components/image-upload';
-import { Edit3, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Edit3, TrendingUp, TrendingDown, Minus, EyeOff } from 'lucide-react';
 import type { Player, FormMetric } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface PlayerProfileClientProps {
   player: Player;
   form: FormMetric;
+  isAdmin?: boolean;
 }
 
-export function PlayerProfileClient({ player, form }: PlayerProfileClientProps) {
+export function PlayerProfileClient({ player, form, isAdmin }: PlayerProfileClientProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(player.avatar);
 
@@ -70,7 +71,15 @@ export function PlayerProfileClient({ player, form }: PlayerProfileClientProps) 
               </div>
 
               <div className="flex-1">
-                <h2 className="text-3xl font-bold mb-2">{player.name}</h2>
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-3xl font-bold">{player.name}</h2>
+                  {isAdmin && player.excludeFromRankings && (
+                    <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                      <EyeOff className="h-3 w-3" />
+                      Hidden from Users
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-muted-foreground text-xl">Rating: {player.rating.toFixed(2)}</p>
               </div>
             </div>

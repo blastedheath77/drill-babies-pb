@@ -9,13 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
-import { 
-  Trophy, 
-  Calendar, 
-  Clock, 
-  Users, 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  Trophy,
+  Calendar,
+  Clock,
+  Users,
+  TrendingUp,
+  TrendingDown,
   ArrowLeft,
   Crown,
   Target
@@ -23,6 +23,8 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAllGames } from '@/hooks/use-games';
+import { useAuth } from '@/contexts/auth-context';
+import { getDisplayRating, shouldShowRatingChanges } from '@/lib/player-privacy';
 import type { Game } from '@/lib/types';
 
 interface GameDetailsClientProps {
@@ -31,6 +33,7 @@ interface GameDetailsClientProps {
 
 export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
   const { data: allGames, isLoading, error } = useAllGames();
+  const { isAdmin } = useAuth();
   const router = useRouter();
 
   const game = React.useMemo(() => {
@@ -185,20 +188,20 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                     <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <Link 
+                    <Link
                       href={`/players/${player.id}`}
                       className="font-semibold hover:underline"
                     >
                       {player.name}
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      Rating: {player.rating.toFixed(2)}
+                      Rating: {getDisplayRating(player, isAdmin())}
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Rating Change */}
-                {game.ratingChanges && game.ratingChanges[player.id] && (
+                {shouldShowRatingChanges(player, isAdmin()) && game.ratingChanges && game.ratingChanges[player.id] && (
                   <div className="text-right">
                     <div className="flex items-center gap-1">
                       {game.ratingChanges[player.id].after > game.ratingChanges[player.id].before ? (
@@ -247,20 +250,20 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                     <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <Link 
+                    <Link
                       href={`/players/${player.id}`}
                       className="font-semibold hover:underline"
                     >
                       {player.name}
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      Rating: {player.rating.toFixed(2)}
+                      Rating: {getDisplayRating(player, isAdmin())}
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Rating Change */}
-                {game.ratingChanges && game.ratingChanges[player.id] && (
+                {shouldShowRatingChanges(player, isAdmin()) && game.ratingChanges && game.ratingChanges[player.id] && (
                   <div className="text-right">
                     <div className="flex items-center gap-1">
                       {game.ratingChanges[player.id].after > game.ratingChanges[player.id].before ? (
@@ -302,10 +305,15 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
               {Object.entries(game.ratingChanges).map(([playerId, change]) => {
                 const player = [...game.team1.players, ...game.team2.players].find(p => p.id === playerId);
                 if (!player) return null;
-                
+
+                // Hide rating changes for excluded players if user is not admin
+                if (!shouldShowRatingChanges(player, isAdmin())) {
+                  return null;
+                }
+
                 const ratingChange = change.after - change.before;
                 const isPositive = ratingChange > 0;
-                
+
                 return (
                   <div key={playerId} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">

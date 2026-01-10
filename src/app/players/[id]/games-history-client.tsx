@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/auth-context';
 import type { Game, Player } from '@/lib/types';
 
 interface GamesHistoryClientProps {
@@ -31,6 +32,7 @@ interface GamesHistoryClientProps {
 const GAMES_PER_PAGE = 20;
 
 export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
+  const { isAdmin } = useAuth();
   const [gameTypeFilter, setGameTypeFilter] = React.useState<string>('Doubles');
   const [displayCount, setDisplayCount] = React.useState<number>(GAMES_PER_PAGE);
 
@@ -79,8 +81,17 @@ export function GamesHistoryClient({ games, player }: GamesHistoryClientProps) {
   const getRatingDisplay = (game: Game) => {
     const gameData = game as any;
     const ratingChange = gameData.ratingChanges?.[player.id];
-    
+
     if (!ratingChange) return 'N/A';
+
+    // Check if any player in the game is excluded from rankings
+    const allPlayers = [...game.team1.players, ...game.team2.players];
+    const hasExcludedPlayer = allPlayers.some(p => p.excludeFromRankings);
+
+    // Hide rating change if game involves excluded player and user is not admin
+    if (hasExcludedPlayer && !isAdmin()) {
+      return <span className="text-muted-foreground">---</span>;
+    }
 
     const change = ratingChange.after - ratingChange.before;
     const changeText = change >= 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
