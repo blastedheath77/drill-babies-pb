@@ -179,7 +179,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
   const [deletingRounds, setDeletingRounds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const router = useRouter();
-  const { canCreateTournaments } = useAuth();
+  const { canCreateTournaments, isAdmin } = useAuth();
 
   const handleTournamentDeleted = () => {
     // Navigate back to tournaments list
