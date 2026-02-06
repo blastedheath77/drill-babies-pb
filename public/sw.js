@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pbstats-v0.1.0-4f6760a3';
+const CACHE_NAME = 'pbstats-v0.1.1-notifications';
 const STATIC_CACHE_URLS = [
   '/',
   '/players',
@@ -170,11 +170,14 @@ self.addEventListener('push', (event) => {
     console.log('📦 Push data:', event.data);
     try {
       const payload = event.data.json();
-      console.log('📋 Parsed push data:', payload);
+      console.log('📋 Parsed push data:', JSON.stringify(payload, null, 2));
 
       // FCM sends data in a specific structure with 'notification' and 'data' fields
       const fcmNotification = payload.notification || {};
       const fcmData = payload.data || {};
+
+      console.log('📋 FCM Notification:', JSON.stringify(fcmNotification, null, 2));
+      console.log('📋 FCM Data:', JSON.stringify(fcmData, null, 2));
 
       notificationData = {
         title: fcmNotification.title || fcmData.title || 'PBStats',
@@ -185,9 +188,10 @@ self.addEventListener('push', (event) => {
         clubId: fcmData.clubId
       };
 
-      console.log('✨ Extracted notification data:', notificationData);
+      console.log('✨ Extracted notification data:', JSON.stringify(notificationData, null, 2));
     } catch (e) {
       console.log('⚠️ Failed to parse push data as JSON:', e);
+      console.log('Raw data text:', event.data.text());
       // If not JSON, use as plain text
       notificationData.body = event.data.text();
     }
