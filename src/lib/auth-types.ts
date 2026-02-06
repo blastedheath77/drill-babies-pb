@@ -50,6 +50,7 @@ export interface AuthContextType {
   isPlayer: () => boolean;
   isViewer: () => boolean;
   isAuthenticated: () => boolean;
+  isClubAdmin: (clubId: string) => boolean;
   canCreateTournaments: () => boolean;
   canManagePlayers: () => boolean;
 }

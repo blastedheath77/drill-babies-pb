@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, Users2, Grid3x3, Building2 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
 import type { UserRole } from '@/lib/auth-types';
 
 export interface NavItem {
@@ -111,6 +111,17 @@ export const mainNavItems: NavItem[] = [
 
 // Action items (with special styling)
 export const actionNavItems: NavItem[] = [
+  {
+    title: 'Events',
+    href: '/events',
+    icon: CalendarDays,
+    category: 'action',
+    priority: 'secondary',
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Schedule and manage events'
+  },
   {
     title: 'Rec Play & Tournaments',
     href: '/tournaments',

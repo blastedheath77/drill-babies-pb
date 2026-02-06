@@ -21,13 +21,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    // Clean up stale localStorage from old app versions
+    const staleKeys = ['pbstats-user', 'user', 'auth'];
+    staleKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        logger.info(`Removing stale localStorage key: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
+
     // Use Firebase Auth only - no localStorage fallback
     const unsubscribe = onAuthStateChange((firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
         logger.info('User signed in via Firebase', { uid: firebaseUser.id, email: firebaseUser.email });
       }
-      
+
       setIsLoading(false);
       setIsInitialized(true);
     });
@@ -99,25 +108,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
   const isViewer = () => user?.role === 'viewer';
   const isAuthenticated = () => user !== null;
-  
+
+  const isClubAdmin = (clubId: string) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true; // Global admin has access to all clubs
+    return user.clubRoles?.[clubId] === 'club_admin';
+  };
+
   const canCreateTournaments = () => getUserPermissions(user).canCreateTournaments;
   const canManagePlayers = () => getUserPermissions(user).canCreatePlayers;
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        isLoading, 
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
         isInitialized,
-        login, 
+        login,
         register,
-        logout, 
+        logout,
         resetPassword: handlePasswordReset,
         resendEmailVerification: handleResendEmailVerification,
-        isAdmin, 
+        isAdmin,
         isPlayer,
         isViewer,
         isAuthenticated,
+        isClubAdmin,
         canCreateTournaments,
         canManagePlayers
       }}

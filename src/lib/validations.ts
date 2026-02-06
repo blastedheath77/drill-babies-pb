@@ -335,3 +335,160 @@ export function validateDataSafe<T>(schema: z.ZodSchema<T>, data: unknown): {
     return { success: false, error: 'Unknown validation error' };
   }
 }
+
+// Event validation schemas
+export const eventTypeSchema = z.enum(['training', 'league_match', 'friendly', 'other'], {
+  errorMap: () => ({ message: 'Event type must be training, league_match, friendly, or other' }),
+});
+
+export const eventStatusSchema = z.enum(['scheduled', 'cancelled'], {
+  errorMap: () => ({ message: 'Event status must be scheduled or cancelled' }),
+});
+
+export const rsvpResponseSchema = z.enum(['yes', 'maybe', 'no'], {
+  errorMap: () => ({ message: 'RSVP response must be yes, maybe, or no' }),
+});
+
+export const createEventSchema = z
+  .object({
+    title: z
+      .string()
+      .min(2, 'Title must be at least 2 characters')
+      .max(100, 'Title cannot exceed 100 characters'),
+    description: z
+      .string()
+      .max(1000, 'Description cannot exceed 1000 characters')
+      .optional(),
+    type: eventTypeSchema,
+    customType: z
+      .string()
+      .max(50, 'Custom type cannot exceed 50 characters')
+      .optional(),
+    startTime: z.string().datetime('Start time must be a valid ISO datetime'),
+    endTime: z.string().datetime('End time must be a valid ISO datetime'),
+    location: z
+      .string()
+      .max(200, 'Location cannot exceed 200 characters')
+      .optional(),
+    clubId: z.string().min(1, 'Club ID is required'),
+    // Recurrence fields (optional, for creating recurring events)
+    isRecurring: z.boolean().optional(),
+    recurrenceEndDate: z.string().datetime().optional(),
+  })
+  .refine(
+    (data) => {
+      // End time must be after start time
+      return new Date(data.endTime) > new Date(data.startTime);
+    },
+    {
+      message: 'End time must be after start time',
+      path: ['endTime'],
+    }
+  )
+  .refine(
+    (data) => {
+      // If type is 'other', customType should be provided
+      if (data.type === 'other') {
+        return data.customType && data.customType.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: 'Custom type is required when event type is "other"',
+      path: ['customType'],
+    }
+  )
+  .refine(
+    (data) => {
+      // If recurring, recurrenceEndDate must be provided
+      if (data.isRecurring) {
+        return !!data.recurrenceEndDate;
+      }
+      return true;
+    },
+    {
+      message: 'Recurrence end date is required for recurring events',
+      path: ['recurrenceEndDate'],
+    }
+  )
+  .refine(
+    (data) => {
+      // If recurring, end date must be after start time
+      if (data.isRecurring && data.recurrenceEndDate) {
+        return new Date(data.recurrenceEndDate) > new Date(data.startTime);
+      }
+      return true;
+    },
+    {
+      message: 'Recurrence end date must be after the first event start time',
+      path: ['recurrenceEndDate'],
+    }
+  );
+
+export const updateEventSchema = z
+  .object({
+    title: z
+      .string()
+      .min(2, 'Title must be at least 2 characters')
+      .max(100, 'Title cannot exceed 100 characters')
+      .optional(),
+    description: z
+      .string()
+      .max(1000, 'Description cannot exceed 1000 characters')
+      .optional(),
+    type: eventTypeSchema.optional(),
+    customType: z
+      .string()
+      .max(50, 'Custom type cannot exceed 50 characters')
+      .optional(),
+    startTime: z.string().datetime('Start time must be a valid ISO datetime').optional(),
+    endTime: z.string().datetime('End time must be a valid ISO datetime').optional(),
+    location: z
+      .string()
+      .max(200, 'Location cannot exceed 200 characters')
+      .optional(),
+    status: eventStatusSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      // If both times provided, end must be after start
+      if (data.startTime && data.endTime) {
+        return new Date(data.endTime) > new Date(data.startTime);
+      }
+      return true;
+    },
+    {
+      message: 'End time must be after start time',
+      path: ['endTime'],
+    }
+  );
+
+export const eventRsvpSchema = z.object({
+  eventId: z.string().min(1, 'Event ID is required'),
+  userId: z.string().min(1, 'User ID is required'),
+  clubId: z.string().min(1, 'Club ID is required'),
+  response: rsvpResponseSchema,
+});
+
+export const eventSchema = z.object({
+  id: z.string().min(1),
+  clubId: z.string().min(1),
+  title: z.string().min(2).max(100),
+  description: z.string().max(1000).optional(),
+  type: eventTypeSchema,
+  customType: z.string().max(50).optional(),
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  location: z.string().max(200).optional(),
+  recurrenceGroupId: z.string().optional(),
+  isRecurringInstance: z.boolean(),
+  recurrenceIndex: z.number().int().min(0).optional(),
+  createdBy: z.string().min(1),
+  createdDate: z.string().datetime(),
+  rsvpCounts: z.object({
+    yes: z.number().int().min(0),
+    maybe: z.number().int().min(0),
+    no: z.number().int().min(0),
+  }),
+  status: eventStatusSchema,
+});

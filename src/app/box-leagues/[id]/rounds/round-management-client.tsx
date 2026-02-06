@@ -98,6 +98,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
                     value={team1Score}
                     onChange={setTeam1Score}
                     maxScore={15}
+                    align="center"
                   />
                 </div>
               </div>
@@ -116,6 +117,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
                     value={team2Score}
                     onChange={setTeam2Score}
                     maxScore={15}
+                    align="center"
                   />
                 </div>
               </div>

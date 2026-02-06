@@ -250,3 +250,46 @@ export interface BoxLeagueStanding {
   headToHeadRecord: { [playerId: string]: { wins: number; losses: number } };
 }
 
+// Event types
+export type EventType = 'training' | 'league_match' | 'friendly' | 'other';
+export type EventStatus = 'scheduled' | 'cancelled';
+export type RsvpResponse = 'yes' | 'maybe' | 'no';
+
+export interface Event {
+  id: string;
+  clubId: string;
+  title: string;
+  description?: string;
+  type: EventType;
+  customType?: string; // When type is 'other'
+  startTime: string; // ISO datetime
+  endTime: string; // ISO datetime
+  location?: string;
+  recurrenceGroupId?: string; // Links recurring instances
+  isRecurringInstance: boolean;
+  recurrenceIndex?: number; // Position in series (0-based)
+  createdBy: string;
+  createdDate: string;
+  rsvpCounts: {
+    yes: number;
+    maybe: number;
+    no: number;
+  };
+  status: EventStatus;
+}
+
+export interface EventRsvp {
+  id: string; // Format: eventId_userId
+  eventId: string;
+  userId: string;
+  clubId: string;
+  response: RsvpResponse;
+  respondedAt: string; // ISO datetime
+}
+
+// User notification settings extension
+export interface NotificationSettings {
+  eventsEnabled: boolean;
+  fcmToken?: string;
+}
+

@@ -17,6 +17,11 @@ export interface Permission {
   canManageOwnClub: boolean;
   canInviteToClub: boolean;
   canRemoveFromClub: boolean;
+  // Event permissions
+  canCreateEvents: boolean;
+  canModifyEvents: boolean;
+  canDeleteEvents: boolean;
+  canViewEvents: boolean;
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
@@ -36,6 +41,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canManageOwnClub: true,
     canInviteToClub: true,
     canRemoveFromClub: true,
+    canCreateEvents: true,
+    canModifyEvents: true,
+    canDeleteEvents: true,
+    canViewEvents: true,
   },
   club_admin: {
     canCreateTournaments: true,
@@ -53,6 +62,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canManageOwnClub: true,
     canInviteToClub: true,
     canRemoveFromClub: true,
+    canCreateEvents: true,
+    canModifyEvents: true,
+    canDeleteEvents: true,
+    canViewEvents: true,
   },
   player: {
     canCreateTournaments: true,
@@ -70,6 +83,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canManageOwnClub: false,
     canInviteToClub: false,
     canRemoveFromClub: false,
+    canCreateEvents: false,
+    canModifyEvents: false,
+    canDeleteEvents: false,
+    canViewEvents: true,
   },
   viewer: {
     canCreateTournaments: false,
@@ -87,6 +104,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
     canManageOwnClub: false,
     canInviteToClub: false,
     canRemoveFromClub: false,
+    canCreateEvents: false,
+    canModifyEvents: false,
+    canDeleteEvents: false,
+    canViewEvents: true,
   },
 };
 

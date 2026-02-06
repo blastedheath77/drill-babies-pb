@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { QueryProvider } from '@/lib/query-client';
 import { AuthProvider } from '@/contexts/auth-context';
 import { ClubProvider } from '@/contexts/club-context';
+import { NotificationProvider } from '@/contexts/notification-context';
 
 export const metadata: Metadata = {
   title: 'Pickleball Stats Tracker',
@@ -79,7 +80,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator && !window.location.hostname.includes('localhost')) {
+              if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
                     console.log('SW registered: ', registration);
@@ -127,12 +128,14 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <AuthProvider>
           <ClubProvider>
-            <QueryProvider>
-              <ErrorBoundary>
-                <AppLayout>{children}</AppLayout>
-              </ErrorBoundary>
-              <Toaster />
-            </QueryProvider>
+            <NotificationProvider>
+              <QueryProvider>
+                <ErrorBoundary>
+                  <AppLayout>{children}</AppLayout>
+                </ErrorBoundary>
+                <Toaster />
+              </QueryProvider>
+            </NotificationProvider>
           </ClubProvider>
         </AuthProvider>
       </body>

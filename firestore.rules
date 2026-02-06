@@ -250,6 +250,54 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // EVENTS COLLECTION
+    // ============================================================
+
+    match /events/{eventId} {
+      // Users can read events from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Only club admins can create events
+      allow create: if isAuthenticated() &&
+                       isAdminForClub(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // Only club admins can update events
+      allow update: if isAuthenticated() &&
+                       isAdminForClub(resource.data.clubId) &&
+                       clubIdUnchanged();
+
+      // Only club admins can delete events
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
+    // EVENT RSVPS COLLECTION
+    // ============================================================
+
+    match /eventRsvps/{rsvpId} {
+      // Users can read RSVPs from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Users can create their own RSVPs for events in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.auth.uid == request.resource.data.userId &&
+                       request.resource.data.clubId is string;
+
+      // Users can update their own RSVPs
+      allow update: if isAuthenticated() &&
+                       request.auth.uid == resource.data.userId;
+
+      // Users can delete their own RSVPs, or club admins can delete any RSVP
+      allow delete: if isAuthenticated() &&
+                       (request.auth.uid == resource.data.userId ||
+                        isAdminForClub(resource.data.clubId));
+    }
+
+    // ============================================================
     // DEFAULT DENY ALL
     // ============================================================
 
