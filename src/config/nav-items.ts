@@ -1,11 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, Calendar, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
+import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
+
+type NavIcon = LucideIcon | React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement> & React.RefAttributes<SVGSVGElement>>;
 
 export interface NavItem {
   title: string;
   href: string;
-  icon: LucideIcon;
+  icon: NavIcon;
   label?: string;
   category?: 'main' | 'action' | 'special' | 'admin';
   priority: 'primary' | 'secondary' | 'tertiary';
@@ -44,7 +47,7 @@ export const mainNavItems: NavItem[] = [
   {
     title: 'Games',
     href: '/games',
-    icon: Calendar,
+    icon: PaddleIcon,
     category: 'main',
     priority: 'secondary',
     bottomNavEligible: false,

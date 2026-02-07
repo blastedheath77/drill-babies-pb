@@ -1,180 +1,41 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 import { usePlayers } from '@/hooks/use-players';
 import { useCircles } from '@/hooks/use-circles';
 import { useAllGames } from '@/hooks/use-games';
 import { useClub } from '@/contexts/club-context';
 import { SortableStatisticsTable } from '@/components/sortable-statistics-table';
-import { CircleSelector } from '@/components/circle-selector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { AlertTriangle, Users, Filter, Calendar } from 'lucide-react';
+import { AlertTriangle, Users } from 'lucide-react';
 import type { Player, Game } from '@/lib/types';
 import { calculatePlayerForm } from '@/lib/data';
 
+export type DateFilter = 'all' | '2weeks' | '1month' | '2months' | 'custom';
+
 interface RankingsClientProps {
   initialPlayers: Player[];
+  selectedCircleId: string | null;
+  dateFilter: DateFilter;
+  customStartDate: string;
+  customEndDate: string;
 }
 
-type DateFilter = 'all' | '2weeks' | '1month' | '2months' | 'custom';
-
-export function RankingsClient({ initialPlayers }: RankingsClientProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+export function RankingsClient({
+  initialPlayers,
+  selectedCircleId,
+  dateFilter,
+  customStartDate,
+  customEndDate,
+}: RankingsClientProps) {
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
   const { data: players, isLoading, error, isError } = usePlayers(selectedClub?.id);
   const { data: circles } = useCircles(selectedClub?.id);
   const { data: games } = useAllGames(selectedClub?.id);
 
-  // Initialize state with defaults - URL params will be applied after mount
-  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Read URL params AFTER mount (safe - avoids hydration issues)
-  useEffect(() => {
-    if (!isInitialized && searchParams) {
-      const circleParam = searchParams.get('circle');
-      const periodParam = searchParams.get('period') as DateFilter;
-      const startParam = searchParams.get('start');
-      const endParam = searchParams.get('end');
-
-      if (circleParam) {
-        setSelectedCircleId(circleParam);
-      }
-      if (periodParam && ['all', '2weeks', '1month', '2months', 'custom'].includes(periodParam)) {
-        setDateFilter(periodParam);
-      }
-      if (startParam) {
-        setCustomStartDate(startParam);
-      }
-      if (endParam) {
-        setCustomEndDate(endParam);
-      }
-      setIsInitialized(true);
-    }
-  }, [searchParams, isInitialized]);
-
-  // Update URL when circle selection changes
-  const handleCircleChange = (circleId: string | null) => {
-    setSelectedCircleId(circleId);
-
-    try {
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      if (circleId) {
-        params.set('circle', circleId);
-      } else {
-        params.delete('circle');
-      }
-
-      // Update URL without refreshing the page
-      const newUrl = params.toString() ? `?${params.toString()}` : '/statistics';
-      router.replace(newUrl, { scroll: false });
-    } catch (error) {
-      console.error('Error updating URL:', error);
-    }
-  };
-
-  // Update URL when date filter changes
-  const handleDateFilterChange = (period: DateFilter) => {
-    setDateFilter(period);
-
-    // Clear custom dates if switching away from custom
-    if (period !== 'custom') {
-      setCustomStartDate('');
-      setCustomEndDate('');
-    }
-
-    try {
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      if (period !== 'all') {
-        params.set('period', period);
-      } else {
-        params.delete('period');
-      }
-
-      // Clear custom date params if not using custom
-      if (period !== 'custom') {
-        params.delete('start');
-        params.delete('end');
-      }
-
-      // Update URL without refreshing the page
-      const newUrl = params.toString() ? `?${params.toString()}` : '/statistics';
-      router.replace(newUrl, { scroll: false });
-    } catch (error) {
-      console.error('Error updating URL:', error);
-    }
-  };
-
-  // Update URL when custom dates change
-  const handleCustomDateChange = (start: string, end: string) => {
-    setCustomStartDate(start);
-    setCustomEndDate(end);
-
-    try {
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      params.set('period', 'custom');
-      if (start) {
-        params.set('start', start);
-      } else {
-        params.delete('start');
-      }
-      if (end) {
-        params.set('end', end);
-      } else {
-        params.delete('end');
-      }
-
-      const newUrl = params.toString() ? `?${params.toString()}` : '/statistics';
-      router.replace(newUrl, { scroll: false });
-    } catch (error) {
-      console.error('Error updating URL:', error);
-    }
-  };
-
-  // Sync state with URL changes (e.g., browser back/forward)
-  // Only run after initial mount to avoid conflicts
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    const circleParam = searchParams?.get('circle') || null;
-    const periodParam = searchParams?.get('period') as DateFilter;
-    const startParam = searchParams?.get('start') || '';
-    const endParam = searchParams?.get('end') || '';
-
-    if (circleParam !== selectedCircleId) {
-      setSelectedCircleId(circleParam);
-    }
-
-    if (periodParam && periodParam !== dateFilter && ['all', '2weeks', '1month', '2months', 'custom'].includes(periodParam)) {
-      setDateFilter(periodParam);
-    }
-
-    if (startParam !== customStartDate) {
-      setCustomStartDate(startParam);
-    }
-    if (endParam !== customEndDate) {
-      setCustomEndDate(endParam);
-    }
-  }, [searchParams, isInitialized]);
 
   // Use React Query data if available, otherwise fall back to initial data
   const allPlayersData = players || initialPlayers;
@@ -439,91 +300,7 @@ export function RankingsClient({ initialPlayers }: RankingsClientProps) {
       : null;
 
     return (
-      <div className="space-y-6">
-        {/* Header with filter */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Player Rankings</h1>
-            <p className="text-muted-foreground">
-              {selectedCircleName
-                ? `Leaderboard for "${selectedCircleName}" circle`
-                : 'Current player leaderboard showing all active players'
-              }
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Date Filter */}
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <Select value={dateFilter} onValueChange={handleDateFilterChange}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="2weeks">Last 2 Weeks</SelectItem>
-                  <SelectItem value="1month">Last 1 Month</SelectItem>
-                  <SelectItem value="2months">Last 2 Months</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Custom Date Range */}
-            {dateFilter === 'custom' && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9">
-                    {customStartDate && customEndDate
-                      ? `${customStartDate} - ${customEndDate}`
-                      : 'Select dates...'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-4" align="start">
-                  <div className="grid gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="start-date">Start Date</Label>
-                      <Input
-                        id="start-date"
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => handleCustomDateChange(e.target.value, customEndDate)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="end-date">End Date</Label>
-                      <Input
-                        id="end-date"
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => handleCustomDateChange(customStartDate, e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-
-            {/* Circle Filter */}
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <CircleSelector
-                selectedCircleId={selectedCircleId}
-                onCircleChange={handleCircleChange}
-                placeholder="Filter by circle..."
-                showPlayerCount={true}
-                size="default"
-              />
-            </div>
-
-            {/* Player Count Badge */}
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              0 Players
-            </Badge>
-          </div>
-        </div>
-
+      <div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mb-4" />
@@ -549,93 +326,30 @@ export function RankingsClient({ initialPlayers }: RankingsClientProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Player Rankings</h1>
-          <p className="text-muted-foreground">
-            {selectedCircleName
-              ? `Leaderboard for "${selectedCircleName}" circle`
-              : 'Current player leaderboard showing all active players'
-            }
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Date Filter */}
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select value={dateFilter} onValueChange={handleDateFilterChange}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="2weeks">Last 2 Weeks</SelectItem>
-                <SelectItem value="1month">Last 1 Month</SelectItem>
-                <SelectItem value="2months">Last 2 Months</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Custom Date Range */}
-          {dateFilter === 'custom' && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9">
-                  {customStartDate && customEndDate
-                    ? `${customStartDate} - ${customEndDate}`
-                    : 'Select dates...'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-4" align="start">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="start-date-main">Start Date</Label>
-                    <Input
-                      id="start-date-main"
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => handleCustomDateChange(e.target.value, customEndDate)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="end-date-main">End Date</Label>
-                    <Input
-                      id="end-date-main"
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => handleCustomDateChange(customStartDate, e.target.value)}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {/* Circle Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <CircleSelector
-              selectedCircleId={selectedCircleId}
-              onCircleChange={handleCircleChange}
-              placeholder="Filter by circle..."
-              showPlayerCount={true}
-              size="default"
-            />
-          </div>
-
-          {/* Player Count Badge */}
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Users className="h-3 w-3" />
-            {playersData.length} Player{playersData.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
+      {/* Player Count */}
+      <div className="flex justify-between items-center">
+        <p className="text-muted-foreground">
+          {selectedCircleName
+            ? `Showing results for "${selectedCircleName}" circle`
+            : 'Showing all active players'
+          }
+        </p>
+        <Badge variant="secondary" className="flex items-center gap-1">
+          <Users className="h-3 w-3" />
+          {playersData.length} Player{playersData.length !== 1 ? 's' : ''}
+        </Badge>
       </div>
+
+      {/* Statistics Table */}
+      <SortableStatisticsTable
+        players={playersData}
+        showRating={dateFilter === 'all'}
+        initialSortField={dateFilter === 'all' ? 'rating' : 'winPercentage'}
+      />
 
       {/* Excluded Players Notice */}
       {(minGamesExcludedCount > 0 || adminExcludedCount > 0) && (
-        <Alert className="mb-4">
+        <Alert>
           <AlertDescription>
             <span className="font-medium">Note:</span> Some players are excluded from rankings:
             <div className="mt-1 space-y-1">
@@ -653,13 +367,6 @@ export function RankingsClient({ initialPlayers }: RankingsClientProps) {
           </AlertDescription>
         </Alert>
       )}
-
-      {/* Statistics Table */}
-      <SortableStatisticsTable
-        players={playersData}
-        showRating={dateFilter === 'all'}
-        initialSortField={dateFilter === 'all' ? 'rating' : 'winPercentage'}
-      />
     </div>
   );
 }

@@ -399,7 +399,7 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
 
       {/* Navigation Items */}
       <div className="flex-1 overflow-auto py-4">
-        <nav className="space-y-1 px-1">
+        <nav className="space-y-1 px-2">
           {regularMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -410,13 +410,13 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  'flex items-center gap-1 rounded-lg px-1 py-2 text-base font-bold transition-colors',
+                  'flex items-center gap-3 rounded-lg px-3 py-3 text-lg font-semibold transition-colors',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-5 w-5" />
                 <div className="flex-1 min-w-0">
                   <div className="whitespace-nowrap overflow-hidden text-ellipsis">
                     {item.title}

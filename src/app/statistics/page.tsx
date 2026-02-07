@@ -39,9 +39,6 @@ export default function StatisticsPage() {
     <div className="container mx-auto p-4 sm:p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Statistics</h1>
-        <p className="text-muted-foreground mt-2">
-          View player rankings, partnerships, and head-to-head records
-        </p>
       </div>
 
       <Suspense fallback={<LoadingSkeleton />}>

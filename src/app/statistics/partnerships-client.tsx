@@ -12,13 +12,15 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Trophy, TrendingUp } from 'lucide-react';
+import { Users, Trophy } from 'lucide-react';
 import type { Player, Partnership } from '@/lib/types';
 import Link from 'next/link';
 import { usePartnershipsData } from '@/hooks/use-games';
+import { useCircles } from '@/hooks/use-circles';
 import { useClub } from '@/contexts/club-context';
 import { getPartnershipStats } from '@/lib/data';
 import { Loader2, AlertCircle } from 'lucide-react';
+import type { DateFilter } from './rankings-client';
 
 interface PartnershipData {
   player: Player;
@@ -31,11 +33,71 @@ interface BestPartnership extends Partnership {
   playerName: string;
 }
 
-export function PartnershipsClientV2() {
-  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
-  const { games, players, isLoading, error } = usePartnershipsData(selectedClub?.id);
+interface PartnershipsClientProps {
+  selectedCircleId: string | null;
+  dateFilter: DateFilter;
+  customStartDate: string;
+  customEndDate: string;
+}
 
-  // Calculate partnerships - always call useMemo hooks
+// "Tom McNab" → "Tom M."
+function shortName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+export function PartnershipsClientV2({
+  selectedCircleId,
+  dateFilter,
+  customStartDate,
+  customEndDate,
+}: PartnershipsClientProps) {
+  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { games: allGames, players: allPlayers, isLoading, error } = usePartnershipsData(selectedClub?.id);
+  const { data: circles } = useCircles(selectedClub?.id);
+
+  // Filter players by circle
+  const players = React.useMemo(() => {
+    if (!allPlayers) return allPlayers;
+    if (!selectedCircleId || !circles) return allPlayers;
+    const circle = circles.find(c => c.id === selectedCircleId);
+    if (!circle) return allPlayers;
+    return allPlayers.filter(p => circle.playerIds.includes(p.id));
+  }, [allPlayers, selectedCircleId, circles]);
+
+  // Filter games by date range
+  const games = React.useMemo(() => {
+    if (!allGames || dateFilter === 'all') return allGames;
+
+    const now = new Date();
+    now.setHours(23, 59, 59, 999);
+    let start: Date | null = null;
+    let end: Date | null = now;
+
+    if (dateFilter === '2weeks') {
+      start = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    } else if (dateFilter === '1month') {
+      start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (dateFilter === '2months') {
+      start = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    } else if (dateFilter === 'custom') {
+      start = customStartDate ? new Date(customStartDate) : null;
+      end = customEndDate ? new Date(customEndDate) : null;
+    }
+
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+
+    return allGames.filter(game => {
+      const gameDate = new Date(game.date);
+      if (start && gameDate < start) return false;
+      if (end && gameDate > end) return false;
+      return true;
+    });
+  }, [allGames, dateFilter, customStartDate, customEndDate]);
+
+  // Calculate partnerships
   const allPartnerships: PartnershipData[] = React.useMemo(() => {
     if (!games || !players || games.length === 0 || players.length === 0) {
       return [];
@@ -44,21 +106,18 @@ export function PartnershipsClientV2() {
     try {
       return players.map((player) => {
         const partnerships = getPartnershipStats(player.id, games, players);
-        // Only count partnerships where games were actually played together
         const validPartnerships = partnerships.filter(p => p.partner && p.gamesPlayed > 0);
-        
-        // Calculate total partnership games for this player (only doubles games where they participated)
-        const playerDoublesGames = games.filter(game => 
-          game.type === 'Doubles' && 
+
+        const playerDoublesGames = games.filter(game =>
+          game.type === 'Doubles' &&
           (game.team1.playerIds.includes(player.id) || game.team2.playerIds.includes(player.id))
         );
-        
-        
+
         return {
           player,
           partnerships: validPartnerships,
-          totalGames: playerDoublesGames.length, // Actual number of doubles games this player played
-          averageWinRate: validPartnerships.length > 0 
+          totalGames: playerDoublesGames.length,
+          averageWinRate: validPartnerships.length > 0
             ? validPartnerships.reduce((sum, p) => sum + (p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0), 0) / validPartnerships.length * 100
             : 0
         };
@@ -69,22 +128,20 @@ export function PartnershipsClientV2() {
     }
   }, [games, players]);
 
-  // Calculate best partnerships - always call useMemo hooks
+  // Calculate best partnerships
   const bestPartnerships: BestPartnership[] = React.useMemo(() => {
     try {
       const allBestPartnerships: BestPartnership[] = [];
       const seenPartnerships = new Set<string>();
-      
+
       allPartnerships.forEach(playerData => {
         playerData.partnerships
-          .filter(p => p.gamesPlayed >= 3) // Minimum 3 games
+          .filter(p => p.gamesPlayed >= 3)
           .forEach(partnership => {
-            // Create a unique key for this partnership (sorted alphabetically to avoid duplicates)
             const partnershipKey = [playerData.player.name, partnership.partner.name]
               .sort()
               .join('|');
-            
-            // Only add if we haven't seen this partnership before
+
             if (!seenPartnerships.has(partnershipKey)) {
               seenPartnerships.add(partnershipKey);
               allBestPartnerships.push({
@@ -101,190 +158,146 @@ export function PartnershipsClientV2() {
           const bWinRate = b.gamesPlayed > 0 ? (b.wins / b.gamesPlayed) : 0;
           return bWinRate - aWinRate;
         })
-        .slice(0, 10); // Top 10
+        .slice(0, 10);
     } catch (error) {
       console.error('Error calculating best partnerships:', error);
       return [];
     }
   }, [allPartnerships]);
 
-  // Calculate global stats - always call useMemo hooks
-  const globalStats = React.useMemo(() => {
-    try {
-      if (allPartnerships.length === 0) {
-        return { totalPartnerships: 0, totalGames: 0, avgWinRate: 0, qualifiedPairs: 0 };
-      }
-
-      const totalPartnerships = allPartnerships.reduce((sum, p) => sum + p.partnerships.length, 0);
-      const totalGames = allPartnerships.reduce((sum, p) => sum + p.totalGames, 0);
-      const avgWinRate = allPartnerships.reduce((sum, p) => sum + p.averageWinRate, 0) / allPartnerships.length;
-      const qualifiedPairs = bestPartnerships.length;
-
-      return { totalPartnerships, totalGames, avgWinRate, qualifiedPairs };
-    } catch (error) {
-      console.error('Error calculating global stats:', error);
-      return { totalPartnerships: 0, totalGames: 0, avgWinRate: 0, qualifiedPairs: 0 };
-    }
-  }, [allPartnerships, bestPartnerships]);
-
   // Show message if user has no clubs
   if (!clubsLoading && !hasAnyClubs) {
     return (
-      <div className="space-y-8">
-        <div className="flex flex-col items-center justify-center min-h-[40vh]">
-          <Card className="max-w-md">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-xl">
-                <Users className="h-6 w-6" />
-                No Club Access
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-muted-foreground">
-                You are not assigned to any clubs yet. Please contact an administrator to get access to a club.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Once you have club access, you'll be able to view partnership analysis.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <Card className="max-w-md mx-auto">
+        <CardContent className="text-center py-8">
+          <Users className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+          <p className="font-medium">No Club Access</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Contact an administrator to get access to a club.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Render loading state
   if (isLoading) {
     return (
-      <div className="space-y-8">
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin mr-2" />
-            <span>Loading partnership data...</span>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span className="text-muted-foreground">Loading partnership data...</span>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Render error state
   if (error) {
     return (
-      <div className="space-y-8">
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <AlertCircle className="h-8 w-8 text-destructive mr-2" />
-            <div>
-              <p className="font-medium">Failed to load partnership data</p>
-              <p className="text-sm text-muted-foreground">
-                {error instanceof Error ? error.message : 'Unknown error occurred'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <AlertCircle className="h-6 w-6 text-destructive mr-2" />
+          <div>
+            <p className="font-medium">Failed to load partnership data</p>
+            <p className="text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error occurred'}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Render empty state
   if (allPartnerships.length === 0) {
     return (
-      <div className="space-y-8">
-        <Card>
-          <CardContent className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">No partnership data available. Play some doubles games to see partnerships!</p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <p className="text-muted-foreground">No partnership data available. Play some doubles games to see partnerships!</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Best Partnerships */}
+    <div className="space-y-6">
+      {/* Top Partnerships - Compact Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Top Performing Partnerships</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Partnerships with the highest win rates (minimum 3 games)
-          </p>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Trophy className="h-4 w-4" />
+            Top Partnerships
+            <span className="text-xs font-normal text-muted-foreground">(min. 3 games)</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {bestPartnerships.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                No partnerships with 3+ games found yet.
-              </p>
-            ) : (
-              bestPartnerships.map((partnership, index) => {
-              const winRate = partnership.gamesPlayed > 0 ? (partnership.wins / partnership.gamesPlayed) * 100 : 0;
-              
-              return (
-                <div
-                  key={`${partnership.playerName}-${partnership.partner.id}`}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-accent transition-colors space-y-2 sm:space-y-0"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <div className="font-semibold">
-                        {partnership.playerName} & {partnership.partner.name}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {partnership.gamesPlayed} games played
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right sm:text-right text-left">
-                    <div className="text-xl font-bold text-primary">
-                      {winRate.toFixed(0)}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {partnership.wins}-{partnership.losses} record
-                    </div>
-                  </div>
-                </div>
-              );
-            }))}
-          </div>
+        <CardContent className="pt-0">
+          {bestPartnerships.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-4">
+              No partnerships with 3+ games found yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8">#</TableHead>
+                  <TableHead>Partnership</TableHead>
+                  <TableHead className="text-center w-16">W-L</TableHead>
+                  <TableHead className="text-right w-16">Win%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bestPartnerships.map((partnership, index) => {
+                  const winRate = partnership.gamesPlayed > 0 ? (partnership.wins / partnership.gamesPlayed) * 100 : 0;
+                  return (
+                    <TableRow key={`${partnership.playerName}-${partnership.partner.id}`}>
+                      <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="font-medium">
+                        {shortName(partnership.playerName)} & {shortName(partnership.partner.name)}
+                      </TableCell>
+                      <TableCell className="text-center">{partnership.wins}-{partnership.losses}</TableCell>
+                      <TableCell className={`text-right font-semibold ${
+                        winRate >= 70 ? 'text-green-600' :
+                        winRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {winRate.toFixed(0)}%
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
       {/* Player Partnership Overview */}
       <Card>
-        <CardHeader>
-          <CardTitle>Player Partnership Overview</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Partnership performance summary for each player
-          </p>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Player Overview
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           {/* Desktop Table View */}
-          <div className="hidden lg:block">
+          <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Player</TableHead>
-                  <TableHead className="text-center">Partners</TableHead>
-                  <TableHead className="text-center">Total Games</TableHead>
-                  <TableHead className="text-center">Avg Win Rate</TableHead>
-                  <TableHead className="text-center">Best Partner</TableHead>
-                  <TableHead className="text-center">Chemistry</TableHead>
+                  <TableHead className="text-center w-20">Partners</TableHead>
+                  <TableHead className="text-center w-20">Games</TableHead>
+                  <TableHead className="text-center w-20">Avg Win%</TableHead>
+                  <TableHead className="w-40">Best Partner</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allPartnerships
                   .sort((a, b) => b.averageWinRate - a.averageWinRate)
                   .map((playerData) => {
-                    // Filter partnerships with at least 3 games for "Best Partner" calculation
                     const qualifiedPartnerships = playerData.partnerships.filter(p => p.gamesPlayed >= 3);
-                    const bestPartnership = qualifiedPartnerships.length > 0 
+                    const bestPartnership = qualifiedPartnerships.length > 0
                       ? qualifiedPartnerships.reduce((best, current) => {
                           const currentWinRate = current.gamesPlayed > 0 ? current.wins / current.gamesPlayed : 0;
                           const bestWinRate = best.gamesPlayed > 0 ? best.wins / best.gamesPlayed : 0;
-                          
                           if (Math.abs(currentWinRate - bestWinRate) < 0.1) {
                             return current.gamesPlayed > best.gamesPlayed ? current : best;
                           }
@@ -292,45 +305,21 @@ export function PartnershipsClientV2() {
                         }, qualifiedPartnerships[0])
                       : null;
 
-                    const getChemistryRating = () => {
-                      if (playerData.averageWinRate >= 70) return { label: "Excellent", color: "text-green-600" };
-                      if (playerData.averageWinRate >= 60) return { label: "Very Good", color: "text-green-500" };
-                      if (playerData.averageWinRate >= 50) return { label: "Good", color: "text-yellow-600" };
-                      if (playerData.averageWinRate >= 40) return { label: "Fair", color: "text-orange-600" };
-                      return { label: "Poor", color: "text-red-600" };
-                    };
-
-                    const chemistry = getChemistryRating();
-
                     return (
                       <TableRow key={playerData.player.id}>
                         <TableCell>
                           <Link href={`/players/${playerData.player.id}`}>
-                            <div className="flex items-center gap-3 hover:underline cursor-pointer">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage
-                                  src={playerData.player.avatar}
-                                  alt={playerData.player.name}
-                                />
-                                <AvatarFallback>
-                                  {playerData.player.name.substring(0, 2)}
-                                </AvatarFallback>
+                            <div className="flex items-center gap-2 hover:underline cursor-pointer">
+                              <Avatar className="h-7 w-7">
+                                <AvatarImage src={playerData.player.avatar} alt={playerData.player.name} />
+                                <AvatarFallback className="text-xs">{playerData.player.name.substring(0, 2)}</AvatarFallback>
                               </Avatar>
-                              <div>
-                                <div className="font-medium">{playerData.player.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  Rating: {playerData.player.rating.toFixed(2)}
-                                </div>
-                              </div>
+                              <span className="font-medium">{playerData.player.name}</span>
                             </div>
                           </Link>
                         </TableCell>
-                        <TableCell className="text-center font-medium">
-                          {playerData.partnerships.length}
-                        </TableCell>
-                        <TableCell className="text-center font-medium">
-                          {playerData.totalGames}
-                        </TableCell>
+                        <TableCell className="text-center">{playerData.partnerships.length}</TableCell>
+                        <TableCell className="text-center">{playerData.totalGames}</TableCell>
                         <TableCell className="text-center">
                           <span className={`font-semibold ${
                             playerData.averageWinRate >= 70 ? 'text-green-600' :
@@ -339,33 +328,18 @@ export function PartnershipsClientV2() {
                             {playerData.averageWinRate.toFixed(0)}%
                           </span>
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell>
                           {bestPartnership ? (
-                            <div className="flex items-center justify-center gap-2">
-                              <Avatar className="h-6 w-6">
-                                <AvatarImage
-                                  src={bestPartnership.partner.avatar}
-                                  alt={bestPartnership.partner.name}
-                                />
-                                <AvatarFallback className="text-xs">
-                                  {bestPartnership.partner.name.substring(0, 1)}
-                                </AvatarFallback>
+                            <div className="flex items-center gap-1.5">
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage src={bestPartnership.partner.avatar} alt={bestPartnership.partner.name} />
+                                <AvatarFallback className="text-[10px]">{bestPartnership.partner.name.substring(0, 1)}</AvatarFallback>
                               </Avatar>
-                              <span className="text-sm font-medium">
-                                {bestPartnership.partner.name}
-                              </span>
+                              <span className="text-sm">{shortName(bestPartnership.partner.name)}</span>
                             </div>
                           ) : (
-                            <span className="text-sm text-muted-foreground">No qualified partners</span>
+                            <span className="text-xs text-muted-foreground">-</span>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={
-                            chemistry.label === 'Excellent' || chemistry.label === 'Very Good' ? 'default' :
-                            chemistry.label === 'Good' ? 'secondary' : 'destructive'
-                          }>
-                            {chemistry.label}
-                          </Badge>
                         </TableCell>
                       </TableRow>
                     );
@@ -374,18 +348,16 @@ export function PartnershipsClientV2() {
             </Table>
           </div>
 
-          {/* Mobile Card View */}
-          <div className="lg:hidden space-y-4">
+          {/* Mobile View */}
+          <div className="md:hidden space-y-2">
             {allPartnerships
               .sort((a, b) => b.averageWinRate - a.averageWinRate)
               .map((playerData) => {
-                // Filter partnerships with at least 3 games for "Best Partner" calculation
                 const qualifiedPartnerships = playerData.partnerships.filter(p => p.gamesPlayed >= 3);
-                const bestPartnership = qualifiedPartnerships.length > 0 
+                const bestPartnership = qualifiedPartnerships.length > 0
                   ? qualifiedPartnerships.reduce((best, current) => {
                       const currentWinRate = current.gamesPlayed > 0 ? current.wins / current.gamesPlayed : 0;
                       const bestWinRate = best.gamesPlayed > 0 ? best.wins / best.gamesPlayed : 0;
-                      
                       if (Math.abs(currentWinRate - bestWinRate) < 0.1) {
                         return current.gamesPlayed > best.gamesPlayed ? current : best;
                       }
@@ -393,89 +365,29 @@ export function PartnershipsClientV2() {
                     }, qualifiedPartnerships[0])
                   : null;
 
-                const getChemistryRating = () => {
-                  if (playerData.averageWinRate >= 70) return { label: "Excellent", color: "text-green-600" };
-                  if (playerData.averageWinRate >= 60) return { label: "Very Good", color: "text-green-500" };
-                  if (playerData.averageWinRate >= 50) return { label: "Good", color: "text-yellow-600" };
-                  if (playerData.averageWinRate >= 40) return { label: "Fair", color: "text-orange-600" };
-                  return { label: "Poor", color: "text-red-600" };
-                };
-
-                const chemistry = getChemistryRating();
-
                 return (
-                  <div key={playerData.player.id} className="border rounded-lg p-4 space-y-3">
-                    {/* Player Info */}
+                  <div key={playerData.player.id} className="flex items-center gap-3 p-3 border rounded-lg">
                     <Link href={`/players/${playerData.player.id}`}>
-                      <div className="flex items-center gap-3 hover:underline cursor-pointer">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={playerData.player.avatar}
-                            alt={playerData.player.name}
-                          />
-                          <AvatarFallback>
-                            {playerData.player.name.substring(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="font-semibold text-lg">{playerData.player.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Rating: {playerData.player.rating.toFixed(2)}
-                          </div>
-                        </div>
-                        <Badge variant={
-                          chemistry.label === 'Excellent' || chemistry.label === 'Very Good' ? 'default' :
-                          chemistry.label === 'Good' ? 'secondary' : 'destructive'
-                        }>
-                          {chemistry.label}
-                        </Badge>
-                      </div>
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={playerData.player.avatar} alt={playerData.player.name} />
+                        <AvatarFallback className="text-xs">{playerData.player.name.substring(0, 2)}</AvatarFallback>
+                      </Avatar>
                     </Link>
-
-                    {/* Condensed Stats Row */}
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-primary">{playerData.partnerships.length}</div>
-                        <div className="text-xs text-muted-foreground">Partners</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xl font-bold text-primary">{playerData.totalGames}</div>
-                        <div className="text-xs text-muted-foreground">Total Games</div>
-                      </div>
-                      <div className="text-center">
-                        <span className={`text-xl font-bold ${
-                          playerData.averageWinRate >= 70 ? 'text-green-600' :
-                          playerData.averageWinRate >= 50 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {playerData.averageWinRate.toFixed(0)}%
-                        </span>
-                        <div className="text-xs text-muted-foreground">Avg Win Rate</div>
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/players/${playerData.player.id}`}>
+                        <div className="font-medium text-sm truncate hover:underline">{playerData.player.name}</div>
+                      </Link>
+                      <div className="text-xs text-muted-foreground">
+                        {playerData.partnerships.length} partners · {playerData.totalGames} games
+                        {bestPartnership && <> · Best: {shortName(bestPartnership.partner.name)}</>}
                       </div>
                     </div>
-
-                    {/* Best Partner */}
-                    <div className="border-t pt-3">
-                      <div className="text-sm text-muted-foreground mb-1">Best Partner</div>
-                      {bestPartnership ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={bestPartnership.partner.avatar}
-                              alt={bestPartnership.partner.name}
-                            />
-                            <AvatarFallback className="text-xs">
-                              {bestPartnership.partner.name.substring(0, 1)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{bestPartnership.partner.name}</span>
-                          <span className="text-sm text-muted-foreground ml-auto">
-                            {bestPartnership.gamesPlayed} games, {((bestPartnership.wins / bestPartnership.gamesPlayed) * 100).toFixed(0)}% wins
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">No qualified partners</span>
-                      )}
-                    </div>
+                    <span className={`text-sm font-semibold ${
+                      playerData.averageWinRate >= 70 ? 'text-green-600' :
+                      playerData.averageWinRate >= 50 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {playerData.averageWinRate.toFixed(0)}%
+                    </span>
                   </div>
                 );
               })}
