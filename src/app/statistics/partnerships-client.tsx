@@ -12,8 +12,6 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { PageHeader } from '@/components/page-header';
-import { StatCard } from '@/components/stat-card';
 import { Users, Swords, Trophy, TrendingUp } from 'lucide-react';
 import type { Player, Partnership } from '@/lib/types';
 import Link from 'next/link';
@@ -133,10 +131,6 @@ export function PartnershipsClientV2() {
   if (!clubsLoading && !hasAnyClubs) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Partnership Analysis"
-          description="Comprehensive analysis of doubles partnerships across all players."
-        />
         <div className="flex flex-col items-center justify-center min-h-[40vh]">
           <Card className="max-w-md">
             <CardHeader className="text-center">
@@ -163,10 +157,6 @@ export function PartnershipsClientV2() {
   if (isLoading) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Partnership Analysis"
-          description="Comprehensive analysis of doubles partnerships across all players."
-        />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
             <Loader2 className="h-8 w-8 animate-spin mr-2" />
@@ -181,10 +171,6 @@ export function PartnershipsClientV2() {
   if (error) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Partnership Analysis"
-          description="Comprehensive analysis of doubles partnerships across all players."
-        />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
             <AlertCircle className="h-8 w-8 text-destructive mr-2" />
@@ -204,10 +190,6 @@ export function PartnershipsClientV2() {
   if (allPartnerships.length === 0) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Partnership Analysis"
-          description="Comprehensive analysis of doubles partnerships across all players."
-        />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
             <p className="text-muted-foreground">No partnership data available. Play some doubles games to see partnerships!</p>
@@ -219,12 +201,6 @@ export function PartnershipsClientV2() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Partnership Analysis"
-        description="Comprehensive analysis of doubles partnerships across all players."
-      />
-
-
       {/* Best Partnerships */}
       <Card>
         <CardHeader>

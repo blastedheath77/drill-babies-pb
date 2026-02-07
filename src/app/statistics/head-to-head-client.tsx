@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -110,10 +109,6 @@ export function HeadToHeadClient() {
   if (!clubsLoading && !hasAnyClubs) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Head-to-Head Analysis"
-          description="Compare players and analyze direct matchups with comprehensive statistics."
-        />
         <div className="flex flex-col items-center justify-center min-h-[40vh]">
           <Card className="max-w-md">
             <CardHeader className="text-center">
@@ -140,10 +135,6 @@ export function HeadToHeadClient() {
   if (isLoading) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Head-to-Head Analysis"
-          description="Compare players and analyze direct matchups with comprehensive statistics."
-        />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
             <Loader2 className="h-8 w-8 animate-spin mr-2" />
@@ -158,10 +149,6 @@ export function HeadToHeadClient() {
   if (error) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Head-to-Head Analysis"
-          description="Compare players and analyze direct matchups with comprehensive statistics."
-        />
         <Card>
           <CardContent className="flex items-center justify-center h-32">
             <AlertCircle className="h-8 w-8 text-destructive mr-2" />
@@ -187,13 +174,7 @@ export function HeadToHeadClient() {
   };
 
   return (
-    <>
-      <PageHeader
-        title="Head-to-Head Comparison"
-        description="Compare any two players' direct matchup history and overall performance."
-      />
-
-      <div className="space-y-8">
+    <div className="space-y-8">
         {/* Player Selection */}
         <Card>
           <CardHeader>
@@ -484,7 +465,6 @@ export function HeadToHeadClient() {
             </CardContent>
           </Card>
         ) : null}
-      </div>
-    </>
+    </div>
   );
 }

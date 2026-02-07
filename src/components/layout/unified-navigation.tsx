@@ -380,8 +380,11 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
   const visibleItems = getVisibleNavItems(user?.role, true);
 
   // Filter out items that are already in the bottom navigation
+  // Exception: Keep /statistics in the menu even though it's in bottom nav
   const bottomNavPaths = getBottomNavItems(user?.role).map((item) => item.href);
-  const allMenuItems = visibleItems.filter((item) => !bottomNavPaths.includes(item.href));
+  const allMenuItems = visibleItems.filter(
+    (item) => !bottomNavPaths.includes(item.href) || item.href === '/statistics'
+  );
 
   // Separate admin items from regular menu items
   const regularMenuItems = allMenuItems.filter((item) => item.category !== 'admin');

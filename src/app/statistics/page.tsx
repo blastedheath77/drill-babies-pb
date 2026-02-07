@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
-import { StatisticsClient } from './statistics-client';
-import { DataErrorBoundary } from '@/components/data-error-boundary';
+import { StatisticsPageContent } from './statistics-page-content';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -37,13 +36,17 @@ function LoadingSkeleton() {
 
 export default function StatisticsPage() {
   return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <DataErrorBoundary
-        fallbackTitle="Statistics Unavailable"
-        fallbackDescription="Unable to load player statistics. This may be due to a connection issue."
-      >
-        <StatisticsClient initialPlayers={[]} />
-      </DataErrorBoundary>
-    </Suspense>
+    <div className="container mx-auto p-4 sm:p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Statistics</h1>
+        <p className="text-muted-foreground mt-2">
+          View player rankings, partnerships, and head-to-head records
+        </p>
+      </div>
+
+      <Suspense fallback={<LoadingSkeleton />}>
+        <StatisticsPageContent />
+      </Suspense>
+    </div>
   );
 }

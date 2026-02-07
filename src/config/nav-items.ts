@@ -41,10 +41,10 @@ export const mainNavItems: NavItem[] = [
     desktopVisible: true,
     description: 'Browse club players'
   },
-  { 
-    title: 'Games', 
-    href: '/games', 
-    icon: Calendar, 
+  {
+    title: 'Games',
+    href: '/games',
+    icon: Calendar,
     category: 'main',
     priority: 'secondary',
     bottomNavEligible: false,
@@ -52,27 +52,16 @@ export const mainNavItems: NavItem[] = [
     desktopVisible: true,
     description: 'View game history'
   },
-  { 
-    title: 'Partnerships', 
-    href: '/partnerships', 
-    icon: UserCheck, 
-    category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
-    mobileVisible: true,
-    desktopVisible: true,
-    description: 'Doubles partnership stats'
-  },
   {
-    title: 'Head-to-Head',
-    href: '/head-to-head',
-    icon: Swords,
+    title: 'Stats',
+    href: '/statistics',
+    icon: BarChart,
     category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
+    priority: 'primary',
+    bottomNavEligible: true,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Player matchup stats'
+    description: 'View statistics and analytics'
   },
   {
     title: 'Circles',
@@ -84,17 +73,6 @@ export const mainNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Player groups for filtering'
-  },
-  {
-    title: 'Rankings',
-    href: '/statistics',
-    icon: BarChart,
-    category: 'main',
-    priority: 'primary',
-    bottomNavEligible: true,
-    mobileVisible: true,
-    desktopVisible: true,
-    description: 'Player leaderboards'
   },
   { 
     title: 'Test', 
@@ -123,7 +101,7 @@ export const actionNavItems: NavItem[] = [
     description: 'Schedule and manage events'
   },
   {
-    title: 'Rec Play & Tournaments',
+    title: 'Sessions',
     href: '/tournaments',
     icon: Trophy,
     category: 'action',
@@ -131,7 +109,7 @@ export const actionNavItems: NavItem[] = [
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Manage tournaments'
+    description: 'Manage tournaments and sessions'
   },
   {
     title: 'Box Leagues',
