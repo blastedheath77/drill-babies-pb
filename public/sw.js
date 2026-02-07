@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pbstats-v0.1.1-notifications';
+const CACHE_NAME = 'pbstats-v0.1.0-9a5bdb24';
 const STATIC_CACHE_URLS = [
   '/',
   '/players',
@@ -47,7 +47,7 @@ self.addEventListener('activate', (event) => {
     }).then(() => {
       // Take control of all clients immediately
       self.clients.claim();
-      
+
       // Notify all clients about the update
       self.clients.matchAll().then(clients => {
         clients.forEach(client => {
@@ -69,7 +69,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Skip requests to Firebase/Firestore and external APIs
-  if (event.request.url.includes('firebaseapp.com') || 
+  if (event.request.url.includes('firebaseapp.com') ||
       event.request.url.includes('googleapis.com') ||
       event.request.url.includes('firestore.googleapis.com') ||
       event.request.url.includes('vercel.app') ||
@@ -137,7 +137,7 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
+
   if (event.data && event.data.type === 'CHECK_UPDATE') {
     // Force update check
     self.registration.update();
@@ -292,14 +292,14 @@ async function syncQueuedGames() {
     // Implementation would sync queued games from IndexedDB to Firebase
     // This is a placeholder for the actual sync logic
     console.log('Syncing queued games...');
-    
+
     // In a real implementation, you would:
     // 1. Open IndexedDB
     // 2. Get queued game entries
     // 3. Try to submit them to Firebase
     // 4. Remove successfully synced entries
     // 5. Keep failed entries for retry
-    
+
     return Promise.resolve();
   } catch (error) {
     console.error('Failed to sync queued games:', error);
