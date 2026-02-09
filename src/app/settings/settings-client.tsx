@@ -433,27 +433,52 @@ export function SettingsClient() {
 
                 <Separator />
 
-                <div className="space-y-2">
-                  <Label>Quick Subscribe</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => window.open(getGoogleSubscribeUrl(subscriptionUrl), '_blank')}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Google Calendar
-                    </Button>
-                    <Button
-                      onClick={() => window.open(getOutlookSubscribeUrl(subscriptionUrl), '_blank')}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Outlook
-                    </Button>
+                <div className="space-y-3">
+                  <Label>How to Subscribe</Label>
+
+                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
+                    <p className="font-medium">Google Calendar:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
+                      <li>Open <a href="https://calendar.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Calendar</a></li>
+                      <li>Click the <strong>+</strong> next to &quot;Other calendars&quot;</li>
+                      <li>Select &quot;From URL&quot;</li>
+                      <li>Paste your subscription URL (copied above)</li>
+                      <li>Click &quot;Add calendar&quot;</li>
+                    </ol>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Or copy the URL above for Apple Calendar, Thunderbird, or other apps
-                  </p>
+
+                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
+                    <p className="font-medium">Apple Calendar:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
+                      <li>Open Calendar app</li>
+                      <li>File → New Calendar Subscription</li>
+                      <li>Paste your subscription URL</li>
+                      <li>Click Subscribe</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
+                    <p className="font-medium">Outlook:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
+                      <li>Open <a href="https://outlook.live.com/calendar" target="_blank" rel="noopener noreferrer" className="underline">Outlook Calendar</a></li>
+                      <li>Add calendar → Subscribe from web</li>
+                      <li>Paste your subscription URL</li>
+                      <li>Import</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>What to Expect</Label>
+                  <div className="text-xs text-muted-foreground space-y-1 bg-muted/30 p-3 rounded">
+                    <p>• <strong>Calendar name:</strong> Will appear as &quot;PBStats Events&quot;</p>
+                    <p>• <strong>Update frequency:</strong> Calendar apps check for updates every 1-24 hours</p>
+                    <p>• <strong>What syncs:</strong> Only events you RSVP &quot;Yes&quot; to</p>
+                    <p>• <strong>Auto-updates:</strong> When you change RSVPs, calendar updates automatically</p>
+                    <p>• <strong>Not instant:</strong> Changes may take a few hours to appear</p>
+                  </div>
                 </div>
 
                 <Separator />
