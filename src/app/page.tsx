@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useClub } from '@/contexts/club-context';
-import { Users, BarChart, CalendarDays, Trophy, PlusSquare } from 'lucide-react';
+import { Users, BarChart, CalendarDays, Trophy, PlusSquare, Settings } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import Link from 'next/link';
 
@@ -13,6 +13,7 @@ const navButtons: { title: string; href: string; icon: React.ComponentType<{ cla
   { title: 'Events', href: '/events', icon: CalendarDays, description: 'Upcoming events' },
   { title: 'Sessions', href: '/tournaments', icon: Trophy, description: 'Tournaments & sessions' },
   { title: 'Log Game', href: '/log-game', icon: PlusSquare, description: 'Record a new game' },
+  { title: 'Settings', href: '/settings', icon: Settings, description: 'Account preferences' },
 ];
 
 export default function Home() {

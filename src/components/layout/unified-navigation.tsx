@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, LogOut, LogIn } from 'lucide-react';
+import { Menu, LogOut, LogIn, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -173,45 +173,49 @@ function DesktopSidebar({
         {!isLoading && isClient ? (
           user ? (
             <div className="space-y-2">
-              {/* User Info - Collapsed shows avatar only */}
+              {/* User Info - Clickable to go to Settings */}
               {isCollapsed ? (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex justify-center">
-                        <Avatar className="h-8 w-8">
+                      <Link href="/settings" className="flex justify-center">
+                        <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary transition-all">
                           <AvatarImage
                             src={user?.avatar || 'https://placehold.co/100x100.png'}
                             alt={user?.name || 'User'}
                           />
                           <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
                         </Avatar>
-                      </div>
+                      </Link>
                     </TooltipTrigger>
                     <TooltipContent side="right">
                       <p>{user?.name || 'User'}</p>
                       <p className="text-xs opacity-70">
                         {user?.role === 'admin' ? 'Administrator' : 'Player'}
                       </p>
+                      <p className="text-xs opacity-70 mt-1">Click for Settings</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={user?.avatar || 'https://placehold.co/100x100.png'}
-                      alt={user?.name || 'User'}
-                    />
-                    <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-sm">
-                    <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                    </p>
+                <Link href="/settings">
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={user?.avatar || 'https://placehold.co/100x100.png'}
+                        alt={user?.name || 'User'}
+                      />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                      </p>
+                    </div>
+                    <Settings className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </div>
+                </Link>
               )}
 
               {/* Logout Button */}
@@ -476,22 +480,25 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
           {!isLoading && isClient ? (
             user ? (
               <div className="space-y-2">
-                {/* User Info Card */}
-                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={user?.avatar || 'https://placehold.co/100x100.png'}
-                      alt={user?.name || 'User'}
-                    />
-                    <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-sm">
-                    <p className="font-semibold truncate">{user?.name || 'User'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {user?.role === 'admin' ? 'Administrator' : 'Player'}
-                    </p>
+                {/* User Info Card - Clickable to go to Settings */}
+                <Link href="/settings" onClick={onClose}>
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={user?.avatar || 'https://placehold.co/100x100.png'}
+                        alt={user?.name || 'User'}
+                      />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold truncate">{user?.name || 'User'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'admin' ? 'Administrator' : 'Player'}
+                      </p>
+                    </div>
+                    <Settings className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </div>
+                </Link>
 
                 {/* Logout Button */}
                 <Button

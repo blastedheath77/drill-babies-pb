@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EventCard, EventCardSkeleton, NotificationSettings } from '@/components/events';
+import { EventCard, EventCardSkeleton } from '@/components/events';
 import { useUpcomingEvents, usePastEvents } from '@/hooks/use-events';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
@@ -253,11 +253,6 @@ export function EventsClient() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Notification Settings */}
-      <div className="mt-8">
-        <NotificationSettings />
-      </div>
     </>
   );
 }

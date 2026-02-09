@@ -29,6 +29,9 @@ export interface UserDocument {
   clubMemberships?: string[];
   selectedClubId?: string | null;
   clubRoles?: { [clubId: string]: 'club_admin' | 'member' };
+  // Calendar subscription fields
+  calendarSubscriptionToken?: string;
+  calendarSubscriptionCreatedAt?: Timestamp;
 }
 
 export interface AuthState {

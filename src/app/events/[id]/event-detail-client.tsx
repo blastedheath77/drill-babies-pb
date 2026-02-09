@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EventTypeBadge, RsvpButtons, RsvpList } from '@/components/events';
 import { RecurringEventDialog, DeleteEventDialog } from '@/components/events/recurring-event-dialog';
+import { AddToCalendarButton } from '@/components/events/add-to-calendar-button';
 import { useEvent, useEventRsvps, useUserRsvp, useRsvp, useDeleteEvent } from '@/hooks/use-events';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
@@ -265,11 +266,14 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                 )}
               </div>
 
-              {/* Admin Actions */}
-              {isAdmin && (
-                <>
-                  <Separator />
-                  <div className="flex gap-2">
+              {/* Calendar Export - Available to all users */}
+              <Separator />
+              <div className="flex flex-wrap gap-2">
+                <AddToCalendarButton event={event} variant="outline" size="sm" />
+
+                {/* Admin Actions */}
+                {isAdmin && (
+                  <>
                     <Link href={`/events/${event.id}/edit`}>
                       <Button variant="outline" size="sm">
                         <Edit className="h-4 w-4 mr-2" />
@@ -285,9 +289,9 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </Button>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
 
