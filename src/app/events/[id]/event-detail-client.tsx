@@ -14,6 +14,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EventTypeBadge, RsvpButtons, RsvpList } from '@/components/events';
 import { RecurringEventDialog, DeleteEventDialog } from '@/components/events/recurring-event-dialog';
 import { AddToCalendarButton } from '@/components/events/add-to-calendar-button';
+import { CalendarPreferenceDialog } from '@/components/events/calendar-preference-dialog';
+import { addEventToCalendar, getCalendarPreference, setCalendarPreference } from '@/lib/calendar-export';
+import type { CalendarPreference } from '@/lib/calendar-export';
 import { useEvent, useEventRsvps, useUserRsvp, useRsvp, useDeleteEvent } from '@/hooks/use-events';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
@@ -43,6 +46,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const { user, isClubAdmin } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRecurringDeleteDialog, setShowRecurringDeleteDialog] = useState(false);
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
 
@@ -87,8 +91,17 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const isCancelled = event?.status === 'cancelled';
   const canRsvp = !eventIsPast && !isCancelled && user;
 
+  const handleCalendarSelect = (preference: CalendarPreference) => {
+    setCalendarPreference(preference);
+    if (event) {
+      addEventToCalendar(event, preference);
+    }
+  };
+
   const handleRsvp = async (response: RsvpResponse) => {
     if (!user || !event) return;
+
+    const wasAlreadyYes = userRsvp?.response === 'yes';
 
     try {
       await rsvpMutation.mutateAsync({
@@ -98,10 +111,35 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
         response,
       });
 
-      toast({
-        title: 'RSVP Updated',
-        description: `You have responded "${response}" to this event.`,
-      });
+      if (response === 'yes' && !wasAlreadyYes) {
+        const preference = getCalendarPreference();
+        if (preference) {
+          addEventToCalendar(event, preference);
+          const calendarNames: Record<CalendarPreference, string> = {
+            google: 'Google Calendar',
+            ics: 'Apple Calendar',
+            outlook: 'Outlook',
+            none: '',
+          };
+          toast({
+            title: 'RSVP Updated',
+            description: preference !== 'none'
+              ? `You're going! Opening in ${calendarNames[preference]}...`
+              : `You have responded "yes" to this event.`,
+          });
+        } else {
+          setShowCalendarDialog(true);
+          toast({
+            title: 'RSVP Updated',
+            description: `You have responded "yes" to this event.`,
+          });
+        }
+      } else {
+        toast({
+          title: 'RSVP Updated',
+          description: `You have responded "${response}" to this event.`,
+        });
+      }
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -378,6 +416,12 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
         onThisOnly={() => handleDelete(false)}
         onAllFuture={() => handleDelete(true)}
         isLoading={isDeleting}
+      />
+
+      <CalendarPreferenceDialog
+        open={showCalendarDialog}
+        onOpenChange={setShowCalendarDialog}
+        onSelect={handleCalendarSelect}
       />
     </>
   );

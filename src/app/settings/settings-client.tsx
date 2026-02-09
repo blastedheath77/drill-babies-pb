@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { useNotifications } from '@/contexts/notification-context';
@@ -13,7 +13,12 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, User, Bell, Palette, LogOut, Loader2, Calendar, Copy, RefreshCw } from 'lucide-react';
+import { Settings, User, Bell, Palette, LogOut, Loader2, Calendar } from 'lucide-react';
+import {
+  type CalendarPreference,
+  getCalendarPreference,
+  setCalendarPreference,
+} from '@/lib/calendar-export';
 
 export function SettingsClient() {
   const router = useRouter();
@@ -30,8 +35,7 @@ export function SettingsClient() {
   const [name, setName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [subscriptionUrl, setSubscriptionUrl] = useState<string>('');
-  const [isLoadingToken, setIsLoadingToken] = useState(false);
+  const [calendarPref, setCalendarPref] = useState<CalendarPreference | null>(null);
 
   // Initialize name from user
   useEffect(() => {
@@ -40,12 +44,13 @@ export function SettingsClient() {
     }
   }, [user?.name]);
 
-  // Initialize theme from localStorage
+  // Initialize theme and calendar preference from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme');
       const isDark = savedTheme === 'light' ? false : true;
       setTheme(isDark ? 'dark' : 'light');
+      setCalendarPref(getCalendarPreference());
     }
   }, []);
 
@@ -144,93 +149,15 @@ export function SettingsClient() {
     router.push('/login');
   };
 
-  // Load subscription URL on mount
-  useEffect(() => {
-    if (user?.id) {
-      loadSubscriptionUrl();
-    }
-  }, [user?.id]);
-
-  const loadSubscriptionUrl = async () => {
-    if (!user?.id) return;
-
-    setIsLoadingToken(true);
-    try {
-      const { getOrCreateSubscriptionToken } = await import('@/lib/calendar-subscription');
-      const token = await getOrCreateSubscriptionToken(user.id);
-      const baseUrl = window.location.origin;
-      const url = `${baseUrl}/api/calendar/feed/${token}`;
-      setSubscriptionUrl(url);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load subscription URL',
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    } finally {
-      setIsLoadingToken(false);
-    }
-  };
-
-  const handleCopySubscriptionUrl = async () => {
-    if (!subscriptionUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(subscriptionUrl);
-      toast({
-        title: 'Copied to clipboard',
-        description: 'Subscription URL copied successfully',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to copy',
-        description: 'Could not copy URL to clipboard',
-      });
-    }
-  };
-
-  const handleRegenerateToken = async () => {
-    if (!user?.id) return;
-
-    setIsLoadingToken(true);
-    try {
-      const { revokeSubscriptionToken, getOrCreateSubscriptionToken } = await import('@/lib/calendar-subscription');
-
-      // Revoke old token
-      await revokeSubscriptionToken(user.id);
-
-      // Generate new token
-      const token = await getOrCreateSubscriptionToken(user.id);
-      const baseUrl = window.location.origin;
-      const url = `${baseUrl}/api/calendar/feed/${token}`;
-      setSubscriptionUrl(url);
-
-      toast({
-        title: 'Token regenerated',
-        description: 'Your old subscription URL is now invalid. Update your calendar app with the new URL.',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to regenerate token',
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    } finally {
-      setIsLoadingToken(false);
-    }
-  };
-
-  const getWebcalUrl = (httpsUrl: string): string => {
-    return httpsUrl.replace('https://', 'webcal://');
-  };
-
-  const getGoogleSubscribeUrl = (feedUrl: string): string => {
-    return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(feedUrl)}`;
-  };
-
-  const getOutlookSubscribeUrl = (feedUrl: string): string => {
-    return `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(feedUrl)}`;
+  const handleCalendarPrefChange = (preference: CalendarPreference) => {
+    setCalendarPreference(preference);
+    setCalendarPref(preference);
+    toast({
+      title: 'Calendar preference updated',
+      description: preference !== 'none'
+        ? 'Events will be added to your calendar when you RSVP "Yes".'
+        : 'Events will not be added to your calendar automatically.',
+    });
   };
 
   if (!user) {
@@ -392,113 +319,50 @@ export function SettingsClient() {
               Calendar Integration
             </CardTitle>
             <CardDescription>
-              Automatically sync events you RSVP &quot;Yes&quot; to with your calendar
+              Automatically add events to your calendar when you RSVP &quot;Yes&quot;
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isLoadingToken ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2">
+              <Label>Preferred Calendar</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={calendarPref === 'google' ? 'default' : 'outline'}
+                  onClick={() => handleCalendarPrefChange('google')}
+                  className="w-full"
+                >
+                  Google Calendar
+                </Button>
+                <Button
+                  variant={calendarPref === 'ics' ? 'default' : 'outline'}
+                  onClick={() => handleCalendarPrefChange('ics')}
+                  className="w-full"
+                >
+                  Apple / Other
+                </Button>
+                <Button
+                  variant={calendarPref === 'outlook' ? 'default' : 'outline'}
+                  onClick={() => handleCalendarPrefChange('outlook')}
+                  className="w-full"
+                >
+                  Outlook
+                </Button>
+                <Button
+                  variant={calendarPref === 'none' ? 'default' : 'outline'}
+                  onClick={() => handleCalendarPrefChange('none')}
+                  className="w-full"
+                >
+                  Don&apos;t auto-add
+                </Button>
               </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Subscription URL</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={subscriptionUrl}
-                      readOnly
-                      className="font-mono text-xs bg-muted"
-                    />
-                    <Button
-                      onClick={handleCopySubscriptionUrl}
-                      variant="outline"
-                      size="icon"
-                      title="Copy URL"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Subscribe to this URL in your calendar app to automatically sync events
-                  </p>
-                </div>
-
-                {/* Debug info */}
-                {user?.id && (
-                  <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                    <strong>Debug:</strong> User ID: {user.id}
-                  </div>
-                )}
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <Label>How to Subscribe</Label>
-
-                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
-                    <p className="font-medium">Google Calendar:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                      <li>Open <a href="https://calendar.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Calendar</a></li>
-                      <li>Click the <strong>+</strong> next to &quot;Other calendars&quot;</li>
-                      <li>Select &quot;From URL&quot;</li>
-                      <li>Paste your subscription URL (copied above)</li>
-                      <li>Click &quot;Add calendar&quot;</li>
-                    </ol>
-                  </div>
-
-                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
-                    <p className="font-medium">Apple Calendar:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                      <li>Open Calendar app</li>
-                      <li>File → New Calendar Subscription</li>
-                      <li>Paste your subscription URL</li>
-                      <li>Click Subscribe</li>
-                    </ol>
-                  </div>
-
-                  <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
-                    <p className="font-medium">Outlook:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                      <li>Open <a href="https://outlook.live.com/calendar" target="_blank" rel="noopener noreferrer" className="underline">Outlook Calendar</a></li>
-                      <li>Add calendar → Subscribe from web</li>
-                      <li>Paste your subscription URL</li>
-                      <li>Import</li>
-                    </ol>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label>What to Expect</Label>
-                  <div className="text-xs text-muted-foreground space-y-1 bg-muted/30 p-3 rounded">
-                    <p>• <strong>Calendar name:</strong> Will appear as &quot;PBStats Events&quot;</p>
-                    <p>• <strong>Update frequency:</strong> Calendar apps check for updates every 1-24 hours</p>
-                    <p>• <strong>What syncs:</strong> Only events you RSVP &quot;Yes&quot; to</p>
-                    <p>• <strong>Auto-updates:</strong> When you change RSVPs, calendar updates automatically</p>
-                    <p>• <strong>Not instant:</strong> Changes may take a few hours to appear</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label>Security</Label>
-                  <Button
-                    onClick={handleRegenerateToken}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Regenerate Subscription URL
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    This will invalidate your old URL. You&apos;ll need to re-subscribe in your calendar app.
-                  </p>
-                </div>
-              </>
-            )}
+              <p className="text-xs text-muted-foreground">
+                {calendarPref && calendarPref !== 'none'
+                  ? 'Events will automatically open in your preferred calendar when you RSVP "Yes".'
+                  : calendarPref === 'none'
+                    ? 'Events will not be added to your calendar automatically.'
+                    : 'No preference set. You\'ll be asked to choose when you first RSVP "Yes".'}
+              </p>
+            </div>
           </CardContent>
         </Card>
 

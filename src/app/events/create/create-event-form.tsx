@@ -42,6 +42,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useClub } from '@/contexts/club-context';
 import { useAuth } from '@/contexts/auth-context';
 import { createEventAction } from '../actions';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/use-events';
 import { AlertTriangle, CalendarPlus, Repeat, Loader2 } from 'lucide-react';
 import { differenceInWeeks } from 'date-fns';
 
@@ -99,6 +101,7 @@ type CreateEventFormValues = z.infer<typeof createEventFormSchema>;
 export function CreateEventForm() {
   const { toast } = useToast();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
   const { isClubAdmin } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -197,6 +200,11 @@ export function CreateEventForm() {
           ? new Date(`${values.recurrenceEndDate}T23:59:59`).toISOString()
           : undefined,
       });
+
+      // Invalidate React Query cache to refresh the events list
+      queryClient.invalidateQueries({ queryKey: eventKeys.upcoming(selectedClub.id) });
+      queryClient.invalidateQueries({ queryKey: eventKeys.past(selectedClub.id) });
+      queryClient.invalidateQueries({ queryKey: eventKeys.list(selectedClub.id) });
 
       toast({
         title: 'Event Created!',

@@ -2,7 +2,6 @@ import { headers } from 'next/headers';
 import type { User } from './auth-types';
 import { getUserDocument } from './user-management';
 import { auth } from './firebase';
-import { DecodedIdToken } from 'firebase-admin/auth';
 
 // For now, since we don't have Firebase Admin SDK setup in server actions,
 // we'll use a simplified approach. In production, you'd want to verify JWT tokens.

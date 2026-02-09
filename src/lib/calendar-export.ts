@@ -207,32 +207,35 @@ export function getOutlookCalendarUrl(event: Event): string {
   return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
 }
 
+export type CalendarPreference = 'google' | 'ics' | 'outlook' | 'none';
+
+export const CALENDAR_PREFERENCE_KEY = 'pbstats-calendar-preference';
+
+export function getCalendarPreference(): CalendarPreference | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(CALENDAR_PREFERENCE_KEY) as CalendarPreference | null;
+}
+
+export function setCalendarPreference(preference: CalendarPreference): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(CALENDAR_PREFERENCE_KEY, preference);
+}
+
 /**
- * Generates a multi-event ICS feed for calendar subscriptions
- * This creates a complete calendar feed containing multiple events
+ * Adds an event to the user's preferred calendar app
  */
-export function generateICSFeed(events: Event[], feedName: string = 'PBStats Events'): string {
-  const header = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//PBStats//Event Calendar//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    `X-WR-CALNAME:${feedName}`,
-    'X-WR-TIMEZONE:UTC',
-  ].join('\r\n');
-
-  // Extract VEVENT blocks from individual event ICS files
-  const eventBlocks = events
-    .map(event => {
-      const fullICS = eventToICS(event);
-      // Extract just the VEVENT block (between BEGIN:VEVENT and END:VEVENT)
-      const veventMatch = fullICS.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/);
-      return veventMatch ? veventMatch[0] : '';
-    })
-    .filter(Boolean); // Remove empty strings
-
-  const footer = 'END:VCALENDAR';
-
-  return [header, ...eventBlocks, footer].join('\r\n') + '\r\n';
+export function addEventToCalendar(event: Event, preference: CalendarPreference): void {
+  switch (preference) {
+    case 'google':
+      window.open(getGoogleCalendarUrl(event), '_blank');
+      break;
+    case 'ics':
+      downloadICS(event);
+      break;
+    case 'outlook':
+      window.open(getOutlookCalendarUrl(event), '_blank');
+      break;
+    case 'none':
+      break;
+  }
 }
