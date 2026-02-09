@@ -1,9 +1,15 @@
-const CACHE_NAME = 'pbstats-v0.1.0-ee55646d';
+const CACHE_NAME = 'pbstats-v0.1.0-ebacb98a';
 const STATIC_CACHE_URLS = [
   '/',
+  '/players',
+  '/partnerships',
+  '/head-to-head',
+  '/log-game',
+  '/statistics',
+  '/tournaments',
+  '/events',
   '/manifest.json',
-  // Only cache the home page and manifest - authenticated pages will be cached on-demand
-  // This prevents install failures when user isn't logged in
+  // Add other static assets as needed
 ];
 
 // Install event - cache static resources
@@ -13,15 +19,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Caching static resources');
-        // Cache each URL individually to avoid failing the entire install if one fails
-        return Promise.allSettled(
-          STATIC_CACHE_URLS.map(url =>
-            cache.add(url).catch(err => {
-              console.warn(`Failed to cache ${url}:`, err.message);
-              return null;
-            })
-          )
-        );
+        return cache.addAll(STATIC_CACHE_URLS);
       })
       .then(() => {
         // Force activation of new service worker

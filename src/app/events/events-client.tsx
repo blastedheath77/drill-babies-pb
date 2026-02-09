@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,18 +17,22 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EventCard, EventCardSkeleton } from '@/components/events';
-import { useUpcomingEvents, usePastEvents } from '@/hooks/use-events';
+import { EventCalendar } from '@/components/events/event-calendar';
+import { useUpcomingEvents, usePastEvents, useUserRsvpsInClub } from '@/hooks/use-events';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
-import { PlusCircle, AlertTriangle, Calendar, Search, Filter } from 'lucide-react';
+import { PlusCircle, AlertTriangle, Calendar, Search, Filter, LayoutList } from 'lucide-react';
 import type { Event, EventType } from '@/lib/types';
 
 export function EventsClient() {
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
-  const { isClubAdmin } = useAuth();
+  const { isClubAdmin, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<EventType | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   const {
     data: upcomingEvents,
@@ -41,7 +46,42 @@ export function EventsClient() {
     error: pastError,
   } = usePastEvents(selectedClub?.id);
 
+  // Fetch user RSVPs for calendar view
+  const { data: userRsvps } = useUserRsvpsInClub(user?.id, selectedClub?.id);
+
   const isAdmin = selectedClub?.id ? isClubAdmin(selectedClub.id) : false;
+
+  // Convert user RSVPs to Map for O(1) lookups
+  const userRsvpsMap = useMemo(() => {
+    const map = new Map<string, 'yes' | 'maybe' | 'no'>();
+    userRsvps?.forEach((rsvp) => map.set(rsvp.eventId, rsvp.response));
+    return map;
+  }, [userRsvps]);
+
+  // Combine all events for calendar view
+  const allEvents = useMemo(() => {
+    if (viewMode !== 'calendar') return [];
+    return [...(upcomingEvents || []), ...(pastEvents || [])];
+  }, [viewMode, upcomingEvents, pastEvents]);
+
+  // Filter events for selected day
+  const eventsOnSelectedDay = useMemo(() => {
+    if (!selectedDate) return [];
+
+    const dayStart = startOfDay(selectedDate);
+    const dayEnd = endOfDay(selectedDate);
+
+    return allEvents.filter((event) => {
+      const eventStart = parseISO(event.startTime);
+      const eventEnd = parseISO(event.endTime);
+
+      // Event starts on this day OR spans this day
+      return (
+        isWithinInterval(eventStart, { start: dayStart, end: dayEnd }) ||
+        isWithinInterval(dayStart, { start: eventStart, end: eventEnd })
+      );
+    });
+  }, [selectedDate, allEvents]);
 
   // Filter events
   const filterEvents = (events: Event[] | undefined) => {
@@ -151,38 +191,123 @@ export function EventsClient() {
         )}
       </PageHeader>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search events..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+      {/* View Toggle */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            onClick={() => setViewMode('list')}
+            size="sm"
+          >
+            <LayoutList className="h-4 w-4 mr-2" />
+            List
+          </Button>
+          <Button
+            variant={viewMode === 'calendar' ? 'default' : 'outline'}
+            onClick={() => setViewMode('calendar')}
+            size="sm"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Calendar
+          </Button>
         </div>
-        <Select
-          value={typeFilter}
-          onValueChange={(value) => setTypeFilter(value as EventType | 'all')}
-        >
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="training">Training</SelectItem>
-            <SelectItem value="league_match">League Match</SelectItem>
-            <SelectItem value="friendly">Friendly</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
-          </SelectContent>
-        </Select>
+
+        {/* Filters - only show in list view */}
+        {viewMode === 'list' && (
+          <>
+            <div className="relative flex-1 w-full sm:w-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-full"
+              />
+            </div>
+            <Select
+              value={typeFilter}
+              onValueChange={(value) => setTypeFilter(value as EventType | 'all')}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="training">Training</SelectItem>
+                <SelectItem value="league_match">League Match</SelectItem>
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upcoming' | 'past')}>
-        <TabsList className="mb-6">
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6">
+              <EventCalendar
+                events={allEvents}
+                userRsvps={userRsvpsMap}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+                currentMonth={currentMonth}
+                onMonthChange={setCurrentMonth}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Selected Day Events */}
+          {selectedDate && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">
+                  Events on {format(selectedDate, 'MMMM d, yyyy')}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedDate(undefined)}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+
+              {eventsOnSelectedDay.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground">
+                    No events on this day
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {eventsOnSelectedDay.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {allEvents.length === 0 && !isLoading && (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No events scheduled</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* List View - Tabs */}
+      {viewMode === 'list' && (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upcoming' | 'past')}>
+          <TabsList className="mb-6">
           <TabsTrigger value="upcoming">
             Upcoming ({filteredUpcoming.length})
           </TabsTrigger>
@@ -253,6 +378,7 @@ export function EventsClient() {
           )}
         </TabsContent>
       </Tabs>
+      )}
     </>
   );
 }
