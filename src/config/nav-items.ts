@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3, Building2, Settings } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Swords, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -172,19 +172,8 @@ export const adminNavItems: NavItem[] = [
 ];
 
 // Account items (visible to all users)
-export const accountNavItems: NavItem[] = [
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-    category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
-    mobileVisible: true,
-    desktopVisible: true,
-    description: 'Account settings and preferences'
-  },
-];
+// Settings removed - accessible via user name link only
+export const accountNavItems: NavItem[] = [];
 
 // All navigation items combined
 export const allNavItems: NavItem[] = [

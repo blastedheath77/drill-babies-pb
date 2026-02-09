@@ -32,7 +32,7 @@ interface SortableStatisticsTableProps {
 
 type SortField = 'rating' | 'wins' | 'winPercentage' | 'pointsDiff' | 'name' | 'form';
 type SortDirection = 'asc' | 'desc';
-type FourthStatDisplay = 'winloss' | 'pointsdiff';
+type FourthStatDisplay = 'form' | 'winloss' | 'pointsdiff';
 
 interface SortConfig {
   field: SortField;
@@ -40,6 +40,7 @@ interface SortConfig {
 }
 
 const fourthStatOptions = [
+  { value: 'form', label: 'Form', shortLabel: 'Form' },
   { value: 'winloss', label: 'Win/Loss', shortLabel: 'W/L' },
   { value: 'pointsdiff', label: 'Points Diff', shortLabel: 'Pts Diff' },
 ] as const;
@@ -49,7 +50,7 @@ export function SortableStatisticsTable({ players, showRating = true, initialSor
     field: initialSortField || (showRating ? 'rating' : 'winPercentage'),
     direction: 'desc',
   });
-  const [fourthStat, setFourthStat] = useState<FourthStatDisplay>('winloss');
+  const [fourthStat, setFourthStat] = useState<FourthStatDisplay>('form');
 
   // Update sort when initialSortField changes (e.g., when date filter changes)
   useEffect(() => {
@@ -205,8 +206,21 @@ export function SortableStatisticsTable({ players, showRating = true, initialSor
 
   const renderFourthStatCell = (player: Player) => {
     const pointsDiff = player.pointsFor - player.pointsAgainst;
+    const form = (player as any).form;
+    const formScore = form?.score ?? 50;
+    const formColorClass = formScore >= 65
+      ? 'text-green-600'
+      : formScore <= 35
+      ? 'text-red-600'
+      : 'text-yellow-600';
 
     switch (fourthStat) {
+      case 'form':
+        return (
+          <div className={cn("text-sm sm:text-base font-bold", formColorClass)}>
+            {formScore}
+          </div>
+        );
       case 'winloss':
         return (
           <div className="font-medium text-sm sm:text-base">{player.wins} / {player.losses}</div>
@@ -227,12 +241,14 @@ export function SortableStatisticsTable({ players, showRating = true, initialSor
 
   const getFourthStatSortField = (): SortField => {
     switch (fourthStat) {
+      case 'form':
+        return 'form';
       case 'winloss':
         return 'wins';
       case 'pointsdiff':
         return 'pointsDiff';
       default:
-        return 'wins';
+        return 'form';
     }
   };
 
@@ -288,9 +304,6 @@ export function SortableStatisticsTable({ players, showRating = true, initialSor
                 <SortableHeader field="winPercentage" className="w-[60px] sm:w-[70px] text-center px-1 sm:px-2">
                   <span className="text-xs sm:text-sm">Win %</span>
                 </SortableHeader>
-                <SortableHeader field="form" className="w-[60px] sm:w-[70px] text-center px-1 sm:px-2">
-                  <span className="text-xs sm:text-sm">Form</span>
-                </SortableHeader>
                 <SortableHeader field={getFourthStatSortField()} className="w-[70px] sm:w-[80px] text-center px-1 sm:px-2">
                   <span className="text-xs sm:text-sm">{selectedOption?.shortLabel}</span>
                 </SortableHeader>
@@ -345,11 +358,6 @@ export function SortableStatisticsTable({ players, showRating = true, initialSor
                     )}
                     <TableCell className="text-center text-sm sm:text-base font-medium px-1 sm:px-2">
                       {winPercentage}%
-                    </TableCell>
-                    <TableCell className="text-center px-1 sm:px-2">
-                      <div className={cn("text-sm sm:text-base font-bold", formColorClass)}>
-                        {formScore}
-                      </div>
                     </TableCell>
                     <TableCell className="text-center px-1 sm:px-2">
                       {renderFourthStatCell(player)}

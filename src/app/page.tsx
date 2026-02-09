@@ -44,11 +44,11 @@ export default function Home() {
       {selectedClub && (
         <h1 className="text-2xl font-bold mb-8">{selectedClub.name}</h1>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 w-full max-w-lg">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full max-w-[410px]">
         {navButtons.map(({ title, href, icon: Icon, description }) => (
           <Link key={href} href={href} className="block">
-            <div className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border bg-card hover:bg-accent transition-colors cursor-pointer text-center h-full aspect-square">
-              <Icon className="h-8 w-8 text-primary" />
+            <div className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-xl border bg-card hover:bg-accent transition-colors cursor-pointer text-center h-full aspect-square">
+              <Icon className="h-6 w-6 text-primary" />
               <span className="font-semibold text-sm">{title}</span>
               <span className="text-xs text-muted-foreground leading-tight">{description}</span>
             </div>
