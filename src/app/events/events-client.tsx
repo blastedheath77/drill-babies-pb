@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EventCard, EventCardSkeleton } from '@/components/events';
+import { EventCard, EventCardSkeleton, EventListItem, EventListItemSkeleton } from '@/components/events';
 import { EventCalendar } from '@/components/events/event-calendar';
 import { useUpcomingEvents, usePastEvents, useUserRsvpsInClub } from '@/hooks/use-events';
 import { useAuth } from '@/contexts/auth-context';
@@ -316,9 +316,9 @@ export function EventsClient() {
 
         <TabsContent value="upcoming">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <EventCardSkeleton key={i} />
+                <EventListItemSkeleton key={i} />
               ))}
             </div>
           ) : filteredUpcoming.length === 0 ? (
@@ -342,9 +342,9 @@ export function EventsClient() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {filteredUpcoming.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventListItem key={event.id} event={event} />
               ))}
             </div>
           )}
@@ -352,9 +352,9 @@ export function EventsClient() {
 
         <TabsContent value="past">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <EventCardSkeleton key={i} />
+                <EventListItemSkeleton key={i} />
               ))}
             </div>
           ) : filteredPast.length === 0 ? (
@@ -370,9 +370,9 @@ export function EventsClient() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {filteredPast.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventListItem key={event.id} event={event} />
               ))}
             </div>
           )}

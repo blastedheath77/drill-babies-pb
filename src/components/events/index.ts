@@ -1,4 +1,5 @@
 export { EventCard, EventCardSkeleton } from './event-card';
+export { EventListItem, EventListItemSkeleton } from './event-list-item';
 export { EventTypeBadge } from './event-type-badge';
 export { RsvpButtons } from './rsvp-buttons';
 export { RsvpList, RsvpSummary } from './rsvp-list';
