@@ -6,7 +6,7 @@ import { createPlayerSchema, validateData } from '@/lib/validations';
 import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
 import { requirePermission } from '@/lib/permissions';
 
-export async function addPlayer(values: { name: string; clubId: string; email?: string }) {
+export async function addPlayer(values: { name: string; clubId: string; email?: string; gender?: 'he' | 'she' | 'they' }) {
   // Check authentication and permissions
   const currentUser = await getCurrentUser();
   requireAuthentication(currentUser);
@@ -14,7 +14,7 @@ export async function addPlayer(values: { name: string; clubId: string; email?: 
 
   const validatedData = validateData(createPlayerSchema, values);
   const { name } = validatedData;
-  const { clubId } = values;
+  const { clubId, gender } = values;
 
   // Ensure clubId is provided
   if (!clubId) {
@@ -23,7 +23,7 @@ export async function addPlayer(values: { name: string; clubId: string; email?: 
 
   try {
     // Use the safe add method that checks for duplicates
-    const result = await safeAddPlayer({ name, clubId });
+    const result = await safeAddPlayer({ name, clubId, gender });
 
     if (result.success) {
       // Invalidate server-side caches

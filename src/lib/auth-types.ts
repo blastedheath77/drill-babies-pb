@@ -15,6 +15,7 @@ export interface User {
   clubMemberships?: string[]; // Array of club IDs user has access to
   selectedClubId?: string | null; // Currently selected club
   clubRoles?: { [clubId: string]: 'club_admin' | 'member' }; // Per-club roles
+  gender?: 'he' | 'she' | 'they';
 }
 
 export interface UserDocument {
@@ -29,6 +30,7 @@ export interface UserDocument {
   clubMemberships?: string[];
   selectedClubId?: string | null;
   clubRoles?: { [clubId: string]: 'club_admin' | 'member' };
+  gender?: 'he' | 'she' | 'they';
 }
 
 export interface AuthState {
@@ -42,7 +44,7 @@ export interface AuthContextType {
   isLoading: boolean;
   isInitialized: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they') => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   resendEmailVerification: () => Promise<{ success: boolean; error?: string }>;

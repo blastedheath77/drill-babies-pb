@@ -118,6 +118,7 @@ export async function safeAddPlayer(playerData: {
   losses?: number;
   pointsFor?: number;
   pointsAgainst?: number;
+  gender?: 'he' | 'she' | 'they';
 }): Promise<{ success: boolean; playerId?: string; message: string }> {
   try {
     const normalizedName = playerData.name.toLowerCase().trim();
@@ -142,6 +143,7 @@ export async function safeAddPlayer(playerData: {
       pointsFor: playerData.pointsFor ?? 0,
       pointsAgainst: playerData.pointsAgainst ?? 0,
       createdAt: serverTimestamp(),
+      ...(playerData.gender && { gender: playerData.gender }),
     });
 
     logger.info(`Player added: ${playerData.name} (${docRef.id}) to club ${playerData.clubId}`);

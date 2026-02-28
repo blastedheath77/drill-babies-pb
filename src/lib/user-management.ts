@@ -34,11 +34,11 @@ const USERS_COLLECTION = 'users';
  */
 export async function createUserDocument(
   firebaseUser: FirebaseUser,
-  additionalData: { name: string; role?: UserRole }
+  additionalData: { name: string; role?: UserRole; gender?: 'he' | 'she' | 'they' }
 ): Promise<User> {
   try {
     console.log('💾 Creating user document in Firestore for:', firebaseUser.uid);
-    
+
     const userDoc = doc(db, USERS_COLLECTION, firebaseUser.uid);
     const userData: UserDocument = {
       uid: firebaseUser.uid,
@@ -47,7 +47,8 @@ export async function createUserDocument(
       role: additionalData.role || 'player',
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
-      ...(firebaseUser.photoURL && { avatar: firebaseUser.photoURL }), // Only include avatar if it exists
+      ...(firebaseUser.photoURL && { avatar: firebaseUser.photoURL }),
+      ...(additionalData.gender && { gender: additionalData.gender }),
     };
 
     console.log('📝 Writing user document to Firestore...', userData);
@@ -141,7 +142,8 @@ export async function registerUser(
   email: string,
   password: string,
   name: string,
-  role: UserRole = 'player'
+  role: UserRole = 'player',
+  gender?: 'he' | 'she' | 'they'
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     console.log('🔥 Starting user registration with Firebase Auth');
@@ -171,7 +173,7 @@ export async function registerUser(
 
     // Create user document in Firestore
     console.log('💾 Creating user document in Firestore...');
-    const user = await createUserDocument(firebaseUser, { name, role });
+    const user = await createUserDocument(firebaseUser, { name, role, gender });
     console.log('✅ User document created successfully');
     logger.info('User document created successfully', { uid: firebaseUser.uid });
 

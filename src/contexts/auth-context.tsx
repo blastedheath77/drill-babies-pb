@@ -63,11 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they') => {
     setIsLoading(true);
-    
+
     try {
-      const result = await registerUser(email, password, name);
+      const result = await registerUser(email, password, name, 'player', gender);
       if (result.success && result.user) {
         setUser(result.user);
         return { success: true };

@@ -27,7 +27,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log the first few lines of componentStack separately for easy copy-paste
+    const stackLines = (errorInfo.componentStack || '').trim().split('\n');
+    const failingComponent = stackLines[0]?.trim() || 'unknown';
     logger.error('React Error Boundary caught an error', error, {
+      failingComponent,
       errorInfo: {
         componentStack: errorInfo.componentStack,
       },

@@ -10,6 +10,13 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Icons } from '@/components/icons';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Link from 'next/link';
 import React from 'react';
 
@@ -19,6 +26,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     confirmPassword: '',
+    gender: '' as '' | 'he' | 'she' | 'they',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -56,7 +64,7 @@ export default function RegisterPage() {
         name: formData.name.trim() 
       });
       
-      const result = await register(formData.email, formData.password, formData.name.trim());
+      const result = await register(formData.email, formData.password, formData.name.trim(), formData.gender || undefined);
       
       console.log('Registration result:', result);
       
@@ -109,6 +117,26 @@ export default function RegisterPage() {
                 disabled={isLoading}
                 placeholder="Enter your full name"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="gender">Pronouns</Label>
+              <Select
+                value={formData.gender || undefined}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, gender: value as 'he' | 'she' | 'they' }))
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger id="gender">
+                  <SelectValue placeholder="Select pronouns (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="he">he/him</SelectItem>
+                  <SelectItem value="she">she/her</SelectItem>
+                  <SelectItem value="they">they/them</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

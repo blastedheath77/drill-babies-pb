@@ -18,6 +18,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
@@ -28,6 +35,7 @@ import { AlertTriangle } from 'lucide-react';
 
 const addPlayerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
+  gender: z.enum(['he', 'she', 'they']).optional(),
 });
 
 function AddPlayerContent() {
@@ -40,6 +48,7 @@ function AddPlayerContent() {
     resolver: zodResolver(addPlayerSchema),
     defaultValues: {
       name: '',
+      gender: undefined,
     },
   });
 
@@ -54,7 +63,7 @@ function AddPlayerContent() {
     }
 
     try {
-      await addPlayer({ ...values, clubId: selectedClub.id });
+      await addPlayer({ name: values.name, clubId: selectedClub.id, gender: values.gender });
 
       // Force fresh data fetch before navigation
       await refetchAll();
@@ -116,6 +125,28 @@ function AddPlayerContent() {
                     <FormControl>
                       <Input placeholder="e.g. Jane Doe" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pronouns (optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select pronouns" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="he">he/him</SelectItem>
+                        <SelectItem value="she">she/her</SelectItem>
+                        <SelectItem value="they">they/them</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

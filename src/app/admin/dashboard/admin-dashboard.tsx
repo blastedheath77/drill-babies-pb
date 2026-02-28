@@ -28,14 +28,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings } from 'lucide-react';
+import { Trash2, Plus, Users, GamepadIcon, Shield, Database, Settings, Check, X, Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   deletePlayer,
   createPlayer,
   deleteGame,
   getPlayersWithGameCount,
   getAllGamesWithPlayerNames,
-  togglePlayerRankingExclusion
+  togglePlayerRankingExclusion,
+  updatePlayerDuprId,
+  updatePlayerGender,
+  bulkAutoDetectGender,
 } from '@/lib/admin-actions';
 import { convertExistingRatings } from '@/lib/convert-ratings';
 import { updateGameDatesForTesting } from '@/lib/update-game-dates';
@@ -63,6 +73,61 @@ export function AdminDashboard() {
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerEmail, setNewPlayerEmail] = useState('');
   const [isCreatingPlayer, setIsCreatingPlayer] = useState(false);
+
+  // DUPR ID editing states
+  const [editingDuprId, setEditingDuprId] = useState<string | null>(null); // playerId being edited
+  const [duprIdInput, setDuprIdInput] = useState('');
+  const [savingDuprId, setSavingDuprId] = useState<string | null>(null);
+
+  // Gender states
+  const [updatingGender, setUpdatingGender] = useState<string | null>(null);
+  const [newPlayerGender, setNewPlayerGender] = useState<'' | 'he' | 'she' | 'they'>('');
+  const [isAutoDetectingGender, setIsAutoDetectingGender] = useState(false);
+
+  const handleEditDuprId = (player: PlayerWithGameCount) => {
+    setEditingDuprId(player.id);
+    setDuprIdInput(player.duprId ?? '');
+  };
+
+  const handleSaveDuprId = async (playerId: string) => {
+    setSavingDuprId(playerId);
+    const result = await updatePlayerDuprId(playerId, duprIdInput.trim() || null);
+    if (result.success) {
+      setAlert({ type: 'success', message: 'DUPR ID updated.' });
+      setEditingDuprId(null);
+      await loadPlayers();
+    } else {
+      setAlert({ type: 'error', message: result.error ?? 'Failed to update DUPR ID' });
+    }
+    setSavingDuprId(null);
+  };
+
+  const handleUpdateGender = async (playerId: string, value: string) => {
+    setUpdatingGender(playerId);
+    const gender = value && value !== 'none' ? (value as 'he' | 'she' | 'they') : null;
+    const result = await updatePlayerGender(playerId, gender);
+    if (result.success) {
+      await loadPlayers();
+    } else {
+      setAlert({ type: 'error', message: result.error ?? 'Failed to update gender' });
+    }
+    setUpdatingGender(null);
+  };
+
+  const handleAutoDetectGender = async () => {
+    setIsAutoDetectingGender(true);
+    const result = await bulkAutoDetectGender();
+    if (result.success) {
+      setAlert({
+        type: 'success',
+        message: `Auto-detect complete: updated ${result.updated} players, skipped ${result.skipped}`,
+      });
+      await loadPlayers();
+    } else {
+      setAlert({ type: 'error', message: result.error ?? 'Auto-detect failed' });
+    }
+    setIsAutoDetectingGender(false);
+  };
 
   // Database management states
   const [isConverting, setIsConverting] = useState(false);
@@ -107,12 +172,14 @@ export function AdminDashboard() {
     const result = await createPlayer({
       name: newPlayerName,
       email: newPlayerEmail || undefined,
+      gender: newPlayerGender || undefined,
     });
 
     if (result.success) {
       setAlert({ type: 'success', message: `Player "${newPlayerName}" created successfully!` });
       setNewPlayerName('');
       setNewPlayerEmail('');
+      setNewPlayerGender('');
       
       // Invalidate React Query cache to refresh player lists immediately
       invalidateAll();
@@ -337,6 +404,23 @@ export function AdminDashboard() {
                       disabled={isCreatingPlayer}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="playerGender">Pronouns (optional)</Label>
+                    <Select
+                      value={newPlayerGender || undefined}
+                      onValueChange={(v) => setNewPlayerGender(v as 'he' | 'she' | 'they')}
+                      disabled={isCreatingPlayer}
+                    >
+                      <SelectTrigger id="playerGender">
+                        <SelectValue placeholder="Not set" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="he">He/him</SelectItem>
+                        <SelectItem value="she">She/her</SelectItem>
+                        <SelectItem value="they">They/them</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <Button type="submit" disabled={isCreatingPlayer || !newPlayerName.trim()}>
                   {isCreatingPlayer ? 'Creating...' : 'Create Player'}
@@ -367,6 +451,8 @@ export function AdminDashboard() {
                         <TableHead className="min-w-[80px]">Rating</TableHead>
                         <TableHead className="min-w-[80px]">Record</TableHead>
                         <TableHead className="min-w-[60px]">Games</TableHead>
+                        <TableHead className="min-w-[140px]">DUPR ID</TableHead>
+                        <TableHead className="min-w-[130px]">Gender</TableHead>
                         <TableHead className="min-w-[140px] text-center">Exclude from Rankings</TableHead>
                         <TableHead className="min-w-[80px]">Actions</TableHead>
                       </TableRow>
@@ -383,6 +469,76 @@ export function AdminDashboard() {
                           <Badge variant={player.gameCount === 0 ? 'secondary' : 'default'}>
                             {player.gameCount}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {editingDuprId === player.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={duprIdInput}
+                                onChange={(e) => setDuprIdInput(e.target.value)}
+                                placeholder="DUPR ID"
+                                className="h-7 text-xs w-28"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveDuprId(player.id);
+                                  if (e.key === 'Escape') setEditingDuprId(null);
+                                }}
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-green-600"
+                                onClick={() => handleSaveDuprId(player.id)}
+                                disabled={savingDuprId === player.id}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => setEditingDuprId(null)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div
+                              className="flex items-center gap-2 cursor-pointer group"
+                              onClick={() => handleEditDuprId(player)}
+                            >
+                              {player.duprId ? (
+                                <Badge variant="default" className="bg-green-600 text-white text-xs font-mono">
+                                  {player.duprId}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground group-hover:text-foreground">
+                                  — click to add
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={player.gender ?? 'none'}
+                            onValueChange={(v) => handleUpdateGender(player.id, v)}
+                            disabled={updatingGender === player.id}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-28">
+                              {updatingGender === player.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <SelectValue placeholder="Not set" />
+                              )}
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Not set</SelectItem>
+                              <SelectItem value="he">He/him</SelectItem>
+                              <SelectItem value="she">She/her</SelectItem>
+                              <SelectItem value="they">They/them</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
@@ -605,6 +761,24 @@ export function AdminDashboard() {
               )}
               
               <div className="grid gap-6">
+                {/* Auto-detect Gender */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Auto-detect Gender from Names</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Automatically assign he/him or she/her to players without a gender set, based on their first name. Players with a gender already set are not affected.
+                  </p>
+                  <Button onClick={handleAutoDetectGender} disabled={isAutoDetectingGender} variant="outline">
+                    {isAutoDetectingGender ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Detecting...
+                      </>
+                    ) : (
+                      'Auto-detect Gender from Names'
+                    )}
+                  </Button>
+                </div>
+
                 {/* Convert Ratings */}
                 <div className="border rounded-lg p-4">
                   <h3 className="text-lg font-medium mb-2">Convert Rating System</h3>

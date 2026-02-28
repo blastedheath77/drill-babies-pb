@@ -23,6 +23,44 @@ export interface Player {
   pointsAgainst: number;
   clubId: string;
   excludeFromRankings?: boolean;
+  duprId?: string;
+  gender?: 'he' | 'she' | 'they';
+}
+
+// League Game types for PBS league fixtures
+export interface DuprOpponentPlayer {
+  duprId?: string; // optional — for future DUPR integration
+  name: string;
+  gender: 'male' | 'female';
+  slot: 1 | 2 | 3;
+}
+
+export interface LeagueGameMatch {
+  matchNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  round: 1 | 2 | 3 | 4 | 5;
+  court: 1 | 2;
+  category: 'mens_doubles' | 'womens_doubles' | 'mixed_doubles';
+  clubTeamPlayerIds: [string, string];
+  opponentTeamSlots: [string, string]; // slot keys e.g. "female-2" or "male-1"
+  clubTeamScore?: number;
+  opponentTeamScore?: number;
+  status: 'pending' | 'completed';
+}
+
+export interface LeagueGame {
+  id: string;
+  clubId: string;
+  name: string;
+  date: string;
+  venue?: string;
+  status: 'active' | 'submitted';
+  createdDate: string;
+  createdBy: string;
+  clubPlayerIds: string[];
+  opponentPlayers: DuprOpponentPlayer[];
+  matches: LeagueGameMatch[];
+  duprSubmissionId?: string;
+  submittedAt?: string;
 }
 
 export interface Game {

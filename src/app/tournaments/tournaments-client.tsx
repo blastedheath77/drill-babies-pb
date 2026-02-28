@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Calendar, Users, Plus, Trash2, Loader2, AlertCircle, RefreshCw, Zap } from 'lucide-react';
+import { Trophy, Calendar, Users, Plus, Trash2, Loader2, AlertCircle, RefreshCw, Zap, Swords } from 'lucide-react';
 import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { subscribeTournamentsRealtime, getTournamentsByStatus } from '@/lib/data';
 import { useAuth } from '@/contexts/auth-context';
@@ -290,7 +290,7 @@ export function TournamentsClient() {
       />
 
       {canCreateTournaments() && (
-        <div className="flex gap-2 justify-center mb-6">
+        <div className="flex gap-2 justify-center mb-6 flex-wrap">
           <Link href="/tournaments/quick-play">
             <Button className="bg-green-600 hover:bg-green-700 text-white border-0 w-32">
               <Zap className="h-4 w-4 mr-2" />
@@ -301,6 +301,12 @@ export function TournamentsClient() {
             <Button className="bg-blue-600 hover:bg-blue-700 text-white border-0 w-32">
               <Trophy className="h-4 w-4 mr-2" />
               Tournament
+            </Button>
+          </Link>
+          <Link href="/league-games/create">
+            <Button className="bg-orange-600 hover:bg-orange-700 text-white border-0 w-32">
+              <Swords className="h-4 w-4 mr-2" />
+              League Game
             </Button>
           </Link>
         </div>

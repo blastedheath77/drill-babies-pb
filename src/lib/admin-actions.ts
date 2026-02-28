@@ -86,16 +86,19 @@ export async function createPlayer(playerData: {
   name: string;
   email?: string;
   avatar?: string;
+  gender?: 'he' | 'she' | 'they';
 }): Promise<{ success: boolean; playerId?: string; error?: string }> {
   try {
-    const newPlayer: Omit<Player, 'id'> = {
+    const newPlayer = {
       name: playerData.name.trim(),
       avatar: playerData.avatar || DEFAULT_AVATAR_URL,
       rating: DEFAULT_RATING,
       wins: 0,
       losses: 0,
+      draws: 0,
       pointsFor: 0,
       pointsAgainst: 0,
+      ...(playerData.gender && { gender: playerData.gender }),
     };
 
     const docRef = await addDoc(collection(db, 'players'), newPlayer);
@@ -254,6 +257,141 @@ export async function getAllGamesWithPlayerNames(): Promise<Array<Game & {
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'getAllGamesWithPlayerNames');
     return [];
+  }
+}
+
+export async function updatePlayerDuprId(
+  playerId: string,
+  duprId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!playerId) {
+      return { success: false, error: 'Player ID is required' };
+    }
+
+    const playerRef = doc(db, 'players', playerId);
+    await updateDoc(playerRef, {
+      duprId: duprId || null,
+    });
+
+    return { success: true };
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'updatePlayerDuprId');
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update DUPR ID',
+    };
+  }
+}
+
+export async function updatePlayerGender(
+  playerId: string,
+  gender: 'he' | 'she' | 'they' | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!playerId) {
+      return { success: false, error: 'Player ID is required' };
+    }
+
+    const playerRef = doc(db, 'players', playerId);
+    await updateDoc(playerRef, {
+      gender: gender || null,
+    });
+
+    return { success: true };
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'updatePlayerGender');
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update gender',
+    };
+  }
+}
+
+const maleFirstNames = new Set([
+  'james', 'john', 'robert', 'david', 'michael', 'william', 'andrew', 'mark', 'peter', 'paul',
+  'stephen', 'richard', 'neil', 'colin', 'alan', 'brian', 'kevin', 'simon', 'martin', 'philip',
+  'tony', 'rob', 'tom', 'dave', 'craig', 'grant', 'gary', 'barry', 'ross', 'lee', 'dean', 'wayne',
+  'luke', 'ben', 'harry', 'charlie', 'oliver', 'noah', 'max', 'theo', 'oscar', 'finlay', 'callum',
+  'malcolm', 'rory', 'angus', 'lachlan', 'iain', 'ewan', 'graeme', 'gordon', 'fraser', 'fergus',
+  'hamish', 'alastair', 'alasdair', 'ruairidh', 'dougal', 'ruari', 'calum', 'donal', 'ramsay',
+  'lennox', 'glen', 'ian', 'alistair', 'jon', 'dan', 'sam', 'joe', 'bob', 'andy', 'adam', 'josh',
+  'jake', 'liam', 'ethan', 'lewis', 'ryan', 'sean', 'owen', 'lloyd', 'tim', 'nick', 'scott', 'alex',
+  'chris', 'matt', 'greg', 'steve', 'mike', 'phil', 'eric', 'derek', 'nigel', 'clive', 'darren',
+  'graham', 'gavin',
+]);
+
+const femaleFirstNames = new Set([
+  'mary', 'patricia', 'jennifer', 'linda', 'barbara', 'elizabeth', 'susan', 'jessica', 'sarah',
+  'karen', 'lisa', 'nancy', 'betty', 'margaret', 'sandra', 'ashley', 'dorothy', 'kimberly', 'emily',
+  'donna', 'michelle', 'carol', 'amanda', 'melissa', 'deborah', 'stephanie', 'rebecca', 'sharon',
+  'laura', 'helen', 'samantha', 'katherine', 'christine', 'rachel', 'janet', 'catherine', 'maria',
+  'heather', 'diane', 'julie', 'victoria', 'kelly', 'christina', 'evelyn', 'kathryn', 'alice',
+  'teresa', 'sara', 'janice', 'julia', 'grace', 'judy', 'charlotte', 'amber', 'claire', 'abigail',
+  'sophie', 'ella', 'chloe', 'lucy', 'eleanor', 'isobel', 'isla', 'fiona', 'morag', 'eilidh',
+  'catriona', 'kirsty', 'aileen', 'anne', 'elspeth', 'mairi', 'rhona', 'shona', 'alison', 'lesley',
+  'lindsay', 'lorraine', 'pamela', 'gillian', 'tracey', 'jackie', 'pauline', 'elaine', 'sheila',
+  'cathleen', 'marie', 'siobhan', 'niamh', 'aisling', 'orla', 'sinead', 'aoife', 'maeve', 'brigid',
+  'nora', 'bridget', 'zoe', 'holly', 'imogen', 'poppy', 'bella', 'freya', 'phoebe', 'rose', 'ruby',
+  'natasha', 'natalie', 'tara', 'leah', 'stacey', 'jade', 'gemma', 'hayley', 'louise', 'joanne',
+  'jo', 'kat', 'kate', 'katie', 'liz', 'beth', 'sue', 'jan', 'wendy', 'penny', 'polly', 'sandy',
+  'pat', 'maggie', 'milly', 'millie', 'lottie', 'rosie', 'nicola', 'iona', 'emma', 'anna', 'eva',
+  'tina', 'ingrid', 'andrea', 'frances', 'kathleen', 'joan', 'gloria', 'jean', 'diana', 'doris',
+  'cheryl', 'megan', 'martha', 'jacqueline', 'ann', 'olga', 'yvonne', 'caroline', 'lynne', 'lynda',
+  'jill', 'debbie', 'mandy', 'vera',
+]);
+
+export async function bulkAutoDetectGender(): Promise<{
+  success: boolean;
+  updated: number;
+  skipped: number;
+  error?: string;
+}> {
+  try {
+    const playersSnapshot = await getDocs(collection(db, 'players'));
+    const players = playersSnapshot.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as { name: string; gender?: string }),
+    }));
+
+    const updates: { id: string; gender: 'he' | 'she' }[] = [];
+
+    for (const player of players) {
+      if (player.gender) continue; // Already has gender set
+
+      const firstName = player.name.trim().split(/\s+/)[0].toLowerCase();
+      if (maleFirstNames.has(firstName)) {
+        updates.push({ id: player.id, gender: 'he' });
+      } else if (femaleFirstNames.has(firstName)) {
+        updates.push({ id: player.id, gender: 'she' });
+      }
+      // else: ambiguous/unknown — skip
+    }
+
+    // Write in batches of 499
+    const BATCH_SIZE = 499;
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = updates.slice(i, i + BATCH_SIZE);
+      for (const { id, gender } of chunk) {
+        batch.update(doc(db, 'players', id), { gender });
+      }
+      await batch.commit();
+    }
+
+    return {
+      success: true,
+      updated: updates.length,
+      skipped: players.filter((p) => !p.gender).length - updates.length,
+    };
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error(String(error)), 'bulkAutoDetectGender');
+    return {
+      success: false,
+      updated: 0,
+      skipped: 0,
+      error: error instanceof Error ? error.message : 'Failed to auto-detect gender',
+    };
   }
 }
 

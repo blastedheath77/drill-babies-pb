@@ -298,6 +298,30 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // LEAGUE GAMES COLLECTION
+    // ============================================================
+
+    match /leagueGames/{leagueGameId} {
+      // Club members can read league games from their clubs
+      allow read: if isAuthenticated() &&
+                     hasClubAccess(resource.data.clubId);
+
+      // Club members can create league games in their clubs
+      allow create: if isAuthenticated() &&
+                       hasClubAccess(request.resource.data.clubId) &&
+                       request.resource.data.clubId is string;
+
+      // League game creator or club admins can update (score entry, DUPR submission)
+      allow update: if isAuthenticated() &&
+                       hasClubAccess(resource.data.clubId) &&
+                       clubIdUnchanged() &&
+                       (isCreator() || isAdminForClub(resource.data.clubId));
+
+      // Only admins can delete league games
+      allow delete: if isAdminForClub(resource.data.clubId);
+    }
+
+    // ============================================================
     // DEFAULT DENY ALL
     // ============================================================
 

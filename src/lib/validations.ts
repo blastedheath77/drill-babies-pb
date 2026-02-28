@@ -463,6 +463,30 @@ export const updateEventSchema = z
     }
   );
 
+// League Game validation schemas
+export const createLeagueGameSchema = z.object({
+  name: z
+    .string()
+    .min(3, 'Name must be at least 3 characters')
+    .max(100, 'Name cannot exceed 100 characters'),
+  date: z.string().min(1, 'Date is required'),
+  venue: z.string().max(200).optional(),
+  clubId: z.string().min(1, 'Club ID is required'),
+  clubPlayerIds: z
+    .array(z.string().min(1))
+    .length(6, 'Exactly 6 club players required (3 men + 3 women)'),
+  opponentPlayers: z
+    .array(
+      z.object({
+        duprId: z.string().optional(),
+        name: z.string().min(1, 'Player name is required'),
+        gender: z.enum(['male', 'female']),
+        slot: z.number().int().min(1).max(3) as z.ZodType<1 | 2 | 3>,
+      })
+    )
+    .length(6, 'Exactly 6 opponent players required (3 men + 3 women)'),
+});
+
 export const eventRsvpSchema = z.object({
   eventId: z.string().min(1, 'Event ID is required'),
   userId: z.string().min(1, 'User ID is required'),
