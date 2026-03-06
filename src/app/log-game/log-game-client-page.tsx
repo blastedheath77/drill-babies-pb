@@ -98,7 +98,9 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [canScrollUp, setCanScrollUp] = useState(false);
     const [canScrollDown, setCanScrollDown] = useState(false);
+    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
 
     // Available players (excluding already selected ones) sorted alphabetically by first name
     const availablePlayers = filteredPlayers
@@ -114,6 +116,29 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     // Handle dropdown open/close with scroll prevention
     const handleToggle = () => {
       if (!isOpen) {
+        // Position the dropdown centered on the button, clamped within the safe zone
+        if (buttonRef.current) {
+          const rect = buttonRef.current.getBoundingClientRect();
+          const BOTTOM_NAV_HEIGHT = 80; // h-20 bottom nav
+          const MARGIN = 8;
+          const safeTop = MARGIN;
+          const safeBottom = window.innerHeight - BOTTOM_NAV_HEIGHT - MARGIN;
+          const maxH = Math.min(safeBottom - safeTop, 480);
+
+          // Center on button, then clamp so it stays in safe zone
+          const buttonCenterY = rect.top + rect.height / 2;
+          let top = buttonCenterY - maxH / 2;
+          if (top < safeTop) top = safeTop;
+          if (top + maxH > safeBottom) top = safeBottom - maxH;
+
+          setDropdownStyle({
+            position: 'fixed',
+            top: `${top}px`,
+            left: `${rect.left}px`,
+            width: `${Math.max(rect.width, 220)}px`,
+            maxHeight: `${maxH}px`,
+          });
+        }
         // Opening dropdown - prevent scrolling
         document.body.style.overflow = 'hidden';
         document.body.style.overscrollBehavior = 'none';
@@ -180,38 +205,36 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
 
     return (
       <div className="relative flex-1 min-w-0">
-        {/* Player dropdown appears centered on input field - expands up and down */}
+        {/* Player dropdown — fixed position, centered on button, above bottom nav */}
         {isOpen && (
-          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg max-h-[30rem] w-max min-w-full max-w-sm">
+          <div
+            ref={scrollContainerRef}
+            className="z-50 bg-background border border-border rounded-lg shadow-lg overflow-y-auto scrollbar-always-visible"
+            style={dropdownStyle}
+            onScroll={checkScrollPosition}
+          >
             {/* Top scroll indicator */}
             {canScrollUp && (
               <div className="sticky top-0 z-10 bg-gradient-to-b from-background to-transparent h-3 flex items-start justify-center">
                 <div className="w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-muted-foreground/60 mt-1"></div>
               </div>
             )}
-            
-            {/* Scrollable content */}
-            <div 
-              ref={scrollContainerRef}
-              className="overflow-y-auto scrollbar-always-visible max-h-[27rem]"
-              onScroll={checkScrollPosition}
-            >
-              <div className={cn("py-2", canScrollUp && "pt-1", canScrollDown && "pb-1")}>
-                {availablePlayers.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handlePlayerSelect(p)}
-                    className={cn(
-                      "block w-full px-3 py-2 text-left hover:bg-accent transition-colors whitespace-nowrap",
-                      player && p.id === player.id && "bg-primary text-primary-foreground"
-                    )}
-                  >
-                    <div className="font-medium">{p.name}</div>
-                  </button>
-                ))}
-              </div>
+
+            <div className={cn("py-2", canScrollUp && "pt-1", canScrollDown && "pb-1")}>
+              {availablePlayers.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handlePlayerSelect(p)}
+                  className={cn(
+                    "block w-full px-3 py-2 text-left hover:bg-accent transition-colors whitespace-nowrap",
+                    player && p.id === player.id && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <div className="font-medium">{p.name}</div>
+                </button>
+              ))}
             </div>
-            
+
             {/* Bottom scroll indicator */}
             {canScrollDown && (
               <div className="sticky bottom-0 z-10 bg-gradient-to-t from-background to-transparent h-3 flex items-end justify-center">
@@ -223,6 +246,7 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
 
         {/* Compact player button - shows first name only */}
         <button
+          ref={buttonRef}
           onClick={handleToggle}
           className={cn(
             "w-full h-10 px-2 border border-border rounded bg-background hover:bg-accent transition-all duration-200",
