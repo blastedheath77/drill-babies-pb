@@ -98,6 +98,7 @@ export const actionNavItems: NavItem[] = [
     icon: CalendarDays,
     category: 'action',
     priority: 'secondary',
+    adminOnly: true,
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,

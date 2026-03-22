@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { getClubs } from '@/lib/clubs';
+import type { Club } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,19 +30,21 @@ export default function RegisterPage() {
     confirmPassword: '',
     gender: '' as '' | 'he' | 'she' | 'they',
   });
+  const [selectedClubId, setSelectedClubId] = useState('');
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    getClubs().then(setClubs).catch(() => {/* non-fatal */});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
 
-    // Client-side validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -59,25 +63,22 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      console.log('Attempting registration with:', { 
-        email: formData.email, 
-        name: formData.name.trim() 
-      });
-      
-      const result = await register(formData.email, formData.password, formData.name.trim(), formData.gender || undefined);
-      
-      console.log('Registration result:', result);
-      
+      const clubName = clubs.find(c => c.id === selectedClubId)?.name;
+      const result = await register(
+        formData.email,
+        formData.password,
+        formData.name.trim(),
+        formData.gender || undefined,
+        selectedClubId || undefined,
+        clubName
+      );
+
       if (result.success) {
-        console.log('Registration successful, showing verification message');
-        setSuccess('Account created successfully! Please check your email and click the verification link before signing in.');
-        // Don't redirect automatically - user needs to verify email first
+        router.push('/');
       } else {
-        console.error('Registration failed:', result.error);
         setError(result.error || 'Registration failed');
       }
-    } catch (error) {
-      console.error('Registration error in component:', error);
+    } catch {
       setError('An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -103,7 +104,7 @@ export default function RegisterPage() {
             Join the Pickleball Stats community and start tracking your games
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -151,7 +152,7 @@ export default function RegisterPage() {
                 placeholder="Enter your email"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -180,15 +181,31 @@ export default function RegisterPage() {
               />
             </div>
 
+            {clubs.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="club">Join a Club</Label>
+                <Select
+                  value={selectedClubId || undefined}
+                  onValueChange={setSelectedClubId}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger id="club">
+                    <SelectValue placeholder="Select a club (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clubs.map((club) => (
+                      <SelectItem key={club.id} value={club.id}>
+                        {club.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert>
-                <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
 
@@ -202,8 +219,8 @@ export default function RegisterPage() {
             <div className="mt-4 text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{' '}
-                <Link 
-                  href="/login" 
+                <Link
+                  href="/login"
                   className="text-primary hover:underline font-medium"
                 >
                   Sign in here

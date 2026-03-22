@@ -1,12 +1,10 @@
-import { 
+import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
   User as FirebaseUser,
   onAuthStateChanged,
-  sendEmailVerification,
-  sendPasswordResetEmail,
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider
@@ -25,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { User, UserDocument, UserRole } from './auth-types';
+import { addUserToClub } from './clubs';
 import { logger } from './logger';
 
 const USERS_COLLECTION = 'users';
@@ -143,7 +142,9 @@ export async function registerUser(
   password: string,
   name: string,
   role: UserRole = 'player',
-  gender?: 'he' | 'she' | 'they'
+  gender?: 'he' | 'she' | 'they',
+  clubId?: string,
+  clubName?: string
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     console.log('🔥 Starting user registration with Firebase Auth');
@@ -165,17 +166,29 @@ export async function registerUser(
     console.log('✅ User profile updated');
     logger.info('User profile updated', { uid: firebaseUser.uid, displayName: name });
 
-    // Send email verification
-    console.log('📧 Sending email verification...');
-    await sendEmailVerification(firebaseUser);
-    console.log('✅ Email verification sent');
-    logger.info('Email verification sent', { uid: firebaseUser.uid, email: firebaseUser.email });
-
     // Create user document in Firestore
     console.log('💾 Creating user document in Firestore...');
     const user = await createUserDocument(firebaseUser, { name, role, gender });
     console.log('✅ User document created successfully');
     logger.info('User document created successfully', { uid: firebaseUser.uid });
+
+    // Add to club if one was selected at signup
+    if (clubId) {
+      try {
+        await addUserToClub(firebaseUser.uid, clubId, 'member');
+        logger.info('User added to club at registration', { uid: firebaseUser.uid, clubId });
+      } catch (err) {
+        logger.error('Failed to add user to club during registration', err);
+        // Non-fatal — user is still created
+      }
+    }
+
+    // Notify admin of new signup (fire and forget)
+    fetch('/api/auth/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, clubName }),
+    }).catch(() => {/* non-fatal */});
 
     return { success: true, user };
   } catch (error: any) {
@@ -213,15 +226,6 @@ export async function signInUser(
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
     console.log('✅ Firebase sign-in successful:', firebaseUser.uid);
-
-    // Check if email is verified
-    if (!firebaseUser.emailVerified) {
-      console.warn('⚠️ Email not verified');
-      return { 
-        success: false, 
-        error: 'Please verify your email address before signing in. Check your inbox for a verification email.' 
-      };
-    }
 
     // Get user document from Firestore
     console.log('📄 Getting user document from Firestore...');
@@ -350,51 +354,26 @@ function getAuthErrorMessage(errorCode: string): string {
 }
 
 /**
- * Send password reset email
+ * Send password reset email via our own API (uses Resend for deliverability)
  */
 export async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
   try {
     console.log('🔄 Sending password reset email to:', email);
-    await sendPasswordResetEmail(auth, email);
-    console.log('✅ Password reset email sent');
+    const response = await fetch('/api/auth/send-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to send password reset email' };
+    }
     logger.info('Password reset email sent', { email });
     return { success: true };
   } catch (error: any) {
     console.error('❌ Password reset error:', error);
-    logger.error('Password reset error', { errorCode: error.code, errorMessage: error.message, email });
-    return { 
-      success: false, 
-      error: getAuthErrorMessage(error.code) 
-    };
-  }
-}
-
-/**
- * Resend email verification
- */
-export async function resendEmailVerification(): Promise<{ success: boolean; error?: string }> {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      return { success: false, error: 'No user is currently signed in.' };
-    }
-
-    if (user.emailVerified) {
-      return { success: false, error: 'Your email is already verified.' };
-    }
-
-    console.log('📧 Resending email verification to:', user.email);
-    await sendEmailVerification(user);
-    console.log('✅ Email verification resent');
-    logger.info('Email verification resent', { uid: user.uid, email: user.email });
-    return { success: true };
-  } catch (error: any) {
-    console.error('❌ Email verification resend error:', error);
-    logger.error('Email verification resend error', { errorCode: error.code, errorMessage: error.message });
-    return { 
-      success: false, 
-      error: getAuthErrorMessage(error.code) 
-    };
+    logger.error('Password reset error', { errorMessage: error.message, email });
+    return { success: false, error: 'Failed to send password reset email. Please try again.' };
   }
 }
 

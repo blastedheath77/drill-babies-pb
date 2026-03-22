@@ -2,13 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { AuthContextType, User } from '@/lib/auth-types';
-import { 
-  signInUser, 
-  signOutUser, 
-  registerUser, 
+import {
+  signInUser,
+  signOutUser,
+  registerUser,
   onAuthStateChange,
   resetPassword,
-  resendEmailVerification
 } from '@/lib/user-management';
 import { getUserPermissions } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
@@ -63,11 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they') => {
+  const register = async (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they', clubId?: string, clubName?: string) => {
     setIsLoading(true);
 
     try {
-      const result = await registerUser(email, password, name, 'player', gender);
+      const result = await registerUser(email, password, name, 'player', gender, clubId, clubName);
       if (result.success && result.user) {
         setUser(result.user);
         return { success: true };
@@ -100,10 +99,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await resetPassword(email);
   };
 
-  const handleResendEmailVerification = async () => {
-    return await resendEmailVerification();
-  };
-
   const isAdmin = () => user?.role === 'admin';
   const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
   const isViewer = () => user?.role === 'viewer';
@@ -128,7 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         resetPassword: handlePasswordReset,
-        resendEmailVerification: handleResendEmailVerification,
         isAdmin,
         isPlayer,
         isViewer,

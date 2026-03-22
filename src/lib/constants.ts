@@ -1,5 +1,5 @@
 // Game and Rating Constants - DUPR Style (2.0-8.0)
-export const DEFAULT_RATING = 3.5; // Starting rating for new players
+export const DEFAULT_RATING = 3.0; // Starting rating for new players
 export const MIN_RATING = 2.0;
 export const MAX_RATING = 8.0;
 export const RATING_K_FACTOR = 0.08; // Reduced factor for more conservative rating changes
