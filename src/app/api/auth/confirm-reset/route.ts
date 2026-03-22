@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
   }
 
-  const resetDoc = await adminDb.collection('passwordResets').doc(token).get();
+  const resetDoc = await adminDb().collection('passwordResets').doc(token).get();
 
   if (!resetDoc.exists) {
     return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 });
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const user = await adminAuth.getUserByEmail(email);
-    await adminAuth.updateUser(user.uid, { password });
+    const user = await adminAuth().getUserByEmail(email);
+    await adminAuth().updateUser(user.uid, { password });
     await resetDoc.ref.delete();
     return NextResponse.json({ success: true });
   } catch {

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   // Check user exists — but don't reveal whether they do or not
   try {
-    await adminAuth.getUserByEmail(email);
+    await adminAuth().getUserByEmail(email);
   } catch {
     // Return success anyway to prevent email enumeration
     return NextResponse.json({ success: true });
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-  await adminDb.collection('passwordResets').doc(token).set({
+  await adminDb().collection('passwordResets').doc(token).set({
     email,
     expiresAt,
     createdAt: new Date(),
