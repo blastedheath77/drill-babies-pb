@@ -2,15 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useClub } from '@/contexts/club-context';
+import { useAuth } from '@/contexts/auth-context';
 import { Users, BarChart, CalendarDays, Trophy, PlusSquare, Settings } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import Link from 'next/link';
 
-const navButtons: { title: string; href: string; icon: React.ComponentType<{ className?: string }>; description: string }[] = [
+const navButtons: { title: string; href: string; icon: React.ComponentType<{ className?: string }>; description: string; adminOnly?: boolean }[] = [
   { title: 'Players', href: '/players', icon: Users, description: 'Browse & manage players' },
   { title: 'Games', href: '/games', icon: PaddleIcon, description: 'View game history' },
   { title: 'Stats', href: '/statistics', icon: BarChart, description: 'Rankings & analytics' },
-  { title: 'Events', href: '/events', icon: CalendarDays, description: 'Upcoming events' },
+  { title: 'Events', href: '/events', icon: CalendarDays, description: 'Upcoming events', adminOnly: true },
   { title: 'Sessions', href: '/tournaments', icon: Trophy, description: 'Tournaments & sessions' },
   { title: 'Log Game', href: '/log-game', icon: PlusSquare, description: 'Record a new game' },
   { title: 'Settings', href: '/settings', icon: Settings, description: 'Account preferences' },
@@ -18,6 +19,7 @@ const navButtons: { title: string; href: string; icon: React.ComponentType<{ cla
 
 export default function Home() {
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
+  const { isAdmin } = useAuth();
 
   if (!clubsLoading && !hasAnyClubs) {
     return (
@@ -45,7 +47,7 @@ export default function Home() {
         <h1 className="text-2xl font-bold mb-8">{selectedClub.name}</h1>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full max-w-[410px]">
-        {navButtons.map(({ title, href, icon: Icon, description }) => (
+        {navButtons.filter(b => !b.adminOnly || isAdmin()).map(({ title, href, icon: Icon, description }) => (
           <Link key={href} href={href} className="block">
             <div className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-xl border bg-card hover:bg-accent transition-colors cursor-pointer text-center h-full aspect-square">
               <Icon className="h-6 w-6 text-primary" />
