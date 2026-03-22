@@ -3,9 +3,8 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { Resend } from 'resend';
 import crypto from 'crypto';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: NextRequest) {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { email } = await request.json();
 
   if (!email) {
