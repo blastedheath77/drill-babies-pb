@@ -35,6 +35,7 @@ export function LogGameClientPage({ players }: { players: Player[] }) {
   const [activeTeam, setActiveTeam] = useState<0 | 1>(0);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [lastGameId, setLastGameId] = useState<string | null>(null);
   const [rosterPickerOpen, setRosterPickerOpen] = useState(false);
   const [morePickerOpen, setMorePickerOpen] = useState(false);
 
@@ -98,6 +99,7 @@ export function LogGameClientPage({ players }: { players: Player[] }) {
       await removeGame(await getIdToken(), gameId);
       await refreshData();
       setJustSaved(false);
+      setLastGameId(null);
       toast({ title: 'Game removed' });
     } catch (error) {
       toast({ variant: 'destructive', title: 'Could not undo', description: (error as Error).message });
@@ -114,7 +116,9 @@ export function LogGameClientPage({ players }: { players: Player[] }) {
       setScores([null, null]);
       setActiveTeam(0);
       setJustSaved(true);
+      setLastGameId(gameId);
       toast({
+        duration: 10000,
         title: 'Game saved',
         description: `${label(team1)} ${game.team1Score}–${game.team2Score} ${label(team2)}`,
         action: (
@@ -264,9 +268,16 @@ export function LogGameClientPage({ players }: { players: Player[] }) {
 
       {justSaved && teamsComplete && (
         <div className="rounded-xl border bg-muted/40 p-3 mb-4">
-          <p className="text-sm mb-2 flex items-center gap-1">
-            <Check className="h-4 w-4 text-green-600" /> Saved. Next game?
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm flex items-center gap-1">
+              <Check className="h-4 w-4 text-green-600" /> Saved. Next game?
+            </p>
+            {lastGameId && (
+              <button type="button" className="text-sm text-muted-foreground underline" onClick={() => undo(lastGameId)}>
+                Undo
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={rematch} className="flex-1">
               <Repeat className="h-4 w-4 mr-1" /> Rematch

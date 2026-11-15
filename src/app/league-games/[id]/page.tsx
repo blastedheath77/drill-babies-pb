@@ -1,7 +1,7 @@
 'use client';
 
+import { NotFoundMessage } from '@/components/not-found-message';
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getLeagueGame } from '../actions';
@@ -39,7 +39,7 @@ export default function LeagueGameDetailPage({ params }: Props) {
     };
   }, [params.id]);
 
-  if (state.status === 'missing') notFound();
+  if (state.status === 'missing') return <NotFoundMessage what="Fixture" backHref="/league-games" backLabel="Back to league games" />;
   if (state.status === 'loading') {
     return (
       <div className="flex items-center justify-center py-16">

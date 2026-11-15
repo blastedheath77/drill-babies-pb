@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from 'next/navigation';
+import { NotFoundMessage } from '@/components/not-found-message';
 import { PageHeader } from '@/components/page-header';
 import { TournamentClient } from './tournament-client';
 import { QuickPlaySession } from './quick-play-session';
@@ -23,7 +23,7 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
       </p>
     );
   }
-  if (!data) notFound();
+  if (!data) return <NotFoundMessage what="Session" backHref="/tournaments" backLabel="Back to sessions" />;
 
   if (data.tournament.isQuickPlay) return <QuickPlaySession detail={data} />;
 

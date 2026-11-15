@@ -26,6 +26,11 @@ function getCredential(): admin.credential.Credential {
 
 function getAdminApp() {
   if (admin.apps.length) return admin.apps[0]!;
+  // With FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST set, the Admin
+  // SDK talks to the local emulators and needs no credentials.
+  if (process.env.FIRESTORE_EMULATOR_HOST) {
+    return admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? 'demo-pbstats' });
+  }
   return admin.initializeApp({ credential: getCredential() });
 }
 

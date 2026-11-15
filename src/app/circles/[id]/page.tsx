@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from 'next/navigation';
+import { NotFoundMessage } from '@/components/not-found-message';
 import { useQuery } from '@tanstack/react-query';
 import { getCircleById } from '@/lib/circles';
 import { getPlayersByIds } from '@/lib/data';
@@ -24,6 +24,6 @@ export default function CircleDetailsPage({ params }: { params: { id: string } }
       </div>
     );
   }
-  if (!data) notFound();
+  if (!data) return <NotFoundMessage what="Group" backHref="/circles" backLabel="Back to groups" />;
   return <CircleDetailsClient circle={data.circle} members={data.members} />;
 }

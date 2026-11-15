@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from 'next/navigation';
+import { NotFoundMessage } from '@/components/not-found-message';
 import { useQuery } from '@tanstack/react-query';
 import {
   getPlayerById,
@@ -51,6 +51,6 @@ export default function PlayerDetailPage({ params }: { params: { id: string } })
       </div>
     );
   }
-  if (!data) notFound();
+  if (!data) return <NotFoundMessage what="Player" backHref="/players" backLabel="Back to players" />;
   return <PlayerPageWrapper {...data} />;
 }

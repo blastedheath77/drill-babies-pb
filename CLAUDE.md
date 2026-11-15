@@ -18,6 +18,12 @@ The app previously supported multiple clubs; that was rolled back. Every stored 
 - `npm run typecheck` - Run TypeScript compiler without emitting files
 - `npm run format` - Format code with Prettier
 - `npm run format:check` - Check code formatting
+- `npm test` - Unit tests (rating engine, session pairing, matchup solver)
+- Local test database (needs Java: `brew install openjdk`, then put `/opt/homebrew/opt/openjdk/bin` on PATH):
+  - `npm run emulators` - Firestore + Auth emulators (demo project, never touches live data)
+  - `npm run seed:emulator` - Seed a test club; test logins are listed at the top of `scripts/seed-emulator.ts`
+  - `npm run dev:emulator` - App on http://localhost:3001 using the emulators
+  - `npm run test:rules` - Firestore security rules tests (starts its own emulator; stop `npm run emulators` first)
 - `npm run genkit:dev` - Start Genkit AI development server
 - `npm run genkit:watch` - Start Genkit AI in watch mode
 

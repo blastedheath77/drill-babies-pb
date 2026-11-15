@@ -16,7 +16,11 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "emulators": "firebase emulators:start --only firestore,auth --project demo-pbstats",
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pbstats tsx scripts/seed-emulator.ts",
+    "dev:emulator": "NEXT_PUBLIC_USE_EMULATOR=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-pbstats next dev -p 3001",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-pbstats \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "@genkit-ai/googleai": "1.14.1",
@@ -66,6 +70,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

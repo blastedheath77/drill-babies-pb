@@ -1,8 +1,9 @@
 'use client';
 
+import { NotFoundMessage } from '@/components/not-found-message';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { notFound, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Check,
@@ -85,7 +86,7 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
       </div>
     );
   }
-  if (!friendly) notFound();
+  if (!friendly) return <NotFoundMessage what="Friendly" backHref="/friendlies" backLabel="Back to friendlies" />;
 
   const f: Friendly = { ...friendly, matches };
   const canEdit = canCreateTournaments();
@@ -311,6 +312,12 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
                   .join(', ')}
               </span>
             </div>
+          )}
+          {report.repeats > 0 && f.matchTypes === 'variety' && (
+            <p className="text-xs text-amber-600 pt-1">
+              With only a few players of one gender, some men&apos;s or women&apos;s pairs have to repeat. &quot;Mixed
+              only&quot; or fewer rounds will avoid that.
+            </p>
           )}
           {canEdit && (
             <p className="text-xs text-muted-foreground pt-1">

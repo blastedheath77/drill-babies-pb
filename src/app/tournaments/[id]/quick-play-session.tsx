@@ -102,9 +102,12 @@ export function QuickPlaySession({ detail }: { detail: TournamentDetail }) {
   const currentRound = pending.length ? Math.min(...pending.map((m) => m.round)) : null;
   const onCourt = pending.filter((m) => m.round === currentRound);
   const upNext = pending.filter((m) => m.round !== currentRound);
-  const playingNow = new Set(onCourt.flatMap((m) => teams(m).flat()));
-  const sittingOut = tournament.playerIds.filter((id) => !playingNow.has(id));
-  const completedRounds = rounds.filter(([, ms]) => ms.every((m) => m.status === 'completed'));
+  // Sitting out = in the session but not drawn in the current round at all
+  const inCurrentRound = new Set(
+    matches.filter((m) => m.round === (currentRound ?? latestRound)).flatMap((m) => teams(m).flat())
+  );
+  const sittingOut = tournament.playerIds.filter((id) => !inCurrentRound.has(id));
+  const hasResults = matches.some((m) => m.status === 'completed');
 
   const refresh = () =>
     Promise.all([
@@ -333,7 +336,7 @@ export function QuickPlaySession({ detail }: { detail: TournamentDetail }) {
       )}
 
       {/* Results history */}
-      {completedRounds.length > 0 && (
+      {hasResults && (
         <Collapsible className="mb-3 rounded-xl border">
           <CollapsibleTrigger className="w-full flex items-center justify-between p-3 font-semibold text-sm">
             Results ({matches.filter((m) => m.status === 'completed').length}) <ChevronDown className="h-4 w-4" />
@@ -442,12 +445,24 @@ export function QuickPlaySession({ detail }: { detail: TournamentDetail }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
-              onClick={() =>
-                run('delete', async () => {
+              onClick={async () => {
+                setBusy('delete');
+                try {
                   await deleteTournament(await getIdToken(), tournament.id);
+                  // Leave first so this page doesn't re-load a session that no longer exists
                   router.push('/tournaments');
-                })
-              }
+                  queryClient.removeQueries({ queryKey: ['tournament-detail', tournament.id] });
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ['players'] }),
+                    queryClient.invalidateQueries({ queryKey: ['games'] }),
+                    queryClient.invalidateQueries({ queryKey: ['tournaments'] }),
+                  ]);
+                  toast({ title: 'Session deleted', description: 'Ratings were recalculated without its games.' });
+                } catch (error) {
+                  toast({ variant: 'destructive', title: 'Could not delete', description: (error as Error).message });
+                  setBusy(null);
+                }
+              }}
             >
               Delete session
             </AlertDialogAction>
