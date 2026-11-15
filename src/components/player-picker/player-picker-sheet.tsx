@@ -23,6 +23,8 @@ interface BaseProps {
   disabledIds?: string[];
   /** Shown first, e.g. people this player often partners. */
   priorityIds?: string[];
+  /** Hide the "Here today" filter (e.g. when editing today's roster itself). */
+  hideHereToday?: boolean;
 }
 
 interface SingleProps extends BaseProps {
@@ -44,7 +46,7 @@ export type PlayerPickerSheetProps = SingleProps | MultipleProps;
  * "Here today" first, big tap targets.
  */
 export function PlayerPickerSheet(props: PlayerPickerSheetProps) {
-  const { open, onOpenChange, players, title = 'Choose players', description, disabledIds = [], priorityIds = [] } = props;
+  const { open, onOpenChange, players, title = 'Choose players', description, disabledIds = [], priorityIds = [], hideHereToday = false } = props;
   const [query, setQuery] = useState('');
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const { data: groups = [] } = useCircles(CLUB_ID);
@@ -79,7 +81,12 @@ export function PlayerPickerSheet(props: PlayerPickerSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] flex flex-col gap-3 p-4 rounded-t-2xl">
+      <SheetContent
+        side="bottom"
+        className="h-[85vh] flex flex-col gap-3 p-4 rounded-t-2xl"
+        // Don't pop up the phone keyboard on open; search is optional
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="text-left space-y-1">
           <SheetTitle>{title}</SheetTitle>
           {description && <SheetDescription>{description}</SheetDescription>}
@@ -110,7 +117,7 @@ export function PlayerPickerSheet(props: PlayerPickerSheetProps) {
           selected={groupIds}
           onChange={setGroupIds}
           extra={
-            roster.length > 0 ? (
+            roster.length > 0 && !hideHereToday ? (
               <Chip active={hereOnly} onClick={() => setHereOnly((v) => !v)}>
                 Here today ({roster.length})
               </Chip>
@@ -156,7 +163,9 @@ export function PlayerPickerSheet(props: PlayerPickerSheetProps) {
                   <PlayerAvatar name={p.name} src={p.avatar} />
                   <span className="flex-1 min-w-0">
                     <span className="block font-medium truncate">{p.name}</span>
-                    {roster.includes(p.id) && <span className="block text-xs text-primary">Here today</span>}
+                    {!hideHereToday && roster.includes(p.id) && (
+                      <span className="block text-xs text-primary">Here today</span>
+                    )}
                   </span>
                   {isSelected && <Check className="h-5 w-5 text-primary shrink-0" />}
                 </button>
