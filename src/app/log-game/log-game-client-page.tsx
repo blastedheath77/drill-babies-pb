@@ -118,7 +118,6 @@ export function LogGameClientPage({ players }: { players: Player[] }) {
       setJustSaved(true);
       setLastGameId(gameId);
       toast({
-        duration: 10000,
         title: 'Game saved',
         description: `${label(team1)} ${game.team1Score}–${game.team2Score} ${label(team2)}`,
         action: (

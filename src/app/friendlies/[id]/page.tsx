@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  BarChart3,
   Check,
+  Pencil,
   Copy,
   Flag,
   Loader2,
@@ -94,6 +96,7 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
   const draft = f.status === 'draft';
   const live = f.status === 'live';
   const tally = tallyFriendly(f);
+  const editable = draft && canEdit && !matches.some((m) => m.status === 'completed');
 
   const nameOf = (side: Side, id: string) =>
     side === 'home' ? homeNames.get(id) ?? playerById.get(id)?.name ?? '?' : guestById.get(id)?.name ?? '?';
@@ -230,12 +233,22 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {editable && (
+                <DropdownMenuItem onClick={() => router.push(`/friendlies/${f.id}/edit`)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Edit squads & settings
+                </DropdownMenuItem>
+              )}
+              {tally.played > 0 && (
+                <DropdownMenuItem onClick={() => router.push(`/friendlies/${f.id}/stats`)}>
+                  <BarChart3 className="h-4 w-4 mr-2" /> Full stats
+                </DropdownMenuItem>
+              )}
               {tally.played > 0 && (
                 <DropdownMenuItem onClick={copySummary}>
                   <Copy className="h-4 w-4 mr-2" /> Copy summary
                 </DropdownMenuItem>
               )}
-              {live && canEdit && (
+              {live && canEdit && tally.played === 0 && (
                 <DropdownMenuItem onClick={() => setStatus('draft')}>
                   <Shuffle className="h-4 w-4 mr-2" /> Back to planning
                 </DropdownMenuItem>
@@ -279,6 +292,9 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
           <div className="text-xs text-muted-foreground mt-1">
             Matches won · points {tally.homePoints}–{tally.awayPoints} · {tally.played}/{matches.length} played
           </div>
+          <Link href={`/friendlies/${f.id}/stats`} className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-2">
+            <BarChart3 className="h-4 w-4" /> Full stats
+          </Link>
         </div>
       )}
 
@@ -313,16 +329,23 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
               </span>
             </div>
           )}
-          {report.repeats > 0 && f.matchTypes === 'variety' && (
-            <p className="text-xs text-amber-600 pt-1">
-              With only a few players of one gender, some men&apos;s or women&apos;s pairs have to repeat. &quot;Mixed
-              only&quot; or fewer rounds will avoid that.
-            </p>
-          )}
+          {f.format === 'doubles' &&
+            f.matchTypes !== 'open' &&
+            (report.repeats > 0 || report.home[1] - report.home[0] > 1 || report.away[1] - report.away[0] > 1) && (
+              <p className="text-xs text-amber-600 pt-1">
+                Uneven numbers of men and women mean some players get more games and some pairs repeat.
+                {f.matchTypes === 'variety' ? ' "Mixed only" or fewer rounds may help.' : ' "Any pairs" or fewer rounds may help.'}
+              </p>
+            )}
           {canEdit && (
             <p className="text-xs text-muted-foreground pt-1">
               Tap a name to swap someone in. Lock matches you like, then regenerate the rest.
             </p>
+          )}
+          {editable && (
+            <Link href={`/friendlies/${f.id}/edit`} className="inline-flex items-center gap-1 text-sm text-primary font-medium pt-1">
+              <Pencil className="h-3.5 w-3.5" /> Edit names, players or settings
+            </Link>
           )}
         </div>
       )}
