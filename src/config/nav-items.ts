@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database , CalendarDays, Users2, Grid3x3 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database , CalendarDays, Users2, Grid3x3, Handshake } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -103,6 +103,17 @@ export const actionNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Manage tournaments and sessions'
+  },
+  {
+    title: 'Friendlies',
+    href: '/friendlies',
+    icon: Handshake,
+    category: 'action',
+    priority: 'secondary',
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Matchups against other teams'
   },
   {
     title: 'Box Leagues',

@@ -332,3 +332,44 @@ export interface NotificationSettings {
   fcmToken?: string;
 }
 
+
+// Friendlies (Matchup Builder). Visitors are names only; results never affect ratings.
+export type FriendlyGuestLevel = 'weaker' | 'similar' | 'stronger';
+
+export interface FriendlyGuest {
+  id: string;
+  name: string;
+  gender?: 'M' | 'F';
+  level?: FriendlyGuestLevel;
+}
+
+export interface FriendlyMatch {
+  id: string;
+  round: number;
+  court: number;
+  home: string[]; // club player ids
+  away: string[]; // guest ids
+  category: 'mens' | 'womens' | 'mixed' | 'open';
+  locked?: boolean;
+  homeScore?: number;
+  awayScore?: number;
+  status: 'pending' | 'completed';
+}
+
+export interface Friendly {
+  id: string;
+  clubId: string;
+  opponentName: string;
+  date: string; // YYYY-MM-DD
+  venue?: string;
+  format: 'doubles' | 'singles';
+  courts: number;
+  rounds: number;
+  matchTypes: 'open' | 'mixed' | 'variety';
+  homePlayerIds: string[];
+  guests: FriendlyGuest[];
+  matches: FriendlyMatch[];
+  status: 'draft' | 'live' | 'finished';
+  createdBy: string;
+  createdDate: string;
+}

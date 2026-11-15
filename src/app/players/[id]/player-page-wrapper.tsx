@@ -10,6 +10,8 @@ import { GamesHistoryClient } from './games-history-client';
 import { HeadToHeadClient, PartnershipClient } from './client';
 import { RestrictedPlayerProfile } from '@/components/restricted-player-profile';
 import { useAuth } from '@/contexts/auth-context';
+import { useFriendlies } from '@/hooks/use-friendlies';
+import { memberFriendlyRecord } from '@/lib/friendlies';
 import type { Player, Game, Partnership, HeadToHeadData, FormMetric } from '@/lib/types';
 
 interface PlayerPageWrapperProps {
@@ -34,6 +36,8 @@ export function PlayerPageWrapper({
   form,
 }: PlayerPageWrapperProps) {
   const { isAdmin } = useAuth();
+  const { data: friendlies = [] } = useFriendlies();
+  const friendlyRecord = memberFriendlyRecord(friendlies, player.id);
 
   // Check if player is excluded and user is not admin
   if (player.excludeFromRankings && !isAdmin()) {
@@ -71,6 +75,16 @@ export function PlayerPageWrapper({
               </div>
             </CardContent>
           </Card>
+          {friendlyRecord.wins + friendlyRecord.losses > 0 && (
+            <Card>
+              <CardContent className="p-4 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Friendlies vs other teams</span>
+                <span className="font-semibold">
+                  {friendlyRecord.wins}W – {friendlyRecord.losses}L
+                </span>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="lg:col-span-2 space-y-6">
