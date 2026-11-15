@@ -3,6 +3,7 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { TournamentClient } from './tournament-client';
+import { QuickPlaySession } from './quick-play-session';
 import { useTournamentDetail } from '@/hooks/use-tournament-detail';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
@@ -16,9 +17,15 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
     );
   }
   if (error) {
-    return <p className="text-destructive py-8 text-center">Couldn&apos;t load this session. {String((error as Error).message ?? '')}</p>;
+    return (
+      <p className="text-destructive py-8 text-center">
+        Couldn&apos;t load this session. {String((error as Error).message ?? '')}
+      </p>
+    );
   }
   if (!data) notFound();
+
+  if (data.tournament.isQuickPlay) return <QuickPlaySession detail={data} />;
 
   return (
     <>

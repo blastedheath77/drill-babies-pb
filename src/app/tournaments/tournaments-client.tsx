@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { closeStaleSessions, isSessionStale } from './quick-play-actions';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,8 @@ import Link from 'next/link';
 import type { Tournament } from '@/lib/types';
 
 export function TournamentsClient() {
-  const { canCreateTournaments } = useAuth();
+  const { canCreateTournaments, isAdmin } = useAuth();
+  const [closingStale, setClosingStale] = useState(false);
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
   const clubName = selectedClub ? selectedClub.name : 'All Clubs';
   const [activeTournaments, setActiveTournaments] = useState<Tournament[]>([]);
@@ -149,8 +151,8 @@ export function TournamentsClient() {
     } as const;
 
     const labels = {
-      active: 'In Progress',
-      completed: 'Completed',
+      active: 'Live',
+      completed: 'Finished',
     };
 
     return (
@@ -188,7 +190,7 @@ export function TournamentsClient() {
               )}
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              {getStatusBadge(tournament.status)}
+              {getStatusBadge(isSessionStale(tournament) ? 'completed' : tournament.status)}
             </div>
           </div>
         </CardHeader>
@@ -282,11 +284,25 @@ export function TournamentsClient() {
     );
   }
 
+  // Quick-play sessions idle for a day count as finished
+  const staleSessions = activeTournaments.filter((t) => isSessionStale(t));
+  const liveList = activeTournaments.filter((t) => !isSessionStale(t));
+  const finishedList = [...staleSessions, ...completedTournaments];
+
+  const closeStale = async () => {
+    setClosingStale(true);
+    try {
+      await closeStaleSessions();
+    } finally {
+      setClosingStale(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
-        title={`${clubName} Tournaments`}
-        description={`Organise recreational play and tournaments${selectedClub ? ` in ${clubName}` : ''}.`}
+        title="Sessions"
+        description="Quick play at training, tournaments and league fixtures."
       />
 
       {canCreateTournaments() && (
@@ -317,18 +333,18 @@ export function TournamentsClient() {
           <div className="flex justify-center sm:justify-start">
             <TabsList>
               <TabsTrigger value="active">
-                Active ({activeTournaments.length})
+                Live ({liveList.length})
               </TabsTrigger>
               <TabsTrigger value="completed">
-                Completed ({completedTournaments.length})
+                Finished ({finishedList.length})
               </TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="active" className="mt-6">
-            {activeTournaments.length > 0 ? (
+            {liveList.length > 0 ? (
               <div className="grid gap-4">
-                {activeTournaments.map((tournament) => (
+                {liveList.map((tournament) => (
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))}
               </div>
@@ -337,10 +353,8 @@ export function TournamentsClient() {
                 <CardContent className="flex flex-col items-center justify-center text-center gap-4 py-16">
                   <Trophy className="h-12 w-12 text-muted-foreground" />
                   <div>
-                    <p className="text-lg font-medium">No Active Tournaments</p>
-                    <p className="text-muted-foreground">
-                      There are no tournaments currently in progress.
-                    </p>
+                    <p className="text-lg font-medium">Nothing live right now</p>
+                    <p className="text-muted-foreground">Start a quick-play session at training.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -348,9 +362,17 @@ export function TournamentsClient() {
           </TabsContent>
 
           <TabsContent value="completed" className="mt-6">
-            {completedTournaments.length > 0 ? (
+            {isAdmin() && staleSessions.length > 0 && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+                <span>{staleSessions.length} old sessions were never ended.</span>
+                <Button size="sm" variant="outline" onClick={closeStale} disabled={closingStale}>
+                  {closingStale ? 'Closing…' : 'Mark all finished'}
+                </Button>
+              </div>
+            )}
+            {finishedList.length > 0 ? (
               <div className="grid gap-4">
-                {completedTournaments.map((tournament) => (
+                {finishedList.map((tournament) => (
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))}
               </div>

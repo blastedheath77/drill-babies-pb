@@ -57,6 +57,7 @@ export async function recordTournamentMatchResult(idToken: string, data: MatchRe
     createdBy: user.id,
   });
 
+  await db.collection('tournaments').doc(tournamentId).update({ lastActivityAt: new Date().toISOString() });
   await markTournamentCompleteIfDone(tournamentId);
   return { success: true, gameId };
 }

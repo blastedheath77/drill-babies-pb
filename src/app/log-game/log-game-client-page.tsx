@@ -12,6 +12,7 @@ import { getIdToken } from '@/lib/id-token';
 import { logGame, removeGame } from '@/app/log-game/actions';
 import { useTodayRoster } from '@/hooks/use-today-roster';
 import { PlayerPickerSheet } from '@/components/player-picker/player-picker-sheet';
+import { shortNames } from '@/lib/player-names';
 import type { Player } from '@/lib/types';
 
 type Format = 'doubles' | 'singles';
@@ -20,25 +21,6 @@ type Slot = 0 | 1 | 2 | 3; // doubles: 0,1 = team 1; 2,3 = team 2. singles: 0 = 
 const DOUBLES_SLOTS: Slot[] = [0, 1, 2, 3];
 const SINGLES_SLOTS: Slot[] = [0, 2];
 const SCORES = Array.from({ length: 22 }, (_, i) => i);
-
-/** First names, with a last-name initial where two players share one. */
-export function shortNames(players: Player[]): Map<string, string> {
-  const first = (p: Player) => p.name.trim().split(/\s+/)[0] ?? p.name;
-  const counts = new Map<string, number>();
-  players.forEach((p) => counts.set(first(p), (counts.get(first(p)) ?? 0) + 1));
-  const map = new Map<string, string>();
-  players.forEach((p) => {
-    const parts = p.name.trim().split(/\s+/);
-    map.set(p.id, (counts.get(first(p)) ?? 0) > 1 && parts[1] ? `${parts[0]} ${parts[1][0]}.` : first(p));
-  });
-  // Still ambiguous (e.g. two "Simon T."): use full names for those
-  const labelCounts = new Map<string, number>();
-  map.forEach((label) => labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1));
-  players.forEach((p) => {
-    if ((labelCounts.get(map.get(p.id)!) ?? 0) > 1) map.set(p.id, p.name.trim());
-  });
-  return map;
-}
 
 export function LogGameClientPage({ players }: { players: Player[] }) {
   const { toast } = useToast();
