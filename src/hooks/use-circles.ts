@@ -35,7 +35,7 @@ export function useCircles(clubId?: string) {
     queryKey: circleKeys.list(clubId),
     queryFn: () => getCircles(clubId),
     staleTime: 5 * 60 * 1000, // Circles stay fresh for 5 minutes (increased for better performance)
-    cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false, // Don't refetch on window focus (reduces unnecessary calls)
     refetchOnMount: 'always', // Ensure fresh data when component mounts
     retry: 3, // Retry failed requests up to 3 times
@@ -49,7 +49,7 @@ export function useCirclesWithPlayerCount(clubId?: string) {
     queryKey: circleKeys.withPlayerCount(clubId),
     queryFn: () => getCirclesWithPlayerCount(clubId),
     staleTime: 5 * 60 * 1000, // Stay fresh for 5 minutes
-    cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false, // Reduce unnecessary refetches
     refetchOnMount: 'always',
     retry: 3,
@@ -64,7 +64,7 @@ export function useCircle(circleId: string) {
     queryFn: () => getCircleById(circleId),
     enabled: !!circleId,
     staleTime: 10 * 60 * 1000, // Individual circle data stays fresh for 10 minutes
-    cacheTime: 60 * 60 * 1000, // Keep in cache for 1 hour
+    gcTime: 60 * 60 * 1000, // Keep in cache for 1 hour
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
@@ -170,7 +170,7 @@ export function usePrefetchCircle() {
       queryKey: circleKeys.detail(circleId),
       queryFn: () => getCircleById(circleId),
       staleTime: 10 * 60 * 1000,
-      cacheTime: 60 * 60 * 1000,
+      gcTime: 60 * 60 * 1000,
     });
   };
 }

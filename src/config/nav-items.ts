@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database , CalendarDays, Users2, Grid3x3 } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -67,7 +67,7 @@ export const mainNavItems: NavItem[] = [
     description: 'View statistics and analytics'
   },
   {
-    title: 'Circles',
+    title: 'Groups',
     href: '/circles',
     icon: Users2,
     category: 'main',
@@ -75,18 +75,7 @@ export const mainNavItems: NavItem[] = [
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Player groups for filtering'
-  },
-  { 
-    title: 'Test', 
-    href: '/test', 
-    icon: TestTube, 
-    category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
-    mobileVisible: false,
-    desktopVisible: true,
-    description: 'Testing page'
+    description: 'Player groups used as filters'
   },
 ];
 
@@ -157,6 +146,18 @@ export const adminNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Admin controls'
+  },
+  {
+    title: 'Manage Groups',
+    href: '/groups',
+    icon: Users2,
+    category: 'admin',
+    priority: 'tertiary',
+    adminOnly: true,
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Assign players to groups'
   },
 ];
 

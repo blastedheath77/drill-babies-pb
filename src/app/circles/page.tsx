@@ -49,8 +49,8 @@ export default function CirclesPage() {
   return (
     <>
       <PageHeader
-        title="Player Circles"
-        description="Manage player groups for filtering statistics and organizing your club."
+        title="Groups"
+        description="Player groups. They appear as filters whenever you pick players."
       />
       <ClientOnly fallback={<LoadingSkeleton />}>
         <DataErrorBoundary
