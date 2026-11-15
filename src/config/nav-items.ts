@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3 } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -157,18 +157,6 @@ export const adminNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Admin controls'
-  },
-  {
-    title: 'Clubs',
-    href: '/clubs',
-    icon: Building2,
-    category: 'admin',
-    priority: 'tertiary',
-    adminOnly: true,
-    bottomNavEligible: false,
-    mobileVisible: true,
-    desktopVisible: true,
-    description: 'Manage clubs'
   },
 ];
 

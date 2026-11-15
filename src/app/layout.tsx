@@ -5,7 +5,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { QueryProvider } from '@/lib/query-client';
 import { AuthProvider } from '@/contexts/auth-context';
-import { ClubProvider } from '@/contexts/club-context';
 import { NotificationProvider } from '@/contexts/notification-context';
 
 export const metadata: Metadata = {
@@ -127,7 +126,6 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <ClubProvider>
             <NotificationProvider>
               <QueryProvider>
                 <ErrorBoundary>
@@ -136,7 +134,6 @@ export default function RootLayout({
                 <Toaster />
               </QueryProvider>
             </NotificationProvider>
-          </ClubProvider>
         </AuthProvider>
       </body>
     </html>

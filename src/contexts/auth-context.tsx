@@ -9,7 +9,7 @@ import {
   onAuthStateChange,
   resetPassword,
 } from '@/lib/user-management';
-import { getUserPermissions } from '@/lib/permissions';
+import { getUserPermissions, isAdminUser } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,11 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they', clubId?: string, clubName?: string) => {
+  const register = async (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they') => {
     setIsLoading(true);
 
     try {
-      const result = await registerUser(email, password, name, 'player', gender, clubId, clubName);
+      const result = await registerUser(email, password, name, 'player', gender);
       if (result.success && result.user) {
         setUser(result.user);
         return { success: true };
@@ -99,16 +99,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await resetPassword(email);
   };
 
-  const isAdmin = () => user?.role === 'admin';
-  const isPlayer = () => user?.role === 'player' || user?.role === 'admin';
+  const isAdmin = () => isAdminUser(user);
+  const isPlayer = () => user?.role === 'player' || isAdminUser(user);
   const isViewer = () => user?.role === 'viewer';
   const isAuthenticated = () => user !== null;
-
-  const isClubAdmin = (clubId: string) => {
-    if (!user) return false;
-    if (user.role === 'admin') return true; // Global admin has access to all clubs
-    return user.clubRoles?.[clubId] === 'club_admin';
-  };
 
   const canCreateTournaments = () => getUserPermissions(user).canCreateTournaments;
   const canManagePlayers = () => getUserPermissions(user).canCreatePlayers;
@@ -127,7 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isPlayer,
         isViewer,
         isAuthenticated,
-        isClubAdmin,
         canCreateTournaments,
         canManagePlayers
       }}

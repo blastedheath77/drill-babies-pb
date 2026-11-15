@@ -1,5 +1,8 @@
 'use client';
 
+import { CLUB_NAME } from '@/config/club';
+import { isAdminUser } from '@/lib/permissions';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
@@ -167,8 +170,6 @@ export function SettingsClient() {
       </div>
     );
   }
-
-  const clubCount = user.clubMemberships?.length || 0;
 
   return (
     <div className="container max-w-2xl py-8 px-4">
@@ -378,15 +379,13 @@ export function SettingsClient() {
             <div className="flex items-center justify-between">
               <Label>Role</Label>
               <Badge variant="secondary">
-                {user.role === 'admin' ? 'Admin' : user.role === 'player' ? 'Player' : 'Viewer'}
+                {isAdminUser(user) ? 'Admin' : user.role === 'player' ? 'Player' : 'Viewer'}
               </Badge>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <Label>Clubs</Label>
-              <span className="text-sm text-muted-foreground">
-                {clubCount} {clubCount === 1 ? 'club' : 'clubs'}
-              </span>
+              <Label>Club</Label>
+              <span className="text-sm text-muted-foreground">{CLUB_NAME}</span>
             </div>
             <Separator />
             <Button

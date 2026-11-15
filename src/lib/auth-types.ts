@@ -11,8 +11,9 @@ export interface User {
   avatar?: string;
   createdAt: string;
   updatedAt?: string;
-  // Club membership fields (optional for backward compatibility)
-  clubMemberships?: string[]; // Array of club IDs user has access to
+  // Legacy multi-club fields. Membership of the single club is still recorded
+  // in clubMemberships (Firestore rules check it); clubRoles marks old club admins.
+  clubMemberships?: string[];
   selectedClubId?: string | null; // Currently selected club
   clubRoles?: { [clubId: string]: 'club_admin' | 'member' }; // Per-club roles
   gender?: 'he' | 'she' | 'they';
@@ -44,14 +45,13 @@ export interface AuthContextType {
   isLoading: boolean;
   isInitialized: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they', clubId?: string, clubName?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string, name: string, gender?: 'he' | 'she' | 'they') => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   isAdmin: () => boolean;
   isPlayer: () => boolean;
   isViewer: () => boolean;
   isAuthenticated: () => boolean;
-  isClubAdmin: (clubId: string) => boolean;
   canCreateTournaments: () => boolean;
   canManagePlayers: () => boolean;
 }

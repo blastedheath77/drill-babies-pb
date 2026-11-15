@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PBstats is a pickleball statistics tracking application built with Next.js 14, Firebase, and TypeScript. The app supports multiple independent clubs, each tracking player performance, game results, tournaments, and ELO-based rankings within player circles (groups). The multi-club architecture enables complete data isolation between clubs while sharing the same infrastructure.
+PBstats is a pickleball statistics tracking application built with Next.js 14, Firebase, and TypeScript, used by a single club (DLWest). It tracks player performance, game results, quick-play sessions, tournaments, box leagues and ELO-based rankings, with players organised into groups (stored as "circles").
+
+The app previously supported multiple clubs; that was rolled back. Every stored document still has a `clubId` field (kept so existing data and Firestore indexes stay valid) — always set it to `CLUB_ID` from `src/config/club.ts`.
 
 ## Development Commands
 
@@ -31,24 +33,18 @@ PBstats is a pickleball statistics tracking application built with Next.js 14, F
 
 ### Key Architectural Patterns
 
-**Multi-Club Architecture**: The app supports multiple independent clubs with complete data isolation:
-- Each club has its own players, games, tournaments, circles, and box leagues
-- All entities include a `clubId` field for filtering and access control
-- Users can belong to multiple clubs with different roles per club
-- Club selection is managed globally via `ClubContext`
-- Firestore Security Rules enforce club-based access control at the database level
+**Single club**: `src/config/club.ts` exports `CLUB` / `CLUB_ID`. `useClub()` in `src/contexts/club-context.tsx` is a compatibility shim that always returns that club; prefer importing `CLUB_ID` in new code.
 
 **Circles System**: Within each club, players can be organized into "circles" - groups of players (like leagues or skill levels). Data is filtered by both club and circle context throughout the application.
 
 **Context Providers**:
 - `AuthContext` - User authentication and role-based permissions
-- `ClubContext` - Club selection and multi-club state management
 - `CircleContext` - Circle selection and filtering logic (within a club)
 
 **Data Layer**:
 - All Firebase operations centralized in `/src/lib/` files
 - Type definitions in `/src/lib/types.ts` define core entities: Club, Player, Game, Tournament, Circle, BoxLeague
-- All entities include `clubId` for data isolation
+- All entities include `clubId` (always `CLUB_ID`)
 - Rating system uses ELO algorithm with rating history tracking
 - Composite Firestore indexes for efficient club-filtered queries
 
@@ -58,13 +54,11 @@ PBstats is a pickleball statistics tracking application built with Next.js 14, F
 - `/src/lib/` - Firebase operations, utilities, and business logic
 - `/src/contexts/` - React context providers (AuthContext, ClubContext, CircleContext)
 - `/src/hooks/` - Custom React hooks (use-clubs.ts, use-players.ts, etc.)
-- `/docs/` - Documentation (CLUB_ARCHITECTURE.md, ADMIN_GUIDE.md)
+- `/docs/` - Documentation
 - `/scripts/` - Migration and utility scripts
 - `/firestore.rules` - Firestore Security Rules with club-based access control
 
 ### Key Features
-- **Multi-Club Support**: Multiple independent clubs with complete data isolation
-- **Club Management**: Create/edit/delete clubs, manage members and roles (admin only)
 - **Player Management**: Add/manage players with avatars and stats (per club)
 - **Game Logging**: Record singles/doubles games with automatic rating updates
 - **Tournaments**: Round-robin, single/double elimination formats
@@ -74,11 +68,10 @@ PBstats is a pickleball statistics tracking application built with Next.js 14, F
 - **PWA Support**: Service worker for offline capabilities
 
 ### Authentication & Permissions
-- Firebase Auth with fallback to localStorage for development
-- **Global Roles**: admin (full access), player, viewer (read-only)
-- **Club Roles**: club_admin (full access to their club), member (default)
-- **Access Control**: Database-level enforcement via Firestore Security Rules
-- **Multi-Club Membership**: Users can belong to multiple clubs with different roles per club
+- Firebase Auth. Signed-out users are redirected to `/login` by `AppLayout`.
+- **Roles**: admin (full access), player (default for new sign-ups), viewer (read-only)
+- `isAdminUser()` in `src/lib/permissions.ts` also treats legacy club admins (`role: 'club_admin'` or `clubRoles[CLUB_ID] === 'club_admin'`) as admins
+- New registrations join the club automatically (`clubMemberships: [CLUB_ID]`), and the admin is emailed
 
 ### Development Notes
 - Uses React Query for server state management
@@ -87,58 +80,6 @@ PBstats is a pickleball statistics tracking application built with Next.js 14, F
 - AI integration via Genkit for potential future features
 - TypeScript strict mode enabled
 
-## Working with Multi-Club Architecture
-
-### Important Patterns
-
-**Always include clubId in queries:**
-```typescript
-// Good
-const { data: players } = usePlayers(); // Hook automatically uses selectedClub.id
-
-// In database operations
-const players = await getPlayersByClubId(clubId);
-```
-
-**Always validate club selection in create forms:**
-```typescript
-const { selectedClub } = useClub();
-
-if (!selectedClub?.id) {
-  toast({ title: 'No club selected' });
-  return;
-}
-
-await createPlayer({ ...data, clubId: selectedClub.id });
-```
-
-**React Query keys must include clubId:**
-```typescript
-export const playerKeys = {
-  all: ['players'] as const,
-  lists: () => [...playerKeys.all, 'list'] as const,
-  list: (clubId?: string) => [...playerKeys.lists(), clubId] as const,
-};
-```
-
-### Testing Club Features
-
-1. Test with club selected (normal flow)
-2. Test without club selected (should show validation)
-3. Test switching between clubs (data should update)
-4. Test as different user roles (admin, club_admin, member)
-
-### Common Issues
-
-- **"Missing or insufficient permissions"**: Check Firestore Security Rules and user's clubMemberships
-- **Data not showing**: Verify clubId exists on entities and user has club access
-- **Cannot create entity**: Ensure club is selected and clubId is included in mutation data
-
-### Key Files for Multi-Club Development
-
-- `/src/contexts/club-context.tsx` - Club state management
-- `/src/hooks/use-clubs.ts` - Club operations hooks
-- `/src/components/club-selector.tsx` - Club switching UI
-- `/firestore.rules` - Security rules (be careful when modifying)
-- `/docs/CLUB_ARCHITECTURE.md` - Detailed architecture documentation
-- `/docs/ADMIN_GUIDE.md` - Admin operations guide
+## Known issues
+- `next.config.js` sets `ignoreBuildErrors` / `ignoreDuringBuilds`; there are pre-existing type errors, so run `npm run typecheck` and don't add new ones.
+- `npm run lint` is broken (ESLint 9 with Next 14 config).

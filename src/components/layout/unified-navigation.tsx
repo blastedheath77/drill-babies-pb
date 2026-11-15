@@ -20,7 +20,6 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/co
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { ClubSelector } from '@/components/club-selector';
 
 interface UnifiedNavigationProps {
   className?: string;
@@ -155,13 +154,6 @@ function DesktopSidebar({
         {!isCollapsed && (
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
             Account
-          </div>
-        )}
-
-        {/* Club Selector */}
-        {!isLoading && isClient && user && (
-          <div className="mb-2">
-            <ClubSelector iconOnly={isCollapsed} />
           </div>
         )}
 
@@ -469,13 +461,6 @@ function MobileSidebarMenu({ onClose }: { onClose: () => void }) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Account
           </div>
-
-          {/* Club Selector */}
-          {!isLoading && isClient && user && (
-            <div className="mb-3">
-              <ClubSelector />
-            </div>
-          )}
 
           {!isLoading && isClient ? (
             user ? (

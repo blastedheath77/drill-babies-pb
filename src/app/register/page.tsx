@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
-import { getClubs } from '@/lib/clubs';
-import type { Club } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,16 +28,10 @@ export default function RegisterPage() {
     confirmPassword: '',
     gender: '' as '' | 'he' | 'she' | 'they',
   });
-  const [selectedClubId, setSelectedClubId] = useState('');
-  const [clubs, setClubs] = useState<Club[]>([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    getClubs().then(setClubs).catch(() => {/* non-fatal */});
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,14 +55,11 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const clubName = clubs.find(c => c.id === selectedClubId)?.name;
       const result = await register(
         formData.email,
         formData.password,
         formData.name.trim(),
-        formData.gender || undefined,
-        selectedClubId || undefined,
-        clubName
+        formData.gender || undefined
       );
 
       if (result.success) {
@@ -180,28 +169,6 @@ export default function RegisterPage() {
                 minLength={6}
               />
             </div>
-
-            {clubs.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="club">Join a Club</Label>
-                <Select
-                  value={selectedClubId || undefined}
-                  onValueChange={setSelectedClubId}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger id="club">
-                    <SelectValue placeholder="Select a club (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clubs.map((club) => (
-                      <SelectItem key={club.id} value={club.id}>
-                        {club.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             {error && (
               <Alert variant="destructive">

@@ -23,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { User, UserDocument, UserRole } from './auth-types';
-import { addUserToClub } from './clubs';
+import { CLUB_ID, CLUB_NAME } from '@/config/club';
 import { logger } from './logger';
 
 const USERS_COLLECTION = 'users';
@@ -44,6 +44,8 @@ export async function createUserDocument(
       email: firebaseUser.email!,
       name: additionalData.name,
       role: additionalData.role || 'player',
+      // Everyone who registers joins the club (same as picking it at signup before).
+      clubMemberships: [CLUB_ID],
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
       ...(firebaseUser.photoURL && { avatar: firebaseUser.photoURL }),
@@ -142,9 +144,7 @@ export async function registerUser(
   password: string,
   name: string,
   role: UserRole = 'player',
-  gender?: 'he' | 'she' | 'they',
-  clubId?: string,
-  clubName?: string
+  gender?: 'he' | 'she' | 'they'
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     console.log('🔥 Starting user registration with Firebase Auth');
@@ -172,22 +172,12 @@ export async function registerUser(
     console.log('✅ User document created successfully');
     logger.info('User document created successfully', { uid: firebaseUser.uid });
 
-    // Add to club if one was selected at signup
-    if (clubId) {
-      try {
-        await addUserToClub(firebaseUser.uid, clubId, 'member');
-        logger.info('User added to club at registration', { uid: firebaseUser.uid, clubId });
-      } catch (err) {
-        logger.error('Failed to add user to club during registration', err);
-        // Non-fatal — user is still created
-      }
-    }
 
     // Notify admin of new signup (fire and forget)
     fetch('/api/auth/notify-admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, clubName }),
+      body: JSON.stringify({ name, email, clubName: CLUB_NAME }),
     }).catch(() => {/* non-fatal */});
 
     return { success: true, user };
