@@ -28,8 +28,10 @@ try {
   storage = getStorage(app);
   auth = getAuth(app);
   if (USE_EMULATOR && fresh) {
-    connectFirestoreEmulator(db, '127.0.0.1', 8080);
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    // Same machine the page came from, so a phone on the Wi-Fi can use the emulators too
+    const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    connectFirestoreEmulator(db, host, 8080);
+    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
   }
 
   console.log('Firebase initialized successfully');
