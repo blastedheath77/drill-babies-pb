@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@/components/error-boundary';
 import { BoxManagementClient } from './box-management-client';
 
 interface BoxManagementPageProps {
@@ -7,5 +8,9 @@ interface BoxManagementPageProps {
 }
 
 export default function BoxManagementPage({ params }: BoxManagementPageProps) {
-  return <BoxManagementClient boxLeagueId={params.id} />;
+  return (
+    <ErrorBoundary>
+      <BoxManagementClient boxLeagueId={params.id} />
+    </ErrorBoundary>
+  );
 }

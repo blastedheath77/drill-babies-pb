@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useBoxLeague, useUpdateBoxLeague, useDeleteBoxLeague } from '@/hooks/use-box-leagues';
 import { useAuth } from '@/contexts/auth-context';
+import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 interface SettingsClientProps {
@@ -24,6 +25,7 @@ interface SettingsClientProps {
 export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const { data: boxLeague, isLoading } = useBoxLeague(boxLeagueId);
   const updateBoxLeague = useUpdateBoxLeague();
   const deleteBoxLeague = useDeleteBoxLeague();
@@ -57,17 +59,17 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      alert('League name is required');
+      toast({ title: 'League name is required', description: 'Please enter a league name.', variant: 'destructive' });
       return;
     }
 
     if (formData.roundsPerCycle < 1 || formData.roundsPerCycle > 5) {
-      alert('Rounds per cycle must be between 1 and 5');
+      toast({ title: 'Invalid configuration', description: 'Rounds per cycle must be between 1 and 5.', variant: 'destructive' });
       return;
     }
 
     if (formData.status === 'paused' && !formData.pauseReason.trim()) {
-      alert('Please provide a reason for pausing the league');
+      toast({ title: 'Pause reason required', description: 'Please provide a reason for pausing the league.', variant: 'destructive' });
       return;
     }
 
@@ -103,10 +105,10 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
         updates
       });
 
-      alert('Settings updated successfully!');
+      toast({ title: 'Settings updated', description: 'Your changes have been saved successfully.' });
     } catch (error) {
       console.error('Error updating box league:', error);
-      alert('Failed to update settings. Please try again.');
+      toast({ title: 'Update failed', description: 'Failed to update settings. Please try again.', variant: 'destructive' });
     }
   };
 
@@ -123,10 +125,10 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
       });
 
       setIsCompleteDialogOpen(false);
-      alert('League marked as completed!');
+      toast({ title: 'League completed', description: 'The league has been marked as completed.' });
     } catch (error) {
       console.error('Error completing league:', error);
-      alert('Failed to complete league. Please try again.');
+      toast({ title: 'Failed to complete league', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -139,7 +141,7 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
       router.push('/box-leagues');
     } catch (error) {
       console.error('Error deleting box league:', error);
-      alert('Failed to delete box league. Please try again.');
+      toast({ title: 'Delete failed', description: 'Failed to delete box league. Please try again.', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -362,13 +364,7 @@ export function SettingsClient({ boxLeagueId }: SettingsClientProps) {
               <div>
                 <span className="text-muted-foreground">Created:</span>
                 <div className="font-semibold">
-                  {new Date(boxLeague.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Last Updated:</span>
-                <div className="font-semibold">
-                  {new Date(boxLeague.updatedAt).toLocaleDateString()}
+                  {new Date(boxLeague.createdDate).toLocaleDateString()}
                 </div>
               </div>
             </div>

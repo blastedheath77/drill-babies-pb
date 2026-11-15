@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useEditMatchResult } from '@/hooks/use-box-leagues';
+import { useToast } from '@/hooks/use-toast';
 import type { BoxLeagueMatch, Player } from '@/lib/types';
 
 interface EditMatchResultDialogProps {
@@ -38,6 +39,7 @@ export function EditMatchResultDialog({
   const [error, setError] = useState<string>('');
 
   const editMutation = useEditMatchResult();
+  const { toast } = useToast();
 
   // Reset scores when dialog opens or match changes
   useEffect(() => {
@@ -72,7 +74,7 @@ export function EditMatchResultDialog({
         newTeam2Score: team2Score
       });
 
-      alert('Match result updated successfully!');
+      toast({ title: 'Result updated', description: 'Match result has been updated successfully.' });
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error editing match result:', error);
@@ -107,7 +109,7 @@ export function EditMatchResultDialog({
                   ))}
                 </div>
                 <div className="text-sm font-medium">
-                  {team1Players.map(p => p.name).join(' & ')}
+                  {team1Players.map(p => p.name).join(team1Players.length > 1 ? ' & ' : '')}
                 </div>
               </div>
               <div className="text-2xl font-bold">
@@ -115,7 +117,7 @@ export function EditMatchResultDialog({
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-sm font-medium text-right">
-                  {team2Players.map(p => p.name).join(' & ')}
+                  {team2Players.map(p => p.name).join(team2Players.length > 1 ? ' & ' : '')}
                 </div>
                 <div className="flex -space-x-2">
                   {team2Players.map(player => (

@@ -3,11 +3,13 @@
 ## Analysis Summary
 
 **Backend Logic:** ✅ Promotion/relegation logic exists and is well-implemented
-**Frontend UI:** ✅ Cycle completion workflow now complete! Standings page redesigned!
+**Frontend UI:** ✅ Cycle completion workflow complete. Standings redesigned. Format badge shown everywhere.
 **Player Management:** ✅ Player substitution and match editing fully implemented! Manual edits protected!
-**Validation:** ✅ Cycle completion validation now properly checks for pending matches
+**Validation:** ✅ Cycle completion validation properly checks for pending matches
 **Cycle Transitions:** ✅ Automatic round creation after cycle completion - no more stuck leagues!
-**Progress:** 17/40 tasks complete (43%)
+**Singles Support:** ✅ Singles box leagues now supported (6 1v1 matches per round per box)
+**Bug Fixes (2026-06-09):** ✅ useSubstitutePlayer cache invalidation bug fixed; pre-existing type errors fixed
+**Progress:** 22/40+ tasks complete (55%+)
 
 ---
 
@@ -559,11 +561,123 @@
 5. ~~**Phase 4.1 (Partial)**~~ - ✅ **COMPLETED** - Standings page redesign for consistency
 6. ~~**Phase 4.4 (Partial)**~~ - ✅ **COMPLETED** - Simplified match validation for flexibility
 7. ~~**Phase 3.2**~~ - ✅ **COMPLETED** - Player substitution and match result editing (2025-10-22)
-8. **Phase 4.3** - Error handling (replace alert() with toast notifications) ← START HERE
-9. **Phase 4.1** - Historical data visualization (position history chart, cycle history)
-10. **Phases 4.2, 4.5** - Mobile support and circle integration
-11. **Phase 5** - Nice-to-have enhancements
-12. **Phase 3.2 (Remaining)** - Forfeit support and player withdrawal (optional enhancements)
+8. ~~**Phase 7 (Singles Support + Bug Fixes)**~~ - ✅ **COMPLETED** - 2026-06-09
+9. **Phase 4.3** - Error handling (replace `alert()` with toast notifications) ← START HERE
+10. **Phase 4.1** - Historical data visualization (position history chart, cycle history)
+11. **Phase 4.2** - Mobile touch support for box management
+12. **Phase 4.5** - Circle integration (filter players by circle)
+13. **Phase 5** - Nice-to-have enhancements (stats dashboard, export, real-time)
+14. **Phase 3.2 (Remaining)** - Forfeit support and player withdrawal
+
+---
+
+## Phase 7: Singles Format + Codebase Audit ✅ COMPLETED (2026-06-09)
+
+### 7.1 Singles Box League Support ✅
+
+- [x] Add `format: 'singles' | 'doubles'` field to `BoxLeague` type (`src/lib/types.ts`)
+- [x] Expand `BoxLeagueMatch.matchNumber` from `1 | 2 | 3` to `number` (singles generates 6 matches)
+- [x] Update `generateBoxMatchPairings()` to accept `format` param
+  - Doubles: 3 matches (existing behavior — p1+p2 vs p3+p4, etc.)
+  - Singles: 6 matches (complete round-robin — p1vp2, p1vp3, p1vp4, p2vp3, p2vp4, p3vp4)
+- [x] Update `createNewRound()` to read `boxLeague.format` and pass it to pairing logic
+  - Added `?? 'doubles'` fallback so existing leagues without the field still work
+- [x] Fix `updatePlayerStatsAfterMatch()` to conditionally skip partner stats for singles
+  - Was: `match.team1PlayerIds.find(id => id !== playerId)!` — crashes for 1-player teams
+  - Now: only updates `partnerStats` if a partner exists in the team
+
+### 7.2 UI Updates for Singles ✅
+
+- [x] Create form — format selector (doubles/singles toggle with descriptions)
+- [x] Create form — dynamic summary showing correct match count (3 doubles / 6 singles)
+- [x] Create form — dynamic "Match Format" info card explaining the round structure
+- [x] Round management — team display now works for 1-player teams (no `' & '` for singles)
+- [x] League detail page — format badge shown in header (alongside status/TEST badges)
+- [x] League list page — format badge shown on each league card
+
+### 7.3 Bug Fixes ✅
+
+- [x] **`useSubstitutePlayer` cache invalidation bug** (`src/hooks/use-box-leagues.ts` lines 354-360)
+  - Was calling non-existent methods: `BOX_LEAGUE_KEYS.league()`, `.box()`, `.matchesByLeague()`
+  - Fixed to: `.detail()`, removed `.box()` (redundant), `.matches()` to invalidate all matches
+- [x] **`cycle-completion-client.tsx`** — imported `PromotionRelegationMove` from `@/lib/types` (doesn't exist there)
+  - Fixed to import from `@/lib/box-league-logic` where it is actually exported
+- [x] **`player-stats-client.tsx`** — called `calculateStandings` (doesn't exist, typo)
+  - Fixed to `calculateBoxStandings`; also fixed property names `.points`→`.totalPoints`, `.wins`→`.matchesWon`, `.losses`→`.matchesLost`
+- [x] **`settings-client.tsx`** — used `boxLeague.createdAt` and `boxLeague.updatedAt` (wrong field names)
+  - Fixed to `boxLeague.createdDate`; removed `updatedAt` display (field doesn't exist on BoxLeague)
+
+### 7.4 Remaining Pre-existing Type Errors (Not Fixed — Low Risk)
+
+These pre-existing errors are in `box-league-logic.ts` and don't affect runtime because the functions catch errors:
+- Line 744: `updateBox` from dynamic import typed wrongly (destructuring from wrong module)
+- Line 1142: `currentPosition: position` where `position: number` but type expects `1|2|3|4`
+- Line 1193: `db` and `BOX_LEAGUE_PLAYER_STATS_COLLECTION` not on box-leagues module type
+
+---
+
+## Phase 8: Error Handling (Recommended Next)
+
+### 8.1 Replace `alert()` Calls with Toast Notifications
+
+The app already has shadcn/ui `useToast` hook. All `alert()` calls in box league components should be replaced.
+
+Files containing `alert()` in box league context:
+- `src/app/box-leagues/[id]/rounds/round-management-client.tsx` — 3 alert() calls
+- `src/app/box-leagues/[id]/boxes/box-management-client.tsx` — multiple alert() calls  
+- `src/app/box-leagues/box-leagues-client.tsx` — 1 alert() call
+- `src/components/box-leagues/edit-match-result-dialog.tsx` — 1 alert() call (success)
+
+**Action:** Replace each with `toast({ title: '...', description: '...' })` and appropriate `variant` (default for success, destructive for errors).
+
+### 8.2 Error Boundaries
+
+- Add `<AsyncErrorBoundary>` (already exists in codebase) to box league page-level components
+- Wrap box management drag-drop in error boundary (drag/drop failures cause silent white screens)
+
+---
+
+## Phase 9: Historical Data Visualization
+
+### 9.1 Position History Chart
+
+- `BoxLeaguePlayerStats.positionHistory` already tracks `{ cycle, round, position, boxNumber }[]`
+- Display as a line chart using recharts (already a dependency) on the player stats page
+- Color code promotions (green dot), relegations (red dot), stable (blue line)
+
+### 9.2 Cycle History View
+
+- New page: `/box-leagues/[id]/history`
+- Show accordion per cycle with final box standings
+- Show promotion/relegation moves at cycle boundary
+- Link individual matches from each cycle
+
+---
+
+## Phase 10: Mobile & Circle Integration
+
+### 10.1 Touch Support for Box Management
+
+- Box management drag-drop currently mouse-only
+- Implement select-and-tap pattern as alternative on mobile
+- Detect via `matchMedia('(pointer: coarse)')` and conditionally render touch UI
+
+### 10.2 Circle Integration
+
+- `BoxLeague.circleId` field already exists (optional)
+- Create form already has a comment noting this
+- Add circle picker to create form; filter available players in box management by circle
+
+---
+
+## Phase 11: Player Stats Page Rewrite
+
+The `player-stats-client.tsx` is largely a placeholder — `getCurrentStanding()` calls `calculateBoxStandings([], [])` (empty arrays) which always throws and returns `null`. Real data fetching needed:
+
+1. Fetch `BoxLeaguePlayerStats` for the player via `getPlayerStatsByLeague` filtered to `playerId`
+2. Fetch box matches for the player's box
+3. Pass real data to `calculateBoxStandings` to get accurate standing
+4. Build actual match history from fetched matches (currently the `matchHistory` array is always empty)
 
 ---
 

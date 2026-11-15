@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useCreateBoxLeague } from '@/hooks/use-box-leagues';
 import { useAuth } from '@/contexts/auth-context';
 import { useClub } from '@/contexts/club-context';
-import { ArrowLeft, Grid3x3, Users, Settings, Info } from 'lucide-react';
+import { ArrowLeft, Grid3x3, Users, Settings, Info, Swords } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ export function CreateBoxLeagueClient() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    format: 'doubles' as 'singles' | 'doubles',
     roundsPerCycle: 3,
     totalBoxes: 2,
     isTestMode: false,
@@ -55,6 +56,7 @@ export function CreateBoxLeagueClient() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         status: 'active' as const,
+        format: formData.format,
         createdBy: user.id,
         clubId: selectedClub.id,
         roundsPerCycle: formData.roundsPerCycle,
@@ -80,6 +82,7 @@ export function CreateBoxLeagueClient() {
   };
 
   const totalPlayersNeeded = formData.totalBoxes * 4;
+  const matchesPerRound = formData.totalBoxes * (formData.format === 'singles' ? 6 : 3);
 
   return (
     <div className="space-y-6">
@@ -146,6 +149,31 @@ export function CreateBoxLeagueClient() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Format Selection */}
+                <div>
+                  <Label>Match Format *</Label>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {(['doubles', 'singles'] as const).map((fmt) => (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={() => updateFormData('format', fmt)}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-sm transition-colors ${
+                          formData.format === fmt
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-muted-foreground'
+                        }`}
+                      >
+                        <Swords className="h-5 w-5" />
+                        <span className="font-medium capitalize">{fmt}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {fmt === 'doubles' ? '3 matches / round' : '6 matches / round'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="totalBoxes">Number of Boxes *</Label>
@@ -235,8 +263,12 @@ export function CreateBoxLeagueClient() {
                     <span className="font-medium">{formData.roundsPerCycle}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Format:</span>
+                    <span className="font-medium capitalize">{formData.format}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Matches per Round:</span>
-                    <span className="font-medium">{formData.totalBoxes * 3}</span>
+                    <span className="font-medium">{matchesPerRound}</span>
                   </div>
                 </div>
               </CardContent>
@@ -250,18 +282,33 @@ export function CreateBoxLeagueClient() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-sm space-y-2">
-                  <div className="font-medium">Each round consists of:</div>
-                  <ul className="space-y-1 text-muted-foreground">
-                    <li>• Match 1: Players 1&2 vs 3&4</li>
-                    <li>• Match 2: Players 1&3 vs 2&4</li>
-                    <li>• Match 3: Players 1&4 vs 2&3</li>
-                  </ul>
-                  <div className="mt-3 text-xs text-muted-foreground">
-                    Every player partners with each other player exactly once and
-                    opposes each other player exactly twice.
+                {formData.format === 'doubles' ? (
+                  <div className="text-sm space-y-2">
+                    <div className="font-medium">Each round per box (3 matches):</div>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li>• Match 1: Players 1&2 vs 3&4</li>
+                      <li>• Match 2: Players 1&3 vs 2&4</li>
+                      <li>• Match 3: Players 1&4 vs 2&3</li>
+                    </ul>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Every player partners with each other player exactly once and
+                      opposes each other player exactly twice.
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-sm space-y-2">
+                    <div className="font-medium">Each round per box (6 matches):</div>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li>• P1 vs P2, P1 vs P3, P1 vs P4</li>
+                      <li>• P2 vs P3, P2 vs P4</li>
+                      <li>• P3 vs P4</li>
+                    </ul>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Complete round-robin — every player faces every other player
+                      exactly once per round.
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -273,7 +320,7 @@ export function CreateBoxLeagueClient() {
           <AlertDescription>
             <strong>Next Step:</strong> After creating the league, you'll need to set up the boxes
             and assign players before starting the first round. You'll need exactly {totalPlayersNeeded} players
-            to fill all boxes.
+            (4 per box) to fill all boxes. Each round will generate {matchesPerRound} {formData.format} match{matchesPerRound !== 1 ? 'es' : ''}.
           </AlertDescription>
         </Alert>
 

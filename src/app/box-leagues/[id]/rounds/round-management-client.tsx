@@ -16,6 +16,7 @@ import { EditMatchResultDialog } from '@/components/box-leagues/edit-match-resul
 import { useBoxLeague, useBoxesByLeague, useRoundsByLeague, useMatchesByRound, useUpdateBoxLeagueMatch, useDeleteRound } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
+import { useToast } from '@/hooks/use-toast';
 import { createNewRound, updatePlayerStatsAfterMatch } from '@/lib/box-league-logic';
 import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
 import type { BoxLeagueMatch, Player } from '@/lib/types';
@@ -36,6 +37,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
   const [team2Score, setTeam2Score] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const { toast } = useToast();
 
   const getPlayerName = (playerId: string) => {
     return players.find(p => p.id === playerId)?.name || 'Unknown';
@@ -47,12 +49,12 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
 
   const handleSubmit = () => {
     if (team1Score === team2Score) {
-      alert('Games cannot end in a tie. One team must win.');
+      toast({ title: 'Tie not allowed', description: 'Games cannot end in a tie. One team must win.', variant: 'destructive' });
       return;
     }
 
     if (team1Score < 0 || team2Score < 0) {
-      alert('Scores cannot be negative.');
+      toast({ title: 'Invalid score', description: 'Scores cannot be negative.', variant: 'destructive' });
       return;
     }
 
@@ -151,6 +153,7 @@ function MatchResultDialog({ match, players, onSubmit, isLoading }: MatchResultD
 
 export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProps) {
   const { selectedClub } = useClub();
+  const { toast } = useToast();
   const { data: boxLeague, isLoading: leagueLoading, refetch: refetchBoxLeague } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading } = useBoxesByLeague(boxLeagueId);
   const { data: rounds = [], isLoading: roundsLoading, refetch: refetchRounds } = useRoundsByLeague(boxLeagueId);
@@ -167,8 +170,11 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
 
   const canStartNewRound = (): boolean => {
     if (!boxLeague) return false;
-    return boxes.every(box => box.playerIds.length === 4);
+    return boxes.length > 0 && boxes.every(box => box.playerIds.length >= 2);
   };
+
+  const formatTeam = (playerIds: string[]) =>
+    playerIds.map(id => getPlayerName(id)).join(' & ');
 
   const handleCreateNewRound = async () => {
     if (!boxLeague) return;
@@ -184,7 +190,7 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
       console.log('Round created successfully!');
     } catch (error) {
       console.error('Error creating new round:', error);
-      alert(`Failed to create new round: ${error instanceof Error ? error.message : 'Please try again.'}`);
+      toast({ title: 'Failed to create round', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     } finally {
       setIsCreatingRound(false);
     }
@@ -200,10 +206,10 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
       });
 
       setIsDeleteDialogOpen(false);
-      alert('Round deleted successfully!');
+      toast({ title: 'Round deleted', description: 'The round has been deleted successfully.' });
     } catch (error) {
       console.error('Error deleting round:', error);
-      alert(`Failed to delete round: ${error instanceof Error ? error.message : 'Please try again.'}`);
+      toast({ title: 'Failed to delete round', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -252,7 +258,7 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
 
     } catch (error) {
       console.error('Error updating match result:', error);
-      alert('Failed to save match result. Please try again.');
+      toast({ title: 'Failed to save result', description: 'Failed to save match result. Please try again.', variant: 'destructive' });
     }
   };
 
@@ -350,7 +356,7 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            All boxes need exactly 4 players before you can start rounds.{' '}
+            Each box needs at least 2 players before you can start rounds.{' '}
             <Link href={`/box-leagues/${boxLeagueId}/boxes`} className="underline">
               Set up boxes first
             </Link>.
@@ -365,7 +371,7 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
             <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">Ready to Start!</h3>
             <p className="text-muted-foreground mb-4">
-              All boxes have 4 players assigned. You can now start the first round.
+              All boxes have players assigned. You can now start the first round.
             </p>
             <Button onClick={handleCreateNewRound} disabled={isCreatingRound}>
               {isCreatingRound ? (
@@ -498,9 +504,9 @@ export function RoundManagementClient({ boxLeagueId }: RoundManagementClientProp
                                 </Badge>
                                 <div className="min-w-0">
                                   <div className="font-medium text-sm sm:text-base break-words">
-                                    <span className="block sm:inline">{match.team1PlayerIds.map(id => getPlayerName(id)).join(' & ')}</span>
+                                    <span className="block sm:inline">{formatTeam(match.team1PlayerIds)}</span>
                                     <span className="text-muted-foreground mx-1"> vs </span>
-                                    <span className="block sm:inline">{match.team2PlayerIds.map(id => getPlayerName(id)).join(' & ')}</span>
+                                    <span className="block sm:inline">{formatTeam(match.team2PlayerIds)}</span>
                                   </div>
                                   {match.status === 'completed' && (
                                     <div className="text-sm text-muted-foreground">

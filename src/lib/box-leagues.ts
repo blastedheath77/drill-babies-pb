@@ -398,3 +398,8 @@ export async function getPlayerStatsByBox(boxId: string): Promise<BoxLeaguePlaye
     throw error;
   }
 }
+
+export async function deletePlayerStats(boxLeagueId: string, playerId: string): Promise<void> {
+  const statsDocId = `${boxLeagueId}_${playerId}`;
+  await deleteDoc(doc(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION, statsDocId));
+}
