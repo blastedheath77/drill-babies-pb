@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -262,7 +264,7 @@ export function HeadToHeadClient({
                         <div className="flex items-center gap-2 sm:gap-3">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={player1.avatar} alt={player1.name} />
-                            <AvatarFallback>{player1.name.substring(0, 2)}</AvatarFallback>
+                            <AvatarFallback>{initials(player1.name)}</AvatarFallback>
                           </Avatar>
                           <div className="text-right">
                             <div className="font-semibold text-sm sm:text-base">{player1.name}</div>
@@ -285,7 +287,7 @@ export function HeadToHeadClient({
                           </div>
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={player2.avatar} alt={player2.name} />
-                            <AvatarFallback>{player2.name.substring(0, 2)}</AvatarFallback>
+                            <AvatarFallback>{initials(player2.name)}</AvatarFallback>
                           </Avatar>
                         </div>
                       </div>

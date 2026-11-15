@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -349,7 +351,7 @@ export default function PlayersPage() {
               <CardContent className="p-4 flex items-center gap-3">
                 <Avatar className="h-16 w-16 flex-shrink-0 border-2 border-background ring-2 ring-primary">
                   <AvatarImage src={player.avatar} alt={player.name} data-ai-hint="player avatar" />
-                  <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                  <AvatarFallback>{initials(player.name)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">

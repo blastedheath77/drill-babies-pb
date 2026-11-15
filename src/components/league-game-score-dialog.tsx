@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import {
   Dialog,
@@ -92,7 +94,7 @@ export function LeagueGameScoreDialog({
               {clubTeamPlayers.map((p) => (
                 <Avatar key={p.id} className="h-9 w-9 border-2 border-background">
                   <AvatarImage src={p.avatar} alt={p.name} />
-                  <AvatarFallback className="text-xs">{p.name.substring(0, 2)}</AvatarFallback>
+                  <AvatarFallback className="text-xs">{initials(p.name)}</AvatarFallback>
                 </Avatar>
               ))}
             </div>
@@ -112,7 +114,7 @@ export function LeagueGameScoreDialog({
                   key={i}
                   className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-background"
                 >
-                  {p.name.substring(0, 2)}
+                  {initials(p.name)}
                 </div>
               ))}
             </div>

@@ -19,7 +19,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import type { Circle, Player } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, initials } from '@/lib/utils';
 
 interface CircleDetailsClientProps {
   circle: Circle;
@@ -140,7 +140,7 @@ export function CircleDetailsClient({ circle, members }: CircleDetailsClientProp
                       <div className="relative">
                         <Avatar className="h-12 w-12 border">
                           <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback>{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>{initials(member.name)}</AvatarFallback>
                         </Avatar>
                         {index === 0 && (
                           <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full p-1">

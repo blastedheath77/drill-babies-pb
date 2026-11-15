@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -187,7 +189,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={player.avatar} alt={player.name} />
-                    <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                    <AvatarFallback>{initials(player.name)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <Link
@@ -249,7 +251,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={player.avatar} alt={player.name} />
-                    <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                    <AvatarFallback>{initials(player.name)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <Link
@@ -321,7 +323,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={player.avatar} alt={player.name} />
-                        <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                        <AvatarFallback>{initials(player.name)}</AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">{player.name}</p>

@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -75,7 +77,7 @@ export function LeagueGameMatchCard({
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={p.avatar} alt={p.name} />
                     <AvatarFallback className="text-xs">
-                      {p.name.substring(0, 2)}
+                      {initials(p.name)}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium truncate max-w-[80px]">{p.name}</span>

@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,7 +98,7 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
             {team1.map((player) => (
               <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
-                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback>{initials(player.name)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
@@ -132,7 +134,7 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
             {team2.map((player) => (
               <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
-                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback>{initials(player.name)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
@@ -494,7 +496,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
                               <AvatarImage src={standing.player.avatar} alt={standing.player.name} />
-                              <AvatarFallback className="text-xs">{standing.player.name.substring(0, 2)}</AvatarFallback>
+                              <AvatarFallback className="text-xs">{initials(standing.player.name)}</AvatarFallback>
                             </Avatar>
                             <span className="font-medium text-sm truncate max-w-[80px] sm:max-w-none">{standing.player.name}</span>
                           </div>

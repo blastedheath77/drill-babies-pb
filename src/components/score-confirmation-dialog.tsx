@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,7 +78,7 @@ export function ScoreConfirmationDialog({
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={player.avatar} alt={player.name} />
                     <AvatarFallback className="text-xs">
-                      {player.name.substring(0, 2).toUpperCase()}
+                      {initials(player.name)}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm">{player.name}</span>
@@ -107,7 +109,7 @@ export function ScoreConfirmationDialog({
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={player.avatar} alt={player.name} />
                     <AvatarFallback className="text-xs">
-                      {player.name.substring(0, 2).toUpperCase()}
+                      {initials(player.name)}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm">{player.name}</span>

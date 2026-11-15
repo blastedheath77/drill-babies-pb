@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -172,7 +174,7 @@ export function MatchResultDialog({
           {team.map((player) => (
             <Avatar key={player.id} className="h-10 w-10 border-2 border-background">
               <AvatarImage src={player.avatar} alt={player.name} />
-              <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+              <AvatarFallback>{initials(player.name)}</AvatarFallback>
             </Avatar>
           ))}
         </div>
