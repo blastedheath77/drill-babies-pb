@@ -52,6 +52,8 @@ export interface PlanInput {
   rounds: number;
   matchTypes: Friendly['matchTypes'];
   locked?: FriendlyMatch[];
+  /** Existing matches, when adding more rounds to a friendly that's under way. */
+  history?: FriendlyMatch[];
   maxMatches?: number;
 }
 
@@ -80,7 +82,9 @@ export function planFriendly(input: PlanInput): MatchupResult {
     maxMatches: input.maxMatches,
     matchTypes: input.matchTypes,
     locked: input.locked?.filter((m) => m.locked).map((m) => ({ ...m, locked: true })),
+    history: input.history,
     attempts: 120,
+    timeBudgetMs: 1200,
   });
 }
 

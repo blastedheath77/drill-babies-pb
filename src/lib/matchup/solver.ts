@@ -12,6 +12,7 @@
  *  - no repeated partners, few repeated opponents
  *  - the requested match types (men's / women's / mixed)
  *  - close matches: similar strength on both sides of the net
+ *  - a fair share of each court for every player
  */
 
 export type Gender = 'M' | 'F';
@@ -46,8 +47,15 @@ export interface MatchupInput {
   matchTypes: MatchTypePlan;
   /** Matches the organiser has fixed; the solver plans around them. */
   locked?: MatchupMatch[];
+  /**
+   * Matches already scheduled or played (e.g. when adding more games during
+   * a friendly). New rounds continue after them and fairness counts them.
+   */
+  history?: MatchupMatch[];
   seed?: number;
   attempts?: number;
+  /** Stop trying new attempts after this long (keeps the phone responsive). At least 8 attempts run. */
+  timeBudgetMs?: number;
 }
 
 export interface SquadFairness {
@@ -66,6 +74,8 @@ export interface FairnessReport {
   averageLevelGap: number;
   /** Matches that couldn't be filled (e.g. not enough women for a mixed match). */
   unfilledSlots: number;
+  /** Largest gap, for any player, between their most- and least-used court. */
+  courtSpread: number;
 }
 
 export interface MatchupResult {
@@ -80,6 +90,7 @@ export const MATCHUP_WEIGHTS = {
   repeatOpponent: 20,
   levelGap: 30, // per rating point between the two sides
   categoryShortfall: 60, // per match away from an even mix in 'variety' mode
+  courtImbalance: 25, // per player, squared distance of each court count from their average
 };
 
 // ---------------------------------------------------------------------------
@@ -168,15 +179,21 @@ export function buildMatchups(input: MatchupInput): MatchupResult {
     if (missing) warnings.push(`${missing} player(s) have no gender set, so they can only play open matches.`);
   }
 
+  const history = (input.history ?? []).map((m) => ({ ...m, locked: true }));
+  const offset = history.reduce((max, m) => Math.max(max, m.round), 0);
+
   let best: { matches: MatchupMatch[]; cost: number; unfilled: number } | null = null;
 
+  const started = Date.now();
   for (let attempt = 0; attempt < attempts; attempt++) {
+    if (input.timeBudgetMs && attempt >= 8 && Date.now() - started > input.timeBudgetMs) break;
     const state = newState();
+    history.forEach((m) => apply(state, m));
     const matches: MatchupMatch[] = [];
     let unfilled = 0;
     let remaining = plannedMatches;
 
-    for (let round = 1; round <= input.rounds && remaining > 0; round++) {
+    for (let round = offset + 1; round <= offset + input.rounds && remaining > 0; round++) {
       const lockedHere = (input.locked ?? []).filter((m) => m.round === round);
       const usedHome = new Set(lockedHere.flatMap((m) => m.home));
       const usedAway = new Set(lockedHere.flatMap((m) => m.away));
@@ -218,13 +235,16 @@ export function buildMatchups(input: MatchupInput): MatchupResult {
       }
     }
 
-    const improved = improveSchedule(input, matches, homeById, awayById, homeAvg, awayAvg);
+    const improved = improveSchedule(input, [...history, ...matches], homeById, awayById, homeAvg, awayAvg);
     const cost = improved.cost + unfilled * 1000;
-    if (!best || cost < best.cost) best = { matches: improved.matches, cost, unfilled };
+    const fresh = improved.matches.filter((m) => m.round > offset);
+    if (!best || cost < best.cost) best = { matches: fresh, cost, unfilled };
   }
 
-  const matches = best!.matches.sort((a, b) => a.round - b.round || a.court - b.court);
-  const report = buildReport(input, matches, homeById, awayById, homeAvg, awayAvg, best!.unfilled);
+  const matches = balanceCourts(best!.matches, history, input.courts).sort(
+    (a, b) => a.round - b.round || a.court - b.court
+  );
+  const report = buildReport(input, matches, homeById, awayById, homeAvg, awayAvg, best!.unfilled, history);
   if (report.unfilledSlots) warnings.push(`${report.unfilledSlots} match(es) couldn't be filled with these players and match types.`);
   return { matches, report, warnings };
 }
@@ -439,6 +459,7 @@ function scheduleCost(
     const a = m.away.map((id) => awayById.get(id)!).filter(Boolean);
     if (h.length && a.length) cost += MATCHUP_WEIGHTS.levelGap * Math.abs(avgLevel(h, homeAvg) - avgLevel(a, awayAvg));
   }
+  cost += MATCHUP_WEIGHTS.courtImbalance * courtUnevenness(matches, input.courts);
   if (input.matchTypes === 'variety') {
     const c = state.categories;
     const typed = [c.mens, c.womens, c.mixed];
@@ -455,10 +476,14 @@ function buildReport(
   awayById: Map<string, MatchupPlayer>,
   homeAvg: number,
   awayAvg: number,
-  unfilledSlots: number
+  unfilledSlots: number,
+  history: MatchupMatch[] = []
 ): FairnessReport {
   const state = newState();
   matches.forEach((m) => apply(state, m));
+  const courtCounts = countCourts([...history, ...matches], input.courts);
+  let courtSpread = 0;
+  for (const counts of courtCounts.values()) courtSpread = Math.max(courtSpread, Math.max(...counts) - Math.min(...counts));
   const squad = (players: MatchupPlayer[]): SquadFairness => {
     const gamesPerPlayer = Object.fromEntries(players.map((p) => [p.id, state.games.get(p.id) ?? 0]));
     const values = Object.values(gamesPerPlayer);
@@ -478,7 +503,118 @@ function buildReport(
     categoryCounts: state.categories,
     averageLevelGap: matches.length ? gapTotal / matches.length : 0,
     unfilledSlots,
+    courtSpread,
   };
+}
+
+/** For each player, how many matches they have on each court (index 0 = court 1). */
+export function countCourts(matches: MatchupMatch[], courts: number): Map<string, number[]> {
+  const counts = new Map<string, number[]>();
+  const size = Math.max(courts, ...matches.map((m) => m.court), 1);
+  for (const m of matches) {
+    for (const id of [...m.home, ...m.away]) {
+      const c = counts.get(id) ?? Array(size).fill(0);
+      while (c.length < size) c.push(0);
+      c[m.court - 1]++;
+      counts.set(id, c);
+    }
+  }
+  return counts;
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((x, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [x, ...rest]));
+}
+
+/** Sum over players of squared distance of each court count from that player's average. */
+export function courtUnevenness(matches: MatchupMatch[], courts: number): number {
+  if (courts < 2) return 0;
+  let total = 0;
+  for (const counts of countCourts(matches, courts).values()) {
+    const mean = counts.reduce((x, y) => x + y, 0) / counts.length;
+    total += counts.reduce((acc, c) => acc + (c - mean) ** 2, 0);
+  }
+  return total;
+}
+
+function worstCourtGap(matches: MatchupMatch[], courts: number): number {
+  let worst = 0;
+  for (const c of countCourts(matches, courts).values()) worst = Math.max(worst, Math.max(...c) - Math.min(...c));
+  return worst;
+}
+
+/**
+ * Re-assigns courts within each round so nobody is always on the same court.
+ * Who plays whom is unchanged; locked matches (and history) keep their court.
+ * Minimises the worst player's court gap first, then overall unevenness.
+ * Exhaustive when the number of arrangements is small, otherwise repeated
+ * round-by-round improvement.
+ */
+export function balanceCourts(matches: MatchupMatch[], history: MatchupMatch[], courts: number): MatchupMatch[] {
+  if (courts < 2 || matches.length === 0) return matches;
+  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+  const score = (ms: MatchupMatch[]) => {
+    const all = [...history, ...ms];
+    return worstCourtGap(all, courts) * 1000 + courtUnevenness(all, courts);
+  };
+
+  // Court options for each round's movable matches
+  const plan = rounds.map((round) => {
+    const inRound = matches.filter((m) => m.round === round);
+    const fixed = inRound.filter((m) => m.locked);
+    const movable = inRound.filter((m) => !m.locked);
+    const free = [...Array(courts).keys()].map((c) => c + 1).filter((c) => !fixed.some((m) => m.court === c));
+    const options =
+      movable.length <= 6 && free.length <= 6
+        ? permutations(free).map((perm) => perm.slice(0, movable.length))
+        : [movable.map((m) => m.court)];
+    // De-duplicate (e.g. one match, two courts gives [1] and [2] once each)
+    const unique = [...new Map(options.map((o) => [o.join(','), o])).values()];
+    return { fixed, movable, options: unique };
+  });
+
+  const build = (choice: number[]) =>
+    plan.flatMap((r, i) => [...r.fixed, ...r.movable.map((m, j) => ({ ...m, court: r.options[choice[i]][j] }))]);
+
+  const combos = plan.reduce((n, r) => n * r.options.length, 1);
+  let choice = plan.map((r) => Math.max(0, r.options.findIndex((o) => o.every((c, j) => c === r.movable[j]?.court))));
+
+  if (combos <= 20000) {
+    let bestScore = score(build(choice));
+    const walk = (i: number, picked: number[]) => {
+      if (i === plan.length) {
+        const sc = score(build(picked));
+        if (sc < bestScore - 1e-9) {
+          bestScore = sc;
+          choice = [...picked];
+        }
+        return;
+      }
+      for (let k = 0; k < plan[i].options.length; k++) walk(i + 1, [...picked, k]);
+    };
+    walk(0, []);
+  } else {
+    let bestScore = score(build(choice));
+    for (let pass = 0; pass < 12; pass++) {
+      let improved = false;
+      for (let i = 0; i < plan.length; i++) {
+        for (let k = 0; k < plan[i].options.length; k++) {
+          if (k === choice[i]) continue;
+          const trial = [...choice];
+          trial[i] = k;
+          const sc = score(build(trial));
+          if (sc < bestScore - 1e-9) {
+            bestScore = sc;
+            choice = trial;
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+  }
+  return build(choice);
 }
 
 /**

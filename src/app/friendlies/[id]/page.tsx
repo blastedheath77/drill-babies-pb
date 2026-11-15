@@ -7,6 +7,9 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   BarChart3,
+  ChevronDown,
+  Minus,
+  Plus,
   Check,
   Pencil,
   Copy,
@@ -33,6 +36,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { usePlayers } from '@/hooks/use-players';
 import { useFriendly, useRefreshFriendlies } from '@/hooks/use-friendlies';
 import { ScoreEntrySheet } from '@/components/courtside/score-entry-sheet';
+import { PlayerScheduleSummary } from '@/components/friendlies/player-schedule-summary';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   deleteFriendly,
   planFriendly,
@@ -72,6 +77,8 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<SlotRef | null>(null);
   const [scoring, setScoring] = useState<FriendlyMatch | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addRounds, setAddRounds] = useState(1);
 
   useEffect(() => {
     if (friendly) setMatches(friendly.matches);
@@ -154,6 +161,7 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
 
   const regenerate = async () => {
     setBusy('regen');
+    await new Promise((r) => setTimeout(r, 30)); // let the spinner show before the planner runs
     try {
       const result = planFriendly({
         homePlayers: players.filter((p) => f.homePlayerIds.includes(p.id)),
@@ -172,6 +180,33 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
   };
 
   const toggleLock = (m: FriendlyMatch) => persist(matches.map((x) => (x.id === m.id ? { ...x, locked: !x.locked } : x)));
+
+  /** Adds more rounds during play, continuing fairly from everything already scheduled. */
+  const addMoreGames = async () => {
+    setBusy('add');
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const result = planFriendly({
+        homePlayers: players.filter((p) => f.homePlayerIds.includes(p.id)),
+        guests: f.guests,
+        format: f.format,
+        courts: f.courts,
+        rounds: addRounds,
+        matchTypes: f.matchTypes,
+        history: matches,
+      });
+      if (result.matches.length === 0) {
+        toast({ variant: 'destructive', title: 'No games could be added', description: result.warnings.join(' ') });
+        return;
+      }
+      const added = toFriendlyMatches(result);
+      await persist([...matches, ...added], { rounds: f.rounds + addRounds });
+      setAddOpen(false);
+      toast({ title: `${added.length} games added` });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** Put `newId` in a slot; if they're already playing that round on the same side, swap them. */
   const replaceSlot = (slot: SlotRef, newId: string) => {
@@ -436,6 +471,24 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
         })}
       </div>
 
+      {/* Per-player check of the draw */}
+      {matches.length > 0 &&
+        (draft ? (
+          <section className="mt-6">
+            <h2 className="font-semibold mb-2">Player schedule</h2>
+            <PlayerScheduleSummary friendly={f} matches={matches} nameOf={nameOf} homeLabel={CLUB_NAME} />
+          </section>
+        ) : (
+          <Collapsible className="mt-6 rounded-xl border">
+            <CollapsibleTrigger className="w-full flex items-center justify-between p-3 font-semibold text-sm">
+              Player schedule <ChevronDown className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="px-3 pb-3">
+              <PlayerScheduleSummary friendly={f} matches={matches} nameOf={nameOf} homeLabel={CLUB_NAME} />
+            </CollapsibleContent>
+          </Collapsible>
+        ))}
+
       {/* Actions */}
       {canEdit && f.status !== 'finished' && (
         <div className="fixed inset-x-0 bottom-20 md:bottom-0 px-3 py-2 z-30 bg-background/95 backdrop-blur border-t md:border-0 md:bg-transparent">
@@ -450,9 +503,14 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
                 </Button>
               </>
             ) : (
-              <Button className="h-12 w-full text-base" onClick={() => setStatus('finished')} disabled={!!busy}>
-                <Flag className="h-4 w-4 mr-1" /> Finish ({tally.played}/{matches.length} scored)
-              </Button>
+              <>
+                <Button variant="outline" className="h-12 flex-1" onClick={() => setAddOpen(true)} disabled={!!busy}>
+                  <Plus className="h-4 w-4 mr-1" /> Add games
+                </Button>
+                <Button className="h-12 flex-1 text-base" onClick={() => setStatus('finished')} disabled={!!busy}>
+                  <Flag className="h-4 w-4 mr-1" /> Finish ({tally.played}/{matches.length})
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -462,6 +520,37 @@ export default function FriendlyPage({ params }: { params: { id: string } }) {
           <Copy className="h-4 w-4 mr-1" /> Copy summary for the group chat
         </Button>
       )}
+
+      {/* Add more games during play */}
+      <Sheet open={addOpen} onOpenChange={setAddOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl p-4 space-y-4" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <SheetHeader className="text-left">
+            <SheetTitle>Add more games</SheetTitle>
+            <SheetDescription>
+              New rounds are drawn after round {rounds[rounds.length - 1] ?? 0}, giving extra games to whoever has played
+              least and avoiding repeat pairings and courts.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Extra rounds</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" aria-label="Fewer rounds" onClick={() => setAddRounds((n) => Math.max(1, n - 1))}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="w-6 text-center font-semibold text-lg">{addRounds}</span>
+              <Button variant="outline" size="icon" aria-label="More rounds" onClick={() => setAddRounds((n) => Math.min(6, n + 1))}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            That&apos;s up to {addRounds * f.courts} more games on {f.courts} courts.
+          </p>
+          <Button className="w-full h-12 text-base" onClick={addMoreGames} disabled={busy === 'add'}>
+            {busy === 'add' ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Add games'}
+          </Button>
+        </SheetContent>
+      </Sheet>
 
       {/* Swap someone in */}
       <Sheet open={!!replacing} onOpenChange={(o) => !o && setReplacing(null)}>

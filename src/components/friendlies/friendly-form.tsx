@@ -131,6 +131,7 @@ export function FriendlyForm({ initial }: { initial?: Friendly }) {
   const build = async () => {
     if (!ready) return;
     setSaving(true);
+    await new Promise((r) => setTimeout(r, 30)); // let the spinner show before the planner runs
     try {
       // Keep locked matches only if all their players are still in the squads and the slot still exists
       const guestIds = new Set(guests.map((g) => g.id));

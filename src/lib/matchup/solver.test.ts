@@ -163,3 +163,54 @@ describe('buildMatchups robustness', () => {
     }
   });
 });
+
+describe('court fairness', () => {
+  it('spreads each player across courts instead of always the same one', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { report } = buildMatchups({
+        home: squad('h', 6),
+        away: squad('a', 8),
+        format: 'doubles',
+        courts: 2,
+        rounds: 8,
+        matchTypes: 'open',
+        seed,
+        attempts: 30,
+      });
+      expect(report.courtSpread).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps locked matches on their court', () => {
+    const locked = [{ round: 2, court: 1, home: ['h0', 'h1'], away: ['a0', 'a1'], category: 'open' as const }];
+    const { matches } = buildMatchups({
+      home: squad('h', 6),
+      away: squad('a', 6),
+      format: 'doubles',
+      courts: 2,
+      rounds: 4,
+      matchTypes: 'open',
+      locked,
+      seed: 4,
+    });
+    expect(matches.find((m) => m.round === 2 && m.court === 1)?.home).toEqual(['h0', 'h1']);
+  });
+});
+
+describe('adding more games', () => {
+  it('continues after existing rounds and keeps games even across the whole friendly', () => {
+    const base = { home: squad('h', 6), away: squad('a', 7), format: 'doubles' as const, courts: 2, matchTypes: 'open' as const };
+    const first = buildMatchups({ ...base, rounds: 3, seed: 21 });
+    const more = buildMatchups({ ...base, rounds: 2, seed: 22, history: first.matches });
+    expect(new Set(more.matches.map((m) => m.round))).toEqual(new Set([4, 5]));
+    validate([...first.matches, ...more.matches]);
+
+    const games = new Map<string, number>();
+    for (const m of [...first.matches, ...more.matches]) for (const id of [...m.home, ...m.away]) games.set(id, (games.get(id) ?? 0) + 1);
+    const count = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => games.get(`${prefix}${i}`) ?? 0);
+    const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+    expect(spread(count('h', 6))).toBeLessThanOrEqual(1);
+    expect(spread(count('a', 7))).toBeLessThanOrEqual(1);
+    expect(more.report.courtSpread).toBeLessThanOrEqual(2);
+  });
+});
