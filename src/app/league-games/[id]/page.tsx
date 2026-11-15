@@ -1,41 +1,51 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
-import { AuthWrapper } from '@/components/auth-wrapper';
-import { getLeagueGame } from '../actions';
-import { LeagueGameClient } from './league-game-client';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Player } from '@/lib/types';
+import { getLeagueGame } from '../actions';
+import { LeagueGameClient } from './league-game-client';
+import type { LeagueGame, Player } from '@/lib/types';
 
 interface Props {
   params: { id: string };
 }
 
-async function getClubPlayers(playerIds: string[]): Promise<Map<string, Player>> {
-  const map = new Map<string, Player>();
-  await Promise.all(
-    playerIds.map(async (id) => {
-      const snap = await getDoc(doc(db, 'players', id));
-      if (snap.exists()) {
-        map.set(id, { id: snap.id, ...snap.data() } as Player);
+export default function LeagueGameDetailPage({ params }: Props) {
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'missing' } | { status: 'ready'; game: LeagueGame; players: Record<string, Player> }
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const game = await getLeagueGame(params.id);
+      if (!game) {
+        if (!cancelled) setState({ status: 'missing' });
+        return;
       }
-    })
-  );
-  return map;
-}
+      const entries = await Promise.all(
+        game.clubPlayerIds.map(async (id) => {
+          const snap = await getDoc(doc(db, 'players', id));
+          return snap.exists() ? ([id, { id: snap.id, ...snap.data() } as Player] as const) : null;
+        })
+      );
+      const players = Object.fromEntries(entries.filter((e): e is readonly [string, Player] => e !== null));
+      if (!cancelled) setState({ status: 'ready', game, players });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
 
-export default async function LeagueGameDetailPage({ params }: Props) {
-  const game = await getLeagueGame(params.id);
-
-  if (!game) {
-    notFound();
+  if (state.status === 'missing') notFound();
+  if (state.status === 'loading') {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-label="Loading" />
+      </div>
+    );
   }
-
-  const clubPlayersMap = await getClubPlayers(game.clubPlayerIds);
-  const clubPlayers = Object.fromEntries(clubPlayersMap.entries());
-
-  return (
-    <AuthWrapper viewerAllowed={true}>
-      <LeagueGameClient game={game} clubPlayers={clubPlayers} />
-    </AuthWrapper>
-  );
+  return <LeagueGameClient game={state.game} clubPlayers={state.players} />;
 }

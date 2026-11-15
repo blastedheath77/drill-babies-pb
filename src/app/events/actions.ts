@@ -1,6 +1,7 @@
-'use server';
+'use client';
 
-import { revalidatePath } from 'next/cache';
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
+
 import {
   createEvent,
   createRecurringEvents,
@@ -10,7 +11,7 @@ import {
   deleteFutureRecurringEvents,
 } from '@/lib/events';
 import { createEventSchema, updateEventSchema, validateData } from '@/lib/validations';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
 import { requirePermission, isAdminUser } from '@/lib/permissions';
 import type { Event } from '@/lib/types';
 
@@ -71,9 +72,6 @@ export async function createEventAction(values: CreateEventInput) {
       eventIds = [eventId];
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
 
     return {
       success: true,
@@ -116,10 +114,6 @@ export async function updateEventAction(values: UpdateEventInput) {
       await updateEvent(values.eventId, validatedUpdates);
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
-    revalidatePath(`/events/${values.eventId}`);
 
     return {
       success: true,
@@ -157,9 +151,6 @@ export async function deleteEventAction(values: DeleteEventInput) {
       await deleteEvent(values.eventId);
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
 
     return {
       success: true,

@@ -26,6 +26,7 @@ import { useAllGames } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
 import { getDisplayRating, shouldShowRatingChanges } from '@/lib/player-privacy';
 import type { Game } from '@/lib/types';
+import { AdminGameControls } from '@/components/admin-game-controls';
 
 interface GameDetailsClientProps {
   gameId: string;
@@ -120,12 +121,13 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <div>
+        <div className="flex-1">
           <PageHeader
             title="Match Summary"
             description={`${game.type} match on ${formatDate(game.date)}`}
           />
         </div>
+        {isAdmin() && <AdminGameControls game={game} />}
       </div>
 
       {/* Match Overview Stats */}

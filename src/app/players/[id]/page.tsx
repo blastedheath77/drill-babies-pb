@@ -1,4 +1,7 @@
+'use client';
+
 import { notFound } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   getPlayerById,
   getGamesForPlayer,
@@ -7,40 +10,47 @@ import {
   getPlayers,
   calculatePlayerForm,
 } from '@/lib/data';
+import { CLUB_ID } from '@/config/club';
 import { PlayerPageWrapper } from './player-page-wrapper';
 
-export default async function PlayerDetailPage({ params }: { params: { id: string } }) {
-  const player = await getPlayerById(params.id);
-  if (!player) {
-    notFound();
-  }
+async function loadPlayerPage(id: string) {
+  const player = await getPlayerById(id);
+  if (!player) return null;
 
-  const allPlayers = (await getPlayers()).filter((p) => p.id !== player.id);
-  const games = await getGamesForPlayer(player.id);
+  const [everyone, games] = await Promise.all([getPlayers(CLUB_ID), getGamesForPlayer(player.id, CLUB_ID)]);
+  const allPlayers = everyone.filter((p) => p.id !== player.id);
 
   const partnerships = getPartnershipStats(player.id, games, allPlayers.concat(player));
   const firstOpponent = allPlayers[0];
   const headToHead = firstOpponent ? getHeadToHeadStats(player.id, firstOpponent.id, games) : null;
-
   const winPercentage =
-    player.wins + player.losses > 0
-      ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(0)
-      : '0';
-  const pointsDiff = player.pointsFor - player.pointsAgainst;
+    player.wins + player.losses > 0 ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(0) : '0';
 
-  // Calculate player form
-  const form = calculatePlayerForm(player.id, games, player.rating);
+  return {
+    player,
+    games,
+    partnerships,
+    headToHead,
+    allPlayers,
+    winPercentage,
+    pointsDiff: player.pointsFor - player.pointsAgainst,
+    form: calculatePlayerForm(player.id, games, player.rating),
+  };
+}
 
-  return (
-    <PlayerPageWrapper
-      player={player}
-      games={games}
-      partnerships={partnerships}
-      headToHead={headToHead}
-      allPlayers={allPlayers}
-      winPercentage={winPercentage}
-      pointsDiff={pointsDiff}
-      form={form}
-    />
-  );
+export default function PlayerDetailPage({ params }: { params: { id: string } }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['player-page', params.id],
+    queryFn: () => loadPlayerPage(params.id),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-label="Loading" />
+      </div>
+    );
+  }
+  if (!data) notFound();
+  return <PlayerPageWrapper {...data} />;
 }

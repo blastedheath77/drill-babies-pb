@@ -14,6 +14,7 @@ import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { addQuickPlayRound, deleteQuickPlayRound } from '../quick-play-actions';
 import { useRouter } from 'next/navigation';
+import { useRefreshTournament } from '@/hooks/use-tournament-detail';
 import { useAuth } from '@/contexts/auth-context';
 import { getDisplayRating } from '@/lib/player-privacy';
 import type { Tournament, TournamentMatch, TournamentStanding, Player } from '@/lib/types';
@@ -179,6 +180,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
   const [deletingRounds, setDeletingRounds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const router = useRouter();
+  const refreshTournament = useRefreshTournament();
   const { canCreateTournaments, isAdmin } = useAuth();
 
   const handleTournamentDeleted = () => {
@@ -210,7 +212,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
         });
         
         // Refresh the page to show new matches
-        router.refresh();
+        await refreshTournament(tournament.id);
       }
     } catch (error) {
       toast({
@@ -237,7 +239,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
         });
         
         // Refresh the page to show updated matches
-        router.refresh();
+        await refreshTournament(tournament.id);
       }
     } catch (error) {
       toast({

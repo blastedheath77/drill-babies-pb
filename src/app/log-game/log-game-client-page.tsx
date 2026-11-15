@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, AlertTriangle } from 'lucide-react';
 import type { Player } from '@/lib/types';
 import { logGame } from '@/app/log-game/actions';
+import { getIdToken } from '@/lib/id-token';
 import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
 import { ScoreSelector } from '@/components/ui/score-selector';
@@ -317,18 +318,14 @@ export function LogGameClientPage({ players }: LogGameClientPageProps) {
     if (!team1Player1 || !team2Player1 || !selectedClub?.id) return;
 
     const values = {
-      gameType,
-      team1Player1: team1Player1.id,
-      team1Player2: gameType === 'doubles' ? team1Player2?.id || '' : '',
+      team1PlayerIds: gameType === 'doubles' && team1Player2 ? [team1Player1.id, team1Player2.id] : [team1Player1.id],
+      team2PlayerIds: gameType === 'doubles' && team2Player2 ? [team2Player1.id, team2Player2.id] : [team2Player1.id],
       team1Score,
-      team2Player1: team2Player1.id,
-      team2Player2: gameType === 'doubles' ? team2Player2?.id || '' : '',
       team2Score,
-      clubId: selectedClub.id,
     };
 
     try {
-      await logGame(values);
+      await logGame(await getIdToken(), values);
       setShowConfirmDialog(false);
       toast({
         title: 'Game logged!',

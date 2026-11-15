@@ -1,12 +1,12 @@
-'use server';
+'use client';
+
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
 
 import { collection, doc, addDoc, writeBatch, getDocs, query, where, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { revalidatePath } from 'next/cache';
-import { checkTournamentCompletion } from './match-actions';
 import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
 import { requirePermission } from '@/lib/permissions';
 import { getOptimalRound, calculateMaxUniqueRounds, clearTournamentScheduleCache } from '@/lib/pairing-algorithms';
 
@@ -65,7 +65,7 @@ export async function createQuickPlayTournament(data: CreateQuickPlayData) {
       playerIds: data.playerIds,
       clubId: data.clubId,
       createdDate: new Date().toISOString(),
-      createdBy: 'admin', // TODO: Replace with actual user ID
+      createdBy: currentUser.id,
       availableCourts: data.availableCourts,
       maxRounds: data.maxRounds,
       estimatedDuration,
@@ -87,7 +87,6 @@ export async function createQuickPlayTournament(data: CreateQuickPlayData) {
       );
     }
 
-    revalidatePath('/tournaments');
 
     return { success: true, tournamentId };
   } catch (error) {
@@ -532,11 +531,7 @@ export async function deleteQuickPlayRound(tournamentId: string, roundNumber: nu
     
     await batch.commit();
     
-    // Check if tournament is now complete after round deletion
-    await checkTournamentCompletion(tournamentId);
     
-    revalidatePath(`/tournaments/${tournamentId}`);
-    revalidatePath('/tournaments');
     
     return { success: true, deletedRound: roundNumber };
     
@@ -602,8 +597,6 @@ export async function addQuickPlayRound(tournamentId: string) {
       currentRound: nextRound,
     });
     
-    revalidatePath(`/tournaments/${tournamentId}`);
-    revalidatePath('/tournaments');
     
     return { success: true, roundNumber: nextRound };
     

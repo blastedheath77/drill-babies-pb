@@ -1,54 +1,33 @@
-import { PageHeader } from '@/components/page-header';
-import {
-  getTournamentById,
-  getTournamentMatches,
-  getTournamentStandings,
-  getPlayerById,
-} from '@/lib/data';
+'use client';
+
 import { notFound } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 import { TournamentClient } from './tournament-client';
-import type { Player } from '@/lib/types';
+import { useTournamentDetail } from '@/hooks/use-tournament-detail';
 
-export default async function TournamentDetailPage({ params }: { params: { id: string } }) {
-  const tournament = await getTournamentById(params.id);
+export default function TournamentDetailPage({ params }: { params: { id: string } }) {
+  const { data, isLoading, error } = useTournamentDetail(params.id);
 
-  if (!tournament) {
-    notFound();
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-label="Loading" />
+      </div>
+    );
   }
-
-  const [matches, standings] = await Promise.all([
-    getTournamentMatches(params.id),
-    getTournamentStandings(params.id),
-  ]);
-
-  // Fetch all player data needed for matches
-  const allPlayerIds = new Set<string>();
-  matches.forEach((match) => {
-    if (match.player1Id) allPlayerIds.add(match.player1Id);
-    if (match.player2Id) allPlayerIds.add(match.player2Id);
-    if (match.team1PlayerIds) match.team1PlayerIds.forEach((id) => allPlayerIds.add(id));
-    if (match.team2PlayerIds) match.team2PlayerIds.forEach((id) => allPlayerIds.add(id));
-  });
-
-  const playerMap = new Map<string, Player>();
-  await Promise.all(
-    [...allPlayerIds].map(async (id) => {
-      const player = await getPlayerById(id);
-      if (player) playerMap.set(id, player);
-    })
-  );
+  if (error) {
+    return <p className="text-destructive py-8 text-center">Couldn&apos;t load this session. {String((error as Error).message ?? '')}</p>;
+  }
+  if (!data) notFound();
 
   return (
     <>
-      <PageHeader
-        title={tournament.name}
-        description={tournament.description}
-      />
-      <TournamentClient 
-        tournament={tournament}
-        matches={matches}
-        standings={standings}
-        playerMap={playerMap}
+      <PageHeader title={data.tournament.name} description={data.tournament.description} />
+      <TournamentClient
+        tournament={data.tournament}
+        matches={data.matches}
+        standings={data.standings}
+        playerMap={data.playerMap}
       />
     </>
   );

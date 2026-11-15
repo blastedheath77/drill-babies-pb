@@ -1,12 +1,13 @@
-'use server';
+'use client';
+
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
 
 import { collection, doc, addDoc, writeBatch, deleteDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { revalidatePath } from 'next/cache';
 import type { Tournament, TournamentMatch } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { createTournamentSchema, validateData } from '@/lib/validations';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
 import { requirePermission } from '@/lib/permissions';
 
 class ValidationError extends Error {
@@ -57,7 +58,7 @@ export async function createTournament(data: CreateTournamentData) {
       playerIds: validatedData.playerIds,
       clubId: validatedData.clubId,
       createdDate: new Date().toISOString(),
-      createdBy: 'admin', // TODO: Replace with actual user ID
+      createdBy: currentUser.id,
       availableCourts: validatedData.availableCourts || 2,
       estimatedDuration,
     };
@@ -80,7 +81,6 @@ export async function createTournament(data: CreateTournamentData) {
       validatedData.availableCourts || 2
     );
 
-    revalidatePath('/tournaments');
 
     // Return success instead of redirect (let the client handle navigation)
     return { success: true, tournamentId };
@@ -605,67 +605,4 @@ function generateFixedDoubleTeams(playerIds: string[]): string[][] {
   }
 
   return teams;
-}
-
-export async function deleteTournament(tournamentId: string) {
-  try {
-    // Check authentication and permissions
-    const currentUser = await getCurrentUser();
-    requireAuthentication(currentUser);
-    requirePermission(currentUser, 'canDeleteTournaments');
-    
-    logger.info('Deleting tournament', { tournamentId });
-
-    // Use a batch to ensure all deletions happen together
-    const batch = writeBatch(db);
-
-    // Delete the tournament document
-    batch.delete(doc(db, 'tournaments', tournamentId));
-
-    // Get all matches for this tournament
-    const matchesQuery = query(
-      collection(db, 'tournamentMatches'),
-      where('tournamentId', '==', tournamentId)
-    );
-    const matchesSnapshot = await getDocs(matchesQuery);
-
-    // Delete all tournament matches
-    matchesSnapshot.forEach((matchDoc) => {
-      batch.delete(doc(db, 'tournamentMatches', matchDoc.id));
-    });
-
-    // Get all games associated with this tournament
-    const gamesQuery = query(
-      collection(db, 'games'),
-      where('tournamentId', '==', tournamentId)
-    );
-    const gamesSnapshot = await getDocs(gamesQuery);
-
-    // Delete all tournament games (this will affect player stats)
-    // Note: In a production system, you might want to handle this differently
-    // to preserve historical data or revert player rating changes
-    gamesSnapshot.forEach((gameDoc) => {
-      batch.delete(doc(db, 'games', gameDoc.id));
-    });
-
-    // Commit all deletions
-    await batch.commit();
-
-    logger.info('Tournament deleted successfully', { 
-      tournamentId, 
-      matchesDeleted: matchesSnapshot.size,
-      gamesDeleted: gamesSnapshot.size 
-    });
-
-    // Revalidate relevant pages
-    revalidatePath('/tournaments');
-    revalidatePath('/');
-    revalidatePath('/statistics');
-
-    return { success: true };
-
-  } catch (error) {
-    logger.error('Error deleting tournament', error, { tournamentId });
-    throw new Error('Failed to delete tournament');
-  }
 }

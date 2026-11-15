@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { deleteTournament } from '@/app/tournaments/actions';
+import { deleteTournament } from '@/app/tournaments/delete-actions';
+import { getIdToken } from '@/lib/id-token';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import type { Tournament } from '@/lib/types';
 
@@ -33,7 +34,7 @@ export function DeleteTournamentDialog({ tournament, children, onDelete }: Delet
     setIsDeleting(true);
 
     try {
-      await deleteTournament(tournament.id);
+      await deleteTournament(await getIdToken(), tournament.id);
 
       toast({
         title: 'Tournament Deleted',
