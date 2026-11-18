@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database, TestTube, CalendarDays, Users2, Grid3x3, Building2 } from 'lucide-react';
+import { Home, Users, BarChart, Trophy, PlusSquare, UserCheck, Shield, Database , CalendarDays, Users2, Grid3x3, Handshake } from 'lucide-react';
 import { PaddleIcon } from '@/components/icons/paddle-icon';
 import type { UserRole } from '@/lib/auth-types';
 
@@ -67,7 +67,7 @@ export const mainNavItems: NavItem[] = [
     description: 'View statistics and analytics'
   },
   {
-    title: 'Circles',
+    title: 'Groups',
     href: '/circles',
     icon: Users2,
     category: 'main',
@@ -75,18 +75,7 @@ export const mainNavItems: NavItem[] = [
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Player groups for filtering'
-  },
-  { 
-    title: 'Test', 
-    href: '/test', 
-    icon: TestTube, 
-    category: 'main',
-    priority: 'tertiary',
-    bottomNavEligible: false,
-    mobileVisible: false,
-    desktopVisible: true,
-    description: 'Testing page'
+    description: 'Player groups used as filters'
   },
 ];
 
@@ -114,6 +103,17 @@ export const actionNavItems: NavItem[] = [
     mobileVisible: true,
     desktopVisible: true,
     description: 'Manage tournaments and sessions'
+  },
+  {
+    title: 'Friendlies',
+    href: '/friendlies',
+    icon: Handshake,
+    category: 'action',
+    priority: 'secondary',
+    bottomNavEligible: false,
+    mobileVisible: true,
+    desktopVisible: true,
+    description: 'Matchups against other teams'
   },
   {
     title: 'Box Leagues',
@@ -159,16 +159,16 @@ export const adminNavItems: NavItem[] = [
     description: 'Admin controls'
   },
   {
-    title: 'Clubs',
-    href: '/clubs',
-    icon: Building2,
+    title: 'Manage Groups',
+    href: '/groups',
+    icon: Users2,
     category: 'admin',
     priority: 'tertiary',
     adminOnly: true,
     bottomNavEligible: false,
     mobileVisible: true,
     desktopVisible: true,
-    description: 'Manage clubs'
+    description: 'Assign players to groups'
   },
 ];
 

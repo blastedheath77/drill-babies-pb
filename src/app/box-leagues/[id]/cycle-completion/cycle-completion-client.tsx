@@ -30,13 +30,15 @@ import {
 import { useBoxLeague, useBoxesByLeague, usePlayerStatsByLeague } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
+import { useToast } from '@/hooks/use-toast';
 import {
   calculatePromotionRelegation,
   executePromotionRelegation,
   validateCycleComplete,
   calculateBoxStandings
 } from '@/lib/box-league-logic';
-import type { PromotionRelegationMove, Box, Player } from '@/lib/types';
+import type { PromotionRelegationMove } from '@/lib/box-league-logic';
+import type { Box, Player } from '@/lib/types';
 
 interface CycleCompletionClientProps {
   boxLeagueId: string;
@@ -99,6 +101,7 @@ function PlayerMoveCard({ move, player, boxes }: PlayerMoveCardProps) {
 export function CycleCompletionClient({ boxLeagueId }: CycleCompletionClientProps) {
   const router = useRouter();
   const { selectedClub } = useClub();
+  const { toast } = useToast();
   const { data: boxLeague, isLoading: leagueLoading } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading } = useBoxesByLeague(boxLeagueId);
   const { data: playerStats = [], isLoading: statsLoading } = usePlayerStatsByLeague(boxLeagueId);
@@ -158,7 +161,7 @@ export function CycleCompletionClient({ boxLeagueId }: CycleCompletionClientProp
       await executePromotionRelegation(boxLeagueId, promotionRelegationResult);
 
       // Success! Redirect to rounds page to show the new round
-      alert(`Cycle ${promotionRelegationResult.newCycleNumber} started successfully!\n\nPlayers have been moved to their new boxes and the first round has been created.`);
+      toast({ title: `Cycle ${promotionRelegationResult.newCycleNumber} Started`, description: 'Players have been moved to their new boxes and the first round has been created.' });
       router.push(`/box-leagues/${boxLeagueId}/rounds`);
     } catch (err: any) {
       console.error('Error executing promotion/relegation:', err);

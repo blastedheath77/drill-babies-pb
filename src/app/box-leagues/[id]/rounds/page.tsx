@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@/components/error-boundary';
 import { RoundManagementClient } from './round-management-client';
 
 interface RoundManagementPageProps {
@@ -7,5 +8,9 @@ interface RoundManagementPageProps {
 }
 
 export default function RoundManagementPage({ params }: RoundManagementPageProps) {
-  return <RoundManagementClient boxLeagueId={params.id} />;
+  return (
+    <ErrorBoundary>
+      <RoundManagementClient boxLeagueId={params.id} />
+    </ErrorBoundary>
+  );
 }

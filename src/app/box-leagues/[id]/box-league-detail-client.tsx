@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Grid3x3, Settings, Users, Calendar, Trophy, Loader2, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Grid3x3, Settings, Users, Calendar, Trophy, Loader2, TrendingUp, TrendingDown, ArrowRight, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +93,9 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
             <h1 className="text-3xl font-bold">{boxLeague.name}</h1>
             <Badge variant={boxLeague.status === 'active' ? 'default' : 'secondary'}>
               {boxLeague.status}
+            </Badge>
+            <Badge variant="outline" className="capitalize">
+              {boxLeague.format ?? 'doubles'}
             </Badge>
             {boxLeague.isTestMode && (
               <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700">
@@ -266,6 +269,18 @@ export function BoxLeagueDetailClient({ boxLeagueId }: BoxLeagueDetailClientProp
               <h3 className="font-semibold mb-2">Standings</h3>
               <p className="text-sm text-muted-foreground">
                 View current standings and stats
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/box-leagues/${boxLeagueId}/history`}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <History className="h-8 w-8 mx-auto mb-3 text-primary" />
+              <h3 className="font-semibold mb-2">Cycle History</h3>
+              <p className="text-sm text-muted-foreground">
+                Past cycle standings and movements
               </p>
             </CardContent>
           </Card>

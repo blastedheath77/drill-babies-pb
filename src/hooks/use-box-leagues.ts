@@ -351,12 +351,17 @@ export function useSubstitutePlayer() {
       return substitutePlayer(boxLeagueId, boxId, oldPlayerId, newPlayerId);
     },
     onSuccess: (_, { boxLeagueId, boxId }) => {
-      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.league(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.detail(boxLeagueId) });
       queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.boxes(boxLeagueId) });
-      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.box(boxId) });
       queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByLeague(boxLeagueId) });
       queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId) });
-      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matchesByLeague(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matches() });
+    },
+    onError: (_, { boxLeagueId, boxId }) => {
+      // Sync UI with Firestore in case the operation partially succeeded
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.boxes(boxLeagueId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.statsByBox(boxId) });
+      queryClient.invalidateQueries({ queryKey: BOX_LEAGUE_KEYS.matches() });
     },
   });
 }

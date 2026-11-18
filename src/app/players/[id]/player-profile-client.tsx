@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ImageUpload } from '@/components/image-upload';
 import { Edit3, TrendingUp, TrendingDown, Minus, EyeOff } from 'lucide-react';
 import type { Player, FormMetric } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, initials } from '@/lib/utils';
 
 interface PlayerProfileClientProps {
   player: Player;
@@ -57,7 +57,7 @@ export function PlayerProfileClient({ player, form, isAdmin }: PlayerProfileClie
               <div className="flex flex-col items-center">
                 <Avatar className="h-24 w-24 mb-3 border-4 border-primary shadow-lg">
                   <AvatarImage src={currentAvatar} alt={player.name} />
-                  <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                  <AvatarFallback>{initials(player.name)}</AvatarFallback>
                 </Avatar>
 
                 <Button

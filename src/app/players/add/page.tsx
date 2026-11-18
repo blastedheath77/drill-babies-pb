@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
 import { addPlayer } from './actions';
+import { getIdToken } from '@/lib/id-token';
 import { AuthWrapper } from '@/components/auth-wrapper';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
@@ -63,7 +64,7 @@ function AddPlayerContent() {
     }
 
     try {
-      await addPlayer({ name: values.name, clubId: selectedClub.id, gender: values.gender });
+      await addPlayer(await getIdToken(), { name: values.name, gender: values.gender });
 
       // Force fresh data fetch before navigation
       await refetchAll();

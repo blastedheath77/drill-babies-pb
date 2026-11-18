@@ -15,6 +15,7 @@ import { SubstitutePlayerDialog } from '@/components/box-leagues/substitute-play
 import { useBoxLeague, useBoxesByLeague, useCreateBox, useUpdateBox, usePlayerStatsByBox } from '@/hooks/use-box-leagues';
 import { usePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
+import { useToast } from '@/hooks/use-toast';
 import type { Box, Player } from '@/lib/types';
 
 interface BoxManagementClientProps {
@@ -265,6 +266,7 @@ function UnassignedPlayer({ player, onDragStart, onDragEnd, isBeingDragged, isDr
 
 export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
   const { selectedClub } = useClub();
+  const { toast } = useToast();
   const { data: boxLeague, isLoading: leagueLoading } = useBoxLeague(boxLeagueId);
   const { data: boxes = [], isLoading: boxesLoading, refetch: refetchBoxes } = useBoxesByLeague(boxLeagueId);
   const { data: allPlayers = [], isLoading: playersLoading } = usePlayers(selectedClub?.id);
@@ -379,7 +381,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
 
     // Prevent moving players between boxes after rounds have started
     if (sourceBoxId && sourceBoxId !== targetBoxId && boxLeague && boxLeague.currentRound > 0) {
-      alert('Cannot move players between boxes after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.');
+      toast({ title: 'Cannot move player', description: 'Cannot move players between boxes after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.', variant: 'destructive' });
       setDraggedPlayer(null);
       return;
     }
@@ -390,7 +392,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
         // Add player to target box
         const newPlayerIds = [...targetBox.playerIds];
         if (newPlayerIds.length >= 4) {
-          alert('Box is full (maximum 4 players)');
+          toast({ title: 'Box is full', description: 'Maximum 4 players per box.', variant: 'destructive' });
           return;
         }
         newPlayerIds.push(player.id);
@@ -408,7 +410,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
         if (!sourceBox) return;
 
         if (targetBox.playerIds.length >= 4) {
-          alert('Target box is full (maximum 4 players)');
+          toast({ title: 'Target box is full', description: 'Maximum 4 players per box.', variant: 'destructive' });
           return;
         }
 
@@ -441,7 +443,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
       }
     } catch (error) {
       console.error('Error moving player:', error);
-      alert('Failed to move player. Please try again.');
+      toast({ title: 'Failed to move player', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setDraggedPlayer(null);
       // Force refetch to ensure UI is in sync
@@ -455,20 +457,20 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
 
     // Check if box is full
     if (targetBox.playerIds.length >= 4) {
-      alert('Box is full (maximum 4 players)');
+      toast({ title: 'Box is full', description: 'Maximum 4 players per box.', variant: 'destructive' });
       return;
     }
 
     // Check if player is already in this box
     if (targetBox.playerIds.includes(playerId)) {
-      alert('Player is already in this box');
+      toast({ title: 'Already in box', description: 'Player is already in this box.', variant: 'destructive' });
       return;
     }
 
     // Check if player is in another box
     const existingBox = boxes.find(b => b.playerIds.includes(playerId));
     if (existingBox) {
-      alert(`Player is already in Box ${existingBox.boxNumber}`);
+      toast({ title: 'Player already assigned', description: `Player is already in Box ${existingBox.boxNumber}.`, variant: 'destructive' });
       return;
     }
 
@@ -483,14 +485,14 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
       refetchBoxes();
     } catch (error) {
       console.error('Error adding player to box:', error);
-      alert('Failed to add player. Please try again.');
+      toast({ title: 'Failed to add player', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
   const removePlayerFromBox = async (boxId: string, playerId: string) => {
     // Prevent removing players after rounds have started
     if (boxLeague && boxLeague.currentRound > 0) {
-      alert('Cannot remove players after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.');
+      toast({ title: 'Cannot remove player', description: 'Cannot remove players after rounds have started. Use the "Substitute Player" button instead to replace players while preserving match history.', variant: 'destructive' });
       return;
     }
 
@@ -540,7 +542,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
   };
 
   const canStartLeague = (): boolean => {
-    return boxes.every(box => box.playerIds.length === 4);
+    return boxes.length > 0 && boxes.every(box => box.playerIds.length >= 2);
   };
 
   if (isLoading) {
@@ -660,7 +662,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
                   {box.boxNumber === 1 && <Badge variant="outline">Top Box</Badge>}
                   {box.boxNumber === boxLeague.totalBoxes && <Badge variant="outline">Bottom Box</Badge>}
                 </CardTitle>
-                <Badge variant={box.playerIds.length === 4 ? 'default' : 'secondary'}>
+                <Badge variant={box.playerIds.length >= 2 ? 'default' : 'secondary'}>
                   {box.playerIds.length} / 4 players
                 </Badge>
               </div>
@@ -736,8 +738,8 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            All boxes need exactly 4 players before you can start the league.
-            Currently missing {totalNeeded - totalAssigned} players.
+            Each box needs at least 2 players before you can start the league.
+            Boxes can have 2–4 players; currently {totalAssigned} of up to {totalNeeded} slots filled.
           </AlertDescription>
         </Alert>
       )}
@@ -746,7 +748,7 @@ export function BoxManagementClient({ boxLeagueId }: BoxManagementClientProps) {
         <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
           <AlertTriangle className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800 dark:text-green-200">
-            <strong>Ready to start!</strong> All boxes have 4 players assigned.
+            <strong>Ready to start!</strong> All boxes have at least 2 players assigned.
             You can now start the first round of the league.
           </AlertDescription>
         </Alert>

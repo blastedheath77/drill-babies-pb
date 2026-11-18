@@ -47,10 +47,6 @@ import {
   updatePlayerGender,
   bulkAutoDetectGender,
 } from '@/lib/admin-actions';
-import { convertExistingRatings } from '@/lib/convert-ratings';
-import { updateGameDatesForTesting } from '@/lib/update-game-dates';
-import { backfillRatingHistory } from '@/lib/backfill-rating-history';
-import { syncAllPlayerStats } from '@/lib/sync-all-player-stats';
 import { useInvalidatePlayers } from '@/hooks/use-players';
 import type { Player, Game } from '@/lib/types';
 
@@ -129,12 +125,6 @@ export function AdminDashboard() {
     setIsAutoDetectingGender(false);
   };
 
-  // Database management states
-  const [isConverting, setIsConverting] = useState(false);
-  const [isUpdatingDates, setIsUpdatingDates] = useState(false);
-  const [isBackfilling, setIsBackfilling] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [managementMessage, setManagementMessage] = useState<string>('');
 
   // Load data on mount
   useEffect(() => {
@@ -191,14 +181,12 @@ export function AdminDashboard() {
     setIsCreatingPlayer(false);
   };
 
-  const handleDeletePlayer = async (playerId: string, playerName: string, forceDelete: boolean = false) => {
+  const handleDeletePlayer = async (playerId: string, playerName: string) => {
     try {
-      const result = await deletePlayer(playerId, forceDelete);
+      const result = await deletePlayer(playerId);
       
       if (result.success) {
-        const message = forceDelete 
-          ? `Player "${playerName}" and all their games deleted successfully!`
-          : `Player "${playerName}" deleted successfully!`;
+        const message = `Player "${playerName}" deleted successfully!`;
         setAlert({ type: 'success', message });
         
         // Invalidate React Query cache to refresh player lists immediately
@@ -238,75 +226,8 @@ export function AdminDashboard() {
     }
   };
 
-  // Database management functions
-  const handleConvertRatings = async () => {
-    setIsConverting(true);
-    setManagementMessage('Converting ratings to DUPR scale...');
 
-    try {
-      await convertExistingRatings();
-      setAlert({ type: 'success', message: 'Successfully converted all ratings to DUPR scale!' });
-      setManagementMessage('');
-      await loadPlayers();
-    } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to convert ratings' });
-      setManagementMessage('');
-    } finally {
-      setIsConverting(false);
-    }
-  };
 
-  const handleUpdateDates = async () => {
-    setIsUpdatingDates(true);
-    setManagementMessage('Updating game dates...');
-
-    try {
-      await updateGameDatesForTesting();
-      setAlert({ type: 'success', message: 'Successfully updated game dates for testing!' });
-      setManagementMessage('');
-      await loadGames();
-    } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to update game dates' });
-      setManagementMessage('');
-    } finally {
-      setIsUpdatingDates(false);
-    }
-  };
-
-  const handleBackfillRatings = async () => {
-    setIsBackfilling(true);
-    setManagementMessage('Backfilling rating history...');
-
-    try {
-      await backfillRatingHistory();
-      setAlert({ type: 'success', message: 'Successfully backfilled rating history!' });
-      setManagementMessage('');
-      await loadPlayers();
-    } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to backfill rating history' });
-      setManagementMessage('');
-    } finally {
-      setIsBackfilling(false);
-    }
-  };
-
-  const handleSyncStats = async () => {
-    setIsSyncing(true);
-    setManagementMessage('Syncing all player stats...');
-
-    try {
-      await syncAllPlayerStats();
-      setAlert({ type: 'success', message: 'Successfully synced all player stats!' });
-      setManagementMessage('');
-      await loadPlayers();
-      await loadGames();
-    } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to sync player stats' });
-      setManagementMessage('');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const formatDate = (dateInput: any) => {
     try {
@@ -352,7 +273,7 @@ export function AdminDashboard() {
       )}
 
       <Tabs defaultValue="players" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="players" className="flex items-center gap-1 text-xs sm:text-sm">
             <Users className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Players</span>
@@ -362,11 +283,6 @@ export function AdminDashboard() {
             <GamepadIcon className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Games</span>
             <span className="xs:hidden">G</span>
-          </TabsTrigger>
-          <TabsTrigger value="management" className="flex items-center gap-1 text-xs sm:text-sm">
-            <Database className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden xs:inline">Management</span>
-            <span className="xs:hidden">M</span>
           </TabsTrigger>
         </TabsList>
 
@@ -564,8 +480,8 @@ export function AdminDashboard() {
                                   Are you sure you want to delete "{player.name}"?
                                   {player.gameCount > 0 && (
                                     <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                                      <strong>Warning:</strong> This player has {player.gameCount} recorded game(s). 
-                                      Deleting the player will also delete all their games and match history.
+                                      <strong>Note:</strong> This player has {player.gameCount} recorded game(s), so they
+                                      can&apos;t be deleted. Exclude them from rankings instead.
                                     </div>
                                   )}
                                   This action cannot be undone.
@@ -574,10 +490,11 @@ export function AdminDashboard() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDeletePlayer(player.id, player.name, true)}
+                                  onClick={() => handleDeletePlayer(player.id, player.name)}
+                                  disabled={player.gameCount > 0}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
-                                  {player.gameCount > 0 ? 'Force Delete Player & Games' : 'Delete Player'}
+                                  Delete Player
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -738,91 +655,6 @@ export function AdminDashboard() {
                   </Table>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="management" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Database Management
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Advanced tools for managing and maintaining the database
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {managementMessage && (
-                <Alert>
-                  <AlertDescription>{managementMessage}</AlertDescription>
-                </Alert>
-              )}
-              
-              <div className="grid gap-6">
-                {/* Auto-detect Gender */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium mb-2">Auto-detect Gender from Names</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Automatically assign he/him or she/her to players without a gender set, based on their first name. Players with a gender already set are not affected.
-                  </p>
-                  <Button onClick={handleAutoDetectGender} disabled={isAutoDetectingGender} variant="outline">
-                    {isAutoDetectingGender ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Detecting...
-                      </>
-                    ) : (
-                      'Auto-detect Gender from Names'
-                    )}
-                  </Button>
-                </div>
-
-                {/* Convert Ratings */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium mb-2">Convert Rating System</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Convert existing ELO ratings (1200-1700) to DUPR scale (2.0-8.0) for better pickleball rating representation.
-                  </p>
-                  <Button onClick={handleConvertRatings} disabled={isConverting}>
-                    {isConverting ? 'Converting...' : 'Convert to DUPR Scale'}
-                  </Button>
-                </div>
-
-                {/* Update Game Dates */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium mb-2">Update Game Dates</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Update existing games to have staggered dates (today, 2 days ago, 4 days ago, etc.) for testing rating history charts.
-                  </p>
-                  <Button onClick={handleUpdateDates} disabled={isUpdatingDates} variant="outline">
-                    {isUpdatingDates ? 'Updating...' : 'Update Game Dates for Testing'}
-                  </Button>
-                </div>
-
-                {/* Backfill Rating History */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium mb-2">Backfill Rating History</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Generate historical rating changes for existing games to populate the rating history charts. This simulates what the ratings would have been after each game.
-                  </p>
-                  <Button onClick={handleBackfillRatings} disabled={isBackfilling} variant="secondary">
-                    {isBackfilling ? 'Backfilling...' : 'Backfill Rating History'}
-                  </Button>
-                </div>
-
-                {/* Sync All Player Stats */}
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium mb-2">Sync All Player Stats</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Recalculate ALL player stats (rating, wins, losses, points for/against) from actual game history. Fixes discrepancies between stored stats and game results.
-                  </p>
-                  <Button onClick={handleSyncStats} disabled={isSyncing} variant="outline">
-                    {isSyncing ? 'Syncing...' : 'Sync All Player Stats'}
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

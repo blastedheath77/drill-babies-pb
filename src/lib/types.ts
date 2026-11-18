@@ -182,6 +182,7 @@ export interface BoxLeague {
   createdDate: string;
   createdBy: string;
   // Configuration
+  format: 'singles' | 'doubles'; // Match format — singles: 6 1v1 matches per round; doubles: 3 2v2 matches
   roundsPerCycle: number; // 1-5 rounds before promotion/relegation
   newPlayerEntryBox: number; // Which box new players enter (usually bottom box)
   totalBoxes: number;
@@ -229,7 +230,7 @@ export interface BoxLeagueMatch {
   boxId: string;
   roundNumber: number;
   cycleNumber: number;
-  matchNumber: 1 | 2 | 3; // The 3 specific match formats
+  matchNumber: number; // 1-3 for doubles (3 matches), 1-6 for singles (6 matches)
   // Match participants (exactly 4 players)
   playerIds: string[]; // All 4 players involved
   // Partnerships for this specific match
@@ -249,7 +250,7 @@ export interface BoxLeaguePlayerStats {
   playerId: string;
   boxLeagueId: string;
   boxId: string;
-  currentPosition: 1 | 2 | 3 | 4; // Current ranking within box
+  currentPosition: number; // Current ranking within box (1 = best)
   // Match statistics
   matchesPlayed: number;
   matchesWon: number;
@@ -274,7 +275,7 @@ export interface BoxLeaguePlayerStats {
 export interface BoxLeagueStanding {
   playerId: string;
   player?: Player;
-  position: 1 | 2 | 3 | 4;
+  position: number; // Ranking within box (1 = best)
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
@@ -331,3 +332,44 @@ export interface NotificationSettings {
   fcmToken?: string;
 }
 
+
+// Friendlies (Matchup Builder). Visitors are names only; results never affect ratings.
+export type FriendlyGuestLevel = 'weaker' | 'similar' | 'stronger';
+
+export interface FriendlyGuest {
+  id: string;
+  name: string;
+  gender?: 'M' | 'F';
+  level?: FriendlyGuestLevel;
+}
+
+export interface FriendlyMatch {
+  id: string;
+  round: number;
+  court: number;
+  home: string[]; // club player ids
+  away: string[]; // guest ids
+  category: 'mens' | 'womens' | 'mixed' | 'open';
+  locked?: boolean;
+  homeScore?: number;
+  awayScore?: number;
+  status: 'pending' | 'completed';
+}
+
+export interface Friendly {
+  id: string;
+  clubId: string;
+  opponentName: string;
+  date: string; // YYYY-MM-DD
+  venue?: string;
+  format: 'doubles' | 'singles';
+  courts: number;
+  rounds: number;
+  matchTypes: 'open' | 'mixed' | 'variety';
+  homePlayerIds: string[];
+  guests: FriendlyGuest[];
+  matches: FriendlyMatch[];
+  status: 'draft' | 'live' | 'finished';
+  createdBy: string;
+  createdDate: string;
+}

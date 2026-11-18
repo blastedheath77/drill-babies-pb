@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSubstitutePlayer } from '@/hooks/use-box-leagues';
+import { useToast } from '@/hooks/use-toast';
 import type { Player, BoxLeaguePlayerStats } from '@/lib/types';
 
 interface SubstitutePlayerDialogProps {
@@ -38,10 +39,11 @@ export function SubstitutePlayerDialog({
 }: SubstitutePlayerDialogProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const substituteMutation = useSubstitutePlayer();
+  const { toast } = useToast();
 
   const handleSubmit = async () => {
     if (!selectedPlayerId) {
-      alert('Please select a new player');
+      toast({ title: 'No player selected', description: 'Please select a player to substitute in.', variant: 'destructive' });
       return;
     }
 
@@ -53,12 +55,12 @@ export function SubstitutePlayerDialog({
         newPlayerId: selectedPlayerId
       });
 
-      alert('Player substitution successful!');
+      toast({ title: 'Substitution successful', description: 'Player has been substituted successfully.' });
       onOpenChange(false);
       setSelectedPlayerId('');
     } catch (error: any) {
       console.error('Error substituting player:', error);
-      alert(`Failed to substitute player: ${error.message}`);
+      toast({ title: 'Substitution failed', description: error.message || 'Failed to substitute player. Please try again.', variant: 'destructive' });
     }
   };
 

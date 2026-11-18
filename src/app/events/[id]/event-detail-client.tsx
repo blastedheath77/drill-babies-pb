@@ -43,7 +43,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { selectedClub } = useClub();
-  const { user, isClubAdmin } = useAuth();
+  const { user, isAdmin: isAdminFn } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRecurringDeleteDialog, setShowRecurringDeleteDialog] = useState(false);
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
@@ -86,7 +86,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
     fetchUserNames();
   }, [rsvps]);
 
-  const isAdmin = selectedClub?.id ? isClubAdmin(selectedClub.id) : false;
+  const isAdmin = isAdminFn();
   const eventIsPast = event ? isPast(new Date(event.endTime)) : false;
   const isCancelled = event?.status === 'cancelled';
   const canRsvp = !eventIsPast && !isCancelled && user;

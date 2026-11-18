@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useClub } from '@/contexts/club-context';
@@ -138,7 +140,7 @@ export function CreateLeagueGameForm() {
       </div>
       <Avatar className="h-8 w-8">
         <AvatarImage src={player.avatar} alt={player.name} />
-        <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+        <AvatarFallback>{initials(player.name)}</AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{player.name}</p>

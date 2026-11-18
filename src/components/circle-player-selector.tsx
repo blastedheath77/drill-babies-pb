@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState, useMemo } from 'react';
 import { usePlayers } from '@/hooks/use-players';
 import { useClub } from '@/contexts/club-context';
@@ -199,7 +201,7 @@ export function CirclePlayerSelector({
                 />
                 <Avatar className="h-10 w-10 border">
                   <AvatarImage src={player.avatar} alt={player.name} />
-                  <AvatarFallback className="text-xs">{player.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="text-xs">{initials(player.name)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{player.name}</div>

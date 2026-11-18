@@ -1,6 +1,7 @@
-'use server';
+'use client';
 
-import { revalidatePath } from 'next/cache';
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
+
 import {
   createEvent,
   createRecurringEvents,
@@ -10,8 +11,8 @@ import {
   deleteFutureRecurringEvents,
 } from '@/lib/events';
 import { createEventSchema, updateEventSchema, validateData } from '@/lib/validations';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
-import { requirePermission, isClubAdmin } from '@/lib/permissions';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
+import { requirePermission, isAdminUser } from '@/lib/permissions';
 import type { Event } from '@/lib/types';
 
 interface CreateEventInput {
@@ -33,7 +34,7 @@ export async function createEventAction(values: CreateEventInput) {
   requirePermission(currentUser, 'canCreateEvents');
 
   // Additional check: must be club admin for the target club
-  if (!isClubAdmin(currentUser, values.clubId)) {
+  if (!isAdminUser(currentUser)) {
     throw new Error('You must be a club admin to create events');
   }
 
@@ -71,9 +72,6 @@ export async function createEventAction(values: CreateEventInput) {
       eventIds = [eventId];
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
 
     return {
       success: true,
@@ -102,7 +100,7 @@ export async function updateEventAction(values: UpdateEventInput) {
   requirePermission(currentUser, 'canModifyEvents');
 
   // Additional check: must be club admin for the target club
-  if (!isClubAdmin(currentUser, values.clubId)) {
+  if (!isAdminUser(currentUser)) {
     throw new Error('You must be a club admin to update events');
   }
 
@@ -116,10 +114,6 @@ export async function updateEventAction(values: UpdateEventInput) {
       await updateEvent(values.eventId, validatedUpdates);
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
-    revalidatePath(`/events/${values.eventId}`);
 
     return {
       success: true,
@@ -146,7 +140,7 @@ export async function deleteEventAction(values: DeleteEventInput) {
   requirePermission(currentUser, 'canDeleteEvents');
 
   // Additional check: must be club admin for the target club
-  if (!isClubAdmin(currentUser, values.clubId)) {
+  if (!isAdminUser(currentUser)) {
     throw new Error('You must be a club admin to delete events');
   }
 
@@ -157,9 +151,6 @@ export async function deleteEventAction(values: DeleteEventInput) {
       await deleteEvent(values.eventId);
     }
 
-    // Revalidate paths
-    revalidatePath('/');
-    revalidatePath('/events');
 
     return {
       success: true,

@@ -14,44 +14,58 @@ import type {
 
 // Box League Match Pairing Logic
 export interface MatchPairing {
-  matchNumber: 1 | 2 | 3;
+  matchNumber: number;
   team1PlayerIds: string[];
   team2PlayerIds: string[];
   description: string;
 }
 
 /**
- * Generate the standard box league match pairings for 4 players
- * Ensures each player partners with each other exactly once
- * and opposes each other exactly twice
+ * Generate match pairings for a box of 2–4 players.
+ *
+ * Singles: complete round-robin — every player faces every other player once.
+ *   4 players → 6 matches, 3 players → 3 matches, 2 players → 1 match.
+ *
+ * Doubles: requires exactly 4 players (3 partnership-rotation matches).
+ *   With fewer than 4 players, falls back to singles round-robin.
  */
-export function generateBoxMatchPairings(playerIds: string[]): MatchPairing[] {
-  if (playerIds.length !== 4) {
-    throw new Error('Box must contain exactly 4 players');
+export function generateBoxMatchPairings(
+  playerIds: string[],
+  format: 'singles' | 'doubles'
+): MatchPairing[] {
+  const n = playerIds.length;
+  if (n < 2) {
+    throw new Error('Box must contain at least 2 players');
+  }
+  if (n > 4) {
+    throw new Error('Box cannot contain more than 4 players');
   }
 
-  const [p1, p2, p3, p4] = playerIds;
+  // Doubles requires exactly 4 players; otherwise fall back to singles
+  if (format === 'doubles' && n === 4) {
+    const [p1, p2, p3, p4] = playerIds;
+    return [
+      { matchNumber: 1, team1PlayerIds: [p1, p2], team2PlayerIds: [p3, p4], description: 'Players 1&2 vs Players 3&4' },
+      { matchNumber: 2, team1PlayerIds: [p1, p3], team2PlayerIds: [p2, p4], description: 'Players 1&3 vs Players 2&4' },
+      { matchNumber: 3, team1PlayerIds: [p1, p4], team2PlayerIds: [p2, p3], description: 'Players 1&4 vs Players 2&3' },
+    ];
+  }
 
-  return [
-    {
-      matchNumber: 1,
-      team1PlayerIds: [p1, p2],
-      team2PlayerIds: [p3, p4],
-      description: 'Players 1&2 vs Players 3&4'
-    },
-    {
-      matchNumber: 2,
-      team1PlayerIds: [p1, p3],
-      team2PlayerIds: [p2, p4],
-      description: 'Players 1&3 vs Players 2&4'
-    },
-    {
-      matchNumber: 3,
-      team1PlayerIds: [p1, p4],
-      team2PlayerIds: [p2, p3],
-      description: 'Players 1&4 vs Players 2&3'
+  // Singles (or doubles fallback): all-pairs round-robin
+  const pairings: MatchPairing[] = [];
+  let matchNumber = 1;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      pairings.push({
+        matchNumber,
+        team1PlayerIds: [playerIds[i]],
+        team2PlayerIds: [playerIds[j]],
+        description: `Player ${i + 1} vs Player ${j + 1}`,
+      });
+      matchNumber++;
     }
-  ];
+  }
+  return pairings;
 }
 
 /**
@@ -80,10 +94,10 @@ export async function createNewRound(boxLeagueId: string): Promise<string> {
       throw new Error('No boxes found in league');
     }
 
-    // Validate that all boxes have exactly 4 players
+    // Validate that all boxes have at least 2 players
     for (const box of boxes) {
-      if (box.playerIds.length !== 4) {
-        throw new Error(`Box ${box.boxNumber} does not have exactly 4 players`);
+      if (box.playerIds.length < 2) {
+        throw new Error(`Box ${box.boxNumber} needs at least 2 players to start a round`);
       }
     }
 
@@ -101,9 +115,10 @@ export async function createNewRound(boxLeagueId: string): Promise<string> {
 
     // Create matches for each box
     const allMatchIds: string[] = [];
+    const format = boxLeague.format ?? 'doubles';
 
     for (const box of boxes) {
-      const pairings = generateBoxMatchPairings(box.playerIds);
+      const pairings = generateBoxMatchPairings(box.playerIds, format);
 
       for (const pairing of pairings) {
         const matchId = await createBoxLeagueMatch({
@@ -208,8 +223,8 @@ export function calculateBoxStandings(
   boxPlayerStats: BoxLeaguePlayerStats[],
   boxMatches: BoxLeagueMatch[]
 ): BoxLeagueStanding[] {
-  if (boxPlayerStats.length !== 4) {
-    throw new Error('Box must have exactly 4 players');
+  if (boxPlayerStats.length < 2) {
+    throw new Error('Box must have at least 2 players');
   }
 
   // Create standings with basic stats
@@ -345,19 +360,18 @@ export async function updatePlayerStatsAfterMatch(match: BoxLeagueMatch): Promis
       playerStats.pointsAgainst += isTeam1 ? match.team2Score : match.team1Score;
     }
 
-    // Update partner stats
-    const partnerId = isTeam1
-      ? match.team1PlayerIds.find(id => id !== playerId)!
-      : match.team2PlayerIds.find(id => id !== playerId)!;
-
-    if (!playerStats.partnerStats[partnerId]) {
-      playerStats.partnerStats[partnerId] = { wins: 0, losses: 0 };
-    }
-
-    if (isWinner) {
-      playerStats.partnerStats[partnerId].wins += 1;
-    } else {
-      playerStats.partnerStats[partnerId].losses += 1;
+    // Update partner stats (doubles only — singles teams have no partner)
+    const myTeam = isTeam1 ? match.team1PlayerIds : match.team2PlayerIds;
+    const partnerId = myTeam.find(id => id !== playerId);
+    if (partnerId) {
+      if (!playerStats.partnerStats[partnerId]) {
+        playerStats.partnerStats[partnerId] = { wins: 0, losses: 0 };
+      }
+      if (isWinner) {
+        playerStats.partnerStats[partnerId].wins += 1;
+      } else {
+        playerStats.partnerStats[partnerId].losses += 1;
+      }
     }
 
     // Update opponent stats
@@ -395,12 +409,12 @@ export function validateReadyForNewRound(
     };
   }
 
-  // Check if all boxes have exactly 4 players
+  // Check if all boxes have at least 2 players
   for (const box of boxes) {
-    if (box.playerIds.length !== 4) {
+    if (box.playerIds.length < 2) {
       return {
         ready: false,
-        reason: `Box ${box.boxNumber} has ${box.playerIds.length} players (needs exactly 4)`
+        reason: `Box ${box.boxNumber} has ${box.playerIds.length} player (needs at least 2)`
       };
     }
   }
@@ -475,11 +489,14 @@ export async function calculatePromotionRelegation(
       throw new Error(`Box ${box.boxNumber} has no player statistics. All players must complete at least one match before promotion/relegation.`);
     }
 
-    if (boxPlayerStats.length !== 4) {
-      throw new Error(`Box ${box.boxNumber} has ${boxPlayerStats.length} player(s) with statistics but needs exactly 4. Expected ${box.playerIds.length} players based on box assignments.`);
+    if (boxPlayerStats.length < 2) {
+      throw new Error(`Box ${box.boxNumber} has ${boxPlayerStats.length} player(s) with statistics but needs at least 2.`);
+    }
+    if (boxPlayerStats.length !== box.playerIds.length) {
+      throw new Error(`Box ${box.boxNumber} has ${boxPlayerStats.length} stats record(s) but ${box.playerIds.length} assigned players. All players must complete at least one match before promotion/relegation.`);
     }
 
-    const boxMatches: BoxLeagueMatch[] = []; // We'd need to fetch these, but for standings calculation we have stats
+    const boxMatches: BoxLeagueMatch[] = [];
     boxStandings[box.id] = calculateBoxStandings(boxPlayerStats, boxMatches);
   }
 
@@ -488,17 +505,12 @@ export async function calculatePromotionRelegation(
     const currentBox = boxes[i];
     const standings = boxStandings[currentBox.id];
 
-    if (standings.length !== 4) {
-      throw new Error(`Box ${currentBox.boxNumber} does not have exactly 4 players`);
-    }
-
-    // Sort standings by position (1 = best, 4 = worst)
+    // Sort standings by position (1 = best, last = worst)
     standings.sort((a, b) => a.position - b.position);
 
-    const topPlayer = standings[0]; // Position 1
-    const secondPlayer = standings[1]; // Position 2
-    const thirdPlayer = standings[2]; // Position 3
-    const bottomPlayer = standings[3]; // Position 4
+    const topPlayer = standings[0];
+    const bottomPlayer = standings[standings.length - 1];
+    const middlePlayers = standings.slice(1, standings.length - 1);
 
     // Top player promotes (unless in Box 1)
     if (i > 0) { // Not the top box
@@ -555,7 +567,7 @@ export async function calculatePromotionRelegation(
         toBoxId: targetBox.id,
         toBoxNumber: targetBox.boxNumber,
         moveType: 'relegation',
-        reason: `Finished 4th in Box ${currentBox.boxNumber}`
+        reason: `Finished ${standings.length}${standings.length === 1 ? 'st' : standings.length === 2 ? 'nd' : standings.length === 3 ? 'rd' : 'th'} in Box ${currentBox.boxNumber}`
       });
     } else {
       // Bottom player in bottom box stays
@@ -571,7 +583,8 @@ export async function calculatePromotionRelegation(
     }
 
     // Middle players stay in same box
-    for (const player of [secondPlayer, thirdPlayer]) {
+    for (const player of middlePlayers) {
+      const ordinal = ['1st', '2nd', '3rd', '4th'][player.position - 1] ?? `${player.position}th`;
       moves.push({
         playerId: player.playerId,
         fromBoxId: currentBox.id,
@@ -579,7 +592,7 @@ export async function calculatePromotionRelegation(
         toBoxId: currentBox.id,
         toBoxNumber: currentBox.boxNumber,
         moveType: 'stay',
-        reason: `Finished ${player.position === 2 ? '2nd' : '3rd'} in Box ${currentBox.boxNumber}`
+        reason: `Finished ${ordinal} in Box ${currentBox.boxNumber}`
       });
     }
   }
@@ -1068,23 +1081,26 @@ export async function substitutePlayer(
     throw new Error('Old player is not in this box');
   }
 
-  // Validate new player is not already in the league
+  // Validate new player is not already assigned to a box in this league
+  // (use box membership as truth, not stats — orphaned stats from partial failures are ignored)
+  const newPlayerInBox = boxes.some(b => b.playerIds.includes(newPlayerId));
+  if (newPlayerInBox) {
+    throw new Error('New player is already assigned to a box in this league');
+  }
+
+  // Fetch stats; clean up any orphaned stats for the new player
+  // (can be left behind by a previously failed substitution attempt)
   const allPlayerStats = await getPlayerStatsByLeague(boxLeagueId);
-  const newPlayerExists = allPlayerStats.some(s => s.playerId === newPlayerId);
-  if (newPlayerExists) {
-    throw new Error('New player is already in this box league');
+  const orphanedNewPlayerStats = allPlayerStats.find(s => s.playerId === newPlayerId);
+  if (orphanedNewPlayerStats) {
+    const { deletePlayerStats } = await import('./box-leagues');
+    await deletePlayerStats(boxLeagueId, newPlayerId);
   }
 
   // Get old player's stats (if they exist)
   const oldPlayerStats = allPlayerStats.find(s => s.playerId === oldPlayerId);
 
-  // Update box playerIds: replace old player with new player
-  const updatedPlayerIds = box.playerIds.map(id =>
-    id === oldPlayerId ? newPlayerId : id
-  );
-  await updateBox(boxId, { playerIds: updatedPlayerIds });
-
-  // Create new player stats
+  // Create new player stats first (before touching the box)
   if (oldPlayerStats) {
     // If old player has stats, inherit them
     await createOrUpdatePlayerStats({
@@ -1143,10 +1159,7 @@ export async function substitutePlayer(
   }
 
   // Update pending matches: replace old player with new player
-  // Get all rounds for this league
   const rounds = await getRoundsByLeague(boxLeagueId);
-
-  // Get all matches from all rounds
   const allMatchesPromises = rounds.map(round => getMatchesByRound(round.id));
   const allMatchesArrays = await Promise.all(allMatchesPromises);
   const allMatches = allMatchesArrays.flat();
@@ -1172,12 +1185,15 @@ export async function substitutePlayer(
 
   // Delete old player's stats (if they exist)
   if (oldPlayerStats) {
-    const { db, BOX_LEAGUE_PLAYER_STATS_COLLECTION } = await import('./box-leagues');
-    const { doc, deleteDoc } = await import('firebase/firestore');
-    const oldStatsDocId = `${boxLeagueId}_${oldPlayerId}`;
-    const oldStatsRef = doc(db, BOX_LEAGUE_PLAYER_STATS_COLLECTION, oldStatsDocId);
-    await deleteDoc(oldStatsRef);
+    const { deletePlayerStats } = await import('./box-leagues');
+    await deletePlayerStats(boxLeagueId, oldPlayerId);
   }
+
+  // Update box playerIds last — only after all stats and match updates succeed
+  const updatedPlayerIds = box.playerIds.map(id =>
+    id === oldPlayerId ? newPlayerId : id
+  );
+  await updateBox(boxId, { playerIds: updatedPlayerIds });
 
   console.log(`Player substitution complete: ${oldPlayerId} -> ${newPlayerId}`);
 }
@@ -1387,8 +1403,8 @@ export async function syncPendingMatchesWithBoxes(boxLeagueId: string): Promise<
         // Match has players not in the box anymore - needs updating
         // Get current players in this box
         const box = boxes.find(b => b.id === match.boxId);
-        if (!box || box.playerIds.length !== 4) {
-          console.warn(`Skipping match ${match.id}: Box ${match.boxId} doesn't have exactly 4 players`);
+        if (!box || box.playerIds.length < 2) {
+          console.warn(`Skipping match ${match.id}: Box ${match.boxId} doesn't have enough players`);
           errorCount++;
           continue;
         }

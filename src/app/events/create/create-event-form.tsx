@@ -103,11 +103,11 @@ export function CreateEventForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
-  const { isClubAdmin } = useAuth();
+  const { isAdmin: isAdminFn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTimeChangedRef = useRef(false);
 
-  const isAdmin = selectedClub?.id ? isClubAdmin(selectedClub.id) : false;
+  const isAdmin = isAdminFn();
 
   // Default to tomorrow at 6 PM, 2 hour duration
   const tomorrow = new Date();

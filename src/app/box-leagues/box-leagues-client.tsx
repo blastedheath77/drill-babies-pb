@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Plus, Grid3x3, Users, Trophy, Calendar, Loader2, Trash2 } from 'lucide-react';
 import { useBoxLeagues, useDeleteBoxLeague } from '@/hooks/use-box-leagues';
 import { useAuth } from '@/contexts/auth-context';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ export function BoxLeaguesClient() {
   const { data: boxLeagues = [], isLoading, error } = useBoxLeagues();
   const deleteBoxLeague = useDeleteBoxLeague();
   const { isAdmin } = useAuth();
+  const { toast } = useToast();
   const [showTestLeagues, setShowTestLeagues] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -39,7 +41,7 @@ export function BoxLeaguesClient() {
       }
     } catch (error) {
       console.error('Error deleting test leagues:', error);
-      alert('Failed to delete some test leagues. Please try again.');
+      toast({ title: 'Delete failed', description: 'Failed to delete some test leagues. Please try again.', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
     }
@@ -191,6 +193,9 @@ export function BoxLeaguesClient() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CardTitle>{league.name}</CardTitle>
+                    <Badge variant="outline" className="capitalize">
+                      {league.format ?? 'doubles'}
+                    </Badge>
                     {league.isTestMode && (
                       <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700">
                         TEST

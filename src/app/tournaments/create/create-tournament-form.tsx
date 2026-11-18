@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -586,7 +588,7 @@ export function CreateTournamentForm({ players }: CreateTournamentFormProps) {
                           <div className="flex items-center gap-3 flex-1">
                             <Avatar className="h-10 w-10 sm:h-8 sm:w-8">
                               <AvatarImage src={player.avatar} alt={player.name} />
-                              <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                              <AvatarFallback>{initials(player.name)}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
                               <FormLabel 

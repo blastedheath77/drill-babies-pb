@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -180,7 +182,7 @@ export function HeadToHeadClient({
                     alt={headToHeadData.opponent.name}
                     data-ai-hint="player avatar"
                   />
-                  <AvatarFallback>{headToHeadData.opponent.name.substring(0, 2)}</AvatarFallback>
+                  <AvatarFallback>{initials(headToHeadData.opponent.name)}</AvatarFallback>
                 </Avatar>
                 <h3 className="text-xl font-bold">{headToHeadData.opponent.name}</h3>
                 <p className="text-muted-foreground">Rating: {headToHeadData.opponent.rating.toFixed(2)}</p>
@@ -361,7 +363,7 @@ export function HeadToHeadClient({
                         alt={rival.opponent.name}
                         data-ai-hint="player avatar"
                       />
-                      <AvatarFallback>{rival.opponent.name.substring(0, 2)}</AvatarFallback>
+                      <AvatarFallback>{initials(rival.opponent.name)}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium">{rival.opponent.name}</p>
@@ -445,7 +447,7 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
                     alt={partnershipInsights.bestPartner.partner.name}
                   />
                   <AvatarFallback>
-                    {partnershipInsights.bestPartner.partner.name.substring(0, 2)}
+                    {initials(partnershipInsights.bestPartner.partner.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -512,7 +514,7 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
                           src={p.partner.avatar}
                           alt={p.partner.name}
                         />
-                        <AvatarFallback>{p.partner.name.substring(0, 2)}</AvatarFallback>
+                        <AvatarFallback>{initials(p.partner.name)}</AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">{p.partner.name}</p>
@@ -554,7 +556,7 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
                       alt={selectedPartner.partner.name}
                     />
                     <AvatarFallback>
-                      {selectedPartner.partner.name.substring(0, 2)}
+                      {initials(selectedPartner.partner.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -686,7 +688,7 @@ export function PartnershipClient({ partnerships }: PartnershipClientProps) {
                             src={p.partner.avatar}
                             alt={p.partner.name}
                           />
-                          <AvatarFallback>{p.partner.name.substring(0, 2)}</AvatarFallback>
+                          <AvatarFallback>{initials(p.partner.name)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{p.partner.name}</span>
                       </div>

@@ -1,4 +1,6 @@
-'use server';
+'use client';
+
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
 
 import {
   collection,
@@ -13,10 +15,9 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { revalidatePath } from 'next/cache';
 import type { LeagueGame, LeagueGameMatch, Player } from '@/lib/types';
 import { validateData, createLeagueGameSchema } from '@/lib/validations';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
 import { buildDuprPayload, submitLeagueFixtureToDupr } from '@/lib/dupr-api';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ export async function createLeagueGame(
       venue: validated.venue?.trim(),
       status: 'active',
       createdDate: new Date().toISOString(),
-      createdBy: currentUser?.id ?? 'unknown',
+      createdBy: currentUser.id,
       clubPlayerIds: validated.clubPlayerIds,
       opponentPlayers: validated.opponentPlayers as LeagueGame['opponentPlayers'],
       matches,
@@ -168,7 +169,6 @@ export async function createLeagueGame(
 
     const docRef = await addDoc(collection(db, 'leagueGames'), leagueGame);
 
-    revalidatePath('/league-games');
 
     return { success: true, leagueGameId: docRef.id };
   } catch (error) {
@@ -229,7 +229,6 @@ export async function updateLeagueGameMatchScore(
     // Write the whole array back — avoids the map-conversion bug
     await updateDoc(gameRef, { matches });
 
-    revalidatePath(`/league-games/${leagueGameId}`);
 
     return { success: true };
   } catch (error) {
@@ -315,8 +314,6 @@ export async function submitLeagueGameToDupr(
       submittedAt: new Date().toISOString(),
     });
 
-    revalidatePath(`/league-games/${leagueGameId}`);
-    revalidatePath('/league-games');
 
     return { success: true, submissionId: result.submissionId };
   } catch (error) {
@@ -349,7 +346,6 @@ export async function deleteLeagueGame(
 
     await deleteDoc(gameRef);
 
-    revalidatePath('/league-games');
 
     return { success: true };
   } catch (error) {

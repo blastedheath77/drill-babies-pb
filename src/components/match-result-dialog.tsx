@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,6 +27,9 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { recordTournamentMatchResult } from '@/app/tournaments/match-actions';
+import { getIdToken } from '@/lib/id-token';
+import { useRefreshTournament } from '@/hooks/use-tournament-detail';
+import { useQueryClient } from '@tanstack/react-query';
 import { Trophy, Users } from 'lucide-react';
 import type { TournamentMatch, Player } from '@/lib/types';
 import { ScoreSelector } from '@/components/ui/score-selector';
@@ -84,6 +89,8 @@ export function MatchResultDialog({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingScores, setPendingScores] = useState<{ team1Score: number; team2Score: number } | null>(null);
   const { toast } = useToast();
+  const refreshTournament = useRefreshTournament();
+  const queryClient = useQueryClient();
 
   const matchResultFormSchema = createMatchResultFormSchema(isQuickPlay);
 
@@ -126,7 +133,7 @@ export function MatchResultDialog({
     setIsSubmitting(true);
 
     try {
-      await recordTournamentMatchResult({
+      await recordTournamentMatchResult(await getIdToken(), {
         matchId: match.id,
         team1Score: pendingScores.team1Score,
         team2Score: pendingScores.team2Score,
@@ -142,6 +149,11 @@ export function MatchResultDialog({
       setOpen(false);
       form.reset();
       setPendingScores(null);
+      await Promise.all([
+        refreshTournament(tournamentId),
+        queryClient.invalidateQueries({ queryKey: ['players'] }),
+        queryClient.invalidateQueries({ queryKey: ['games'] }),
+      ]);
 
     } catch (error) {
       toast({
@@ -162,7 +174,7 @@ export function MatchResultDialog({
           {team.map((player) => (
             <Avatar key={player.id} className="h-10 w-10 border-2 border-background">
               <AvatarImage src={player.avatar} alt={player.name} />
-              <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+              <AvatarFallback>{initials(player.name)}</AvatarFallback>
             </Avatar>
           ))}
         </div>

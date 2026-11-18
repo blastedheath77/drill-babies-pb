@@ -1,614 +1,216 @@
-'use server';
+'use client';
 
-import { collection, doc, addDoc, writeBatch, getDocs, query, where, updateDoc, getDoc } from 'firebase/firestore';
+// Runs in the browser as the signed-in member; Firestore rules enforce access.
+import {
+  collection,
+  doc,
+  addDoc,
+  writeBatch,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  getDoc,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { revalidatePath } from 'next/cache';
-import { checkTournamentCompletion } from './match-actions';
+import { getCurrentUser, requireAuthentication } from '@/lib/client-user';
+import { getPlayersByIds } from '@/lib/data';
+import { generateRound, type PastMatch } from '@/lib/session-pairing';
+import { CLUB_ID } from '@/config/club';
+import { DEFAULT_RATING } from '@/lib/constants';
 import type { Tournament, TournamentMatch } from '@/lib/types';
-import { logger } from '@/lib/logger';
-import { getCurrentUser, requireAuthentication } from '@/lib/server-auth';
-import { requirePermission } from '@/lib/permissions';
-import { getOptimalRound, calculateMaxUniqueRounds, clearTournamentScheduleCache } from '@/lib/pairing-algorithms';
 
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
+/** Quick-play sessions older than this with no new matches show as finished. */
+export const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
+
+/** "Thu 20 Aug" */
+export function defaultSessionName(date = new Date()): string {
+  return date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-interface CreateQuickPlayData {
-  name: string;
-  description: string;
+export interface CreateQuickPlayData {
+  name?: string;
+  description?: string;
   format: 'singles' | 'doubles';
   playerIds: string[];
-  clubId: string;
   availableCourts: number;
-  maxRounds: number;
-  isQuickPlay: boolean;
-  currentRound: number;
 }
 
-export async function createQuickPlayTournament(data: CreateQuickPlayData) {
-  try {
-    // Clear tournament schedule cache for fresh pairings
-    clearTournamentScheduleCache();
+async function loadMatches(tournamentId: string): Promise<(TournamentMatch & { ref: ReturnType<typeof doc> })[]> {
+  const snap = await getDocs(query(collection(db, 'tournamentMatches'), where('tournamentId', '==', tournamentId)));
+  return snap.docs.map((d) => ({ id: d.id, ref: d.ref, ...(d.data() as Omit<TournamentMatch, 'id'>) }));
+}
 
-    // Check authentication and permissions
-    const currentUser = await getCurrentUser();
-    requireAuthentication(currentUser);
-    requirePermission(currentUser, 'canCreateTournaments');
-    
-    // Validate player count based on format
-    if (data.format === 'singles' && data.playerIds.length < 2) {
-      throw new ValidationError('Singles Quick Play requires at least 2 players');
-    }
-    if (data.format === 'doubles' && data.playerIds.length < 4) {
-      throw new ValidationError('Doubles Quick Play requires at least 4 players');
-    }
+function toPast(m: TournamentMatch): PastMatch | null {
+  if (m.player1Id && m.player2Id) return { round: m.round, team1: [m.player1Id], team2: [m.player2Id] };
+  if (m.team1PlayerIds?.length && m.team2PlayerIds?.length) {
+    return { round: m.round, team1: m.team1PlayerIds, team2: m.team2PlayerIds };
+  }
+  return null;
+}
 
-    // Calculate estimated duration for all rounds
-    const roundDuration = calculateQuickPlayRoundDuration(
-      data.playerIds.length,
-      data.format,
-      data.availableCourts
+/** Generates and saves the next round from the players in the session now. */
+async function writeNextRound(tournamentId: string, tournament: Tournament, roundNumber: number) {
+  const [players, existing] = await Promise.all([getPlayersByIds(tournament.playerIds), loadMatches(tournamentId)]);
+  const history = existing.map(toPast).filter((m): m is PastMatch => m !== null);
+
+  const { matches } = generateRound({
+    players: players.map((p) => ({ id: p.id, rating: p.rating ?? DEFAULT_RATING })),
+    format: tournament.format,
+    courts: tournament.availableCourts || 2,
+    history,
+  });
+  if (matches.length === 0) {
+    throw new Error(
+      tournament.format === 'doubles' ? 'Need at least 4 players for a doubles round' : 'Need at least 2 players for a singles round'
     );
-    const estimatedDuration = roundDuration * data.maxRounds;
-
-    // Create Quick Play tournament document
-    const tournament: Omit<Tournament, 'id'> = {
-      name: data.name.trim(),
-      description: data.description.trim(),
-      format: data.format,
-      type: 'round-robin', // Quick Play is always round-robin
-      status: 'active',
-      playerIds: data.playerIds,
-      clubId: data.clubId,
-      createdDate: new Date().toISOString(),
-      createdBy: 'admin', // TODO: Replace with actual user ID
-      availableCourts: data.availableCourts,
-      maxRounds: data.maxRounds,
-      estimatedDuration,
-      isQuickPlay: true,
-      currentRound: data.maxRounds, // Set to maxRounds since we'll generate all rounds
-    };
-
-    const tournamentRef = await addDoc(collection(db, 'tournaments'), tournament);
-    const tournamentId = tournamentRef.id;
-
-    // Generate all rounds of matches using smart round generation
-    for (let roundNumber = 1; roundNumber <= data.maxRounds; roundNumber++) {
-      await generateQuickPlayRound(
-        tournamentId, 
-        data.format, 
-        data.playerIds,
-        roundNumber,
-        data.availableCourts
-      );
-    }
-
-    revalidatePath('/tournaments');
-
-    return { success: true, tournamentId };
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      throw error;
-    }
-    logger.error('Error creating Quick Play tournament', error);
-    throw new Error('Failed to create Quick Play tournament');
   }
-}
 
-// Calculate duration for one Quick Play round
-function calculateQuickPlayRoundDuration(
-  playerCount: number,
-  format: Tournament['format'],
-  courtsAvailable: number
-): number {
-  if (format === 'singles') {
-    const matches = Math.min(Math.floor(playerCount / 2), courtsAvailable);
-    return matches > 0 ? 8 : 0; // 8 minutes per singles round
-  } else {
-    const maxMatchesByPlayers = Math.floor(playerCount / 4);
-    const matches = Math.min(maxMatchesByPlayers, courtsAvailable);
-    return matches > 0 ? 10 : 0; // 10 minutes per doubles round
-  }
-}
-
-// Generate a single round for Quick Play with optimal pairing rotation
-async function generateQuickPlayRound(
-  tournamentId: string,
-  format: Tournament['format'],
-  playerIds: string[],
-  roundNumber: number,
-  courtsAvailable: number
-) {
   const batch = writeBatch(db);
-  let matchNumber = 1;
-  
-  // Get existing matches to use for optimal pairing
-  const existingMatchesQuery = query(
-    collection(db, 'tournamentMatches'),
-    where('tournamentId', '==', tournamentId)
-  );
-  const existingMatchesSnapshot = await getDocs(existingMatchesQuery);
-  
-  const existingMatches = existingMatchesSnapshot.docs.map(doc => doc.data());
-
-  logger.debug(`Generating Quick Play round ${roundNumber} for ${format} with ${playerIds.length} players`);
-
-  // Try to use optimal pairing algorithm first
-  try {
-    const optimalResult = getOptimalRound(playerIds, format, roundNumber, courtsAvailable);
-    
-    if (optimalResult.matches.length > 0) {
-      logger.info(`Using optimal pairing algorithm for round ${roundNumber}: ${optimalResult.matches.length} matches, ${optimalResult.restingPlayers.length} players resting`);
-      
-      // Create tournament match documents from optimal pairing
-      for (const match of optimalResult.matches) {
-        if (format === 'singles') {
-          const tournamentMatch: Omit<TournamentMatch, 'id'> = {
-            tournamentId,
-            round: roundNumber,
-            matchNumber: matchNumber++,
-            player1Id: match.team1[0],
-            player2Id: match.team2[0],
-            status: 'pending',
-          };
-          
-          const matchRef = doc(collection(db, 'tournamentMatches'));
-          batch.set(matchRef, tournamentMatch);
-        } else {
-          const tournamentMatch: Omit<TournamentMatch, 'id'> = {
-            tournamentId,
-            round: roundNumber,
-            matchNumber: matchNumber++,
-            team1PlayerIds: match.team1,
-            team2PlayerIds: match.team2,
-            status: 'pending',
-          };
-          
-          const matchRef = doc(collection(db, 'tournamentMatches'));
-          batch.set(matchRef, tournamentMatch);
-        }
-      }
-      
-      await batch.commit();
-      return;
-    }
-  } catch (error) {
-    logger.warn(`Optimal pairing failed for round ${roundNumber}, falling back to legacy algorithm: ${error}`);
-  }
-  
-  // Fallback to legacy algorithm if optimal pairing fails
-  await generateLegacyQuickPlayRound(batch, tournamentId, format, playerIds, roundNumber, courtsAvailable, existingMatches, matchNumber);
+  matches.forEach((m, i) => {
+    const ref = doc(collection(db, 'tournamentMatches'));
+    const base = {
+      tournamentId,
+      round: roundNumber,
+      matchNumber: i + 1,
+      court: String(i + 1),
+      status: 'pending' as const,
+      createdAt: new Date().toISOString(),
+    };
+    batch.set(
+      ref,
+      tournament.format === 'singles'
+        ? { ...base, player1Id: m.team1[0], player2Id: m.team2[0] }
+        : { ...base, team1PlayerIds: m.team1, team2PlayerIds: m.team2 }
+    );
+  });
+  batch.update(doc(db, 'tournaments', tournamentId), {
+    currentRound: roundNumber,
+    lastActivityAt: new Date().toISOString(),
+  });
   await batch.commit();
 }
 
-// Legacy algorithm as fallback
-async function generateLegacyQuickPlayRound(
-  batch: any,
-  tournamentId: string,
-  format: Tournament['format'],
-  playerIds: string[],
-  roundNumber: number,
-  courtsAvailable: number,
-  existingMatches: any[],
-  startingMatchNumber: number
-) {
-  // Track partnerships and oppositions from previous rounds
-  const partnershipCount = new Map<string, number>();
-  const oppositionCount = new Map<string, number>();
-  const playerGameCount = new Map<string, number>();
-  
-  // Initialize tracking
-  playerIds.forEach(playerId => playerGameCount.set(playerId, 0));
-  
-  // Analyze existing matches to understand current state
-  existingMatches.forEach(match => {
-    if (format === 'singles' && match.player1Id && match.player2Id) {
-      // Singles match
-      const oppKey = [match.player1Id, match.player2Id].sort().join('-');
-      oppositionCount.set(oppKey, (oppositionCount.get(oppKey) || 0) + 1);
-      playerGameCount.set(match.player1Id, (playerGameCount.get(match.player1Id) || 0) + 1);
-      playerGameCount.set(match.player2Id, (playerGameCount.get(match.player2Id) || 0) + 1);
-    } else if (format === 'doubles' && match.team1PlayerIds && match.team2PlayerIds) {
-      // Doubles match
-      const team1 = match.team1PlayerIds.sort();
-      const team2 = match.team2PlayerIds.sort();
-      
-      // Track partnerships
-      const partnership1 = team1.join('-');
-      const partnership2 = team2.join('-');
-      partnershipCount.set(partnership1, (partnershipCount.get(partnership1) || 0) + 1);
-      partnershipCount.set(partnership2, (partnershipCount.get(partnership2) || 0) + 1);
-      
-      // Track oppositions
-      for (const p1 of team1) {
-        for (const p2 of team2) {
-          const oppKey = [p1, p2].sort().join('-');
-          oppositionCount.set(oppKey, (oppositionCount.get(oppKey) || 0) + 1);
-        }
-      }
-      
-      // Track game counts
-      [...team1, ...team2].forEach(playerId => {
-        playerGameCount.set(playerId, (playerGameCount.get(playerId) || 0) + 1);
-      });
-    }
-  });
+/** Starts a session and generates its first round. More rounds are added one at a time. */
+export async function createQuickPlayTournament(data: CreateQuickPlayData) {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
 
-  if (format === 'singles') {
-    await generateQuickPlaySinglesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, oppositionCount, playerGameCount, startingMatchNumber);
-  } else {
-    await generateQuickPlayDoublesRound(batch, tournamentId, playerIds, roundNumber, courtsAvailable, partnershipCount, oppositionCount, playerGameCount, startingMatchNumber);
+  const min = data.format === 'singles' ? 2 : 4;
+  if (data.playerIds.length < min) {
+    throw new Error(`${data.format === 'singles' ? 'Singles' : 'Doubles'} needs at least ${min} players`);
   }
+
+  const now = new Date().toISOString();
+  const tournament: Omit<Tournament, 'id'> & { lastActivityAt: string } = {
+    name: data.name?.trim() || defaultSessionName(),
+    description: data.description?.trim() ?? '',
+    format: data.format,
+    type: 'round-robin',
+    status: 'active',
+    playerIds: data.playerIds,
+    clubId: CLUB_ID,
+    createdDate: now,
+    createdBy: currentUser.id,
+    availableCourts: data.availableCourts,
+    isQuickPlay: true,
+    currentRound: 0,
+    lastActivityAt: now,
+  };
+
+  const ref = await addDoc(collection(db, 'tournaments'), tournament);
+  await writeNextRound(ref.id, { id: ref.id, ...tournament }, 1);
+  return { success: true, tournamentId: ref.id };
 }
 
-// Generate singles round with smart opponent selection
-async function generateQuickPlaySinglesRound(
-  batch: any,
-  tournamentId: string,
-  playerIds: string[],
-  roundNumber: number,
-  courtsAvailable: number,
-  oppositionCount: Map<string, number>,
-  playerGameCount: Map<string, number>,
-  startingMatchNumber: number
-) {
-  const n = playerIds.length;
-  const usedThisRound = new Set<string>();
-  const matches: Array<{player1: string, player2: string}> = [];
-  let matchNumber = startingMatchNumber;
-
-  // Randomize player order to avoid bias
-  const shuffledPlayers = [...playerIds].sort(() => Math.random() - 0.5);
-  
-  // Generate matches prioritizing players with fewer games and fewer recent oppositions
-  for (let court = 0; court < courtsAvailable && usedThisRound.size < n - 1; court++) {
-    const availablePlayers = shuffledPlayers.filter(id => !usedThisRound.has(id));
-    
-    if (availablePlayers.length < 2) break;
-    
-    let bestMatch: {player1: string, player2: string, score: number} | null = null;
-    
-    // Find the best pairing based on game balance and opposition diversity
-    for (let i = 0; i < availablePlayers.length; i++) {
-      for (let j = i + 1; j < availablePlayers.length; j++) {
-        const player1 = availablePlayers[i];
-        const player2 = availablePlayers[j];
-        const oppKey = [player1, player2].sort().join('-');
-        
-        // Score based on:
-        // - Players who have played fewer games get priority
-        // - Players who haven't played each other get priority
-        const gameBalance = 100 - (playerGameCount.get(player1) || 0) * 5 - (playerGameCount.get(player2) || 0) * 5;
-        const oppositionDiversity = 50 - (oppositionCount.get(oppKey) || 0) * 20;
-        const score = gameBalance + oppositionDiversity;
-        
-        if (!bestMatch || score > bestMatch.score) {
-          bestMatch = {player1, player2, score};
-        }
-      }
-    }
-    
-    if (bestMatch) {
-      matches.push({player1: bestMatch.player1, player2: bestMatch.player2});
-      usedThisRound.add(bestMatch.player1);
-      usedThisRound.add(bestMatch.player2);
-      
-      // Update tracking
-      const oppKey = [bestMatch.player1, bestMatch.player2].sort().join('-');
-      oppositionCount.set(oppKey, (oppositionCount.get(oppKey) || 0) + 1);
-      playerGameCount.set(bestMatch.player1, (playerGameCount.get(bestMatch.player1) || 0) + 1);
-      playerGameCount.set(bestMatch.player2, (playerGameCount.get(bestMatch.player2) || 0) + 1);
-    }
-  }
-  
-  // Create tournament match documents
-  for (const match of matches) {
-    const tournamentMatch: Omit<TournamentMatch, 'id'> = {
-      tournamentId,
-      round: roundNumber,
-      matchNumber: matchNumber++,
-      player1Id: match.player1,
-      player2Id: match.player2,
-      status: 'pending',
-    };
-
-    const matchRef = doc(collection(db, 'tournamentMatches'));
-    batch.set(matchRef, tournamentMatch);
-  }
-  
-  const playersResting = n - usedThisRound.size;
-  logger.info(`Generated ${matches.length} singles matches for round ${roundNumber}, ${playersResting} players resting`);
+async function loadSession(tournamentId: string): Promise<Tournament> {
+  const snap = await getDoc(doc(db, 'tournaments', tournamentId));
+  if (!snap.exists()) throw new Error('Session not found');
+  const t = { id: tournamentId, ...snap.data() } as Tournament;
+  if (!t.isQuickPlay) throw new Error('This only works for quick-play sessions');
+  return t;
 }
 
-// Generate doubles round with smart team selection
-async function generateQuickPlayDoublesRound(
-  batch: any,
-  tournamentId: string,
-  playerIds: string[],
-  roundNumber: number,
-  courtsAvailable: number,
-  partnershipCount: Map<string, number>,
-  oppositionCount: Map<string, number>,
-  playerGameCount: Map<string, number>,
-  startingMatchNumber: number
-) {
-  const n = playerIds.length;
-  const usedThisRound = new Set<string>();
-  const matches: Array<{team1: string[], team2: string[]}> = [];
-  let matchNumber = startingMatchNumber;
-
-  // Randomize player order to avoid bias
-  const shuffledPlayers = [...playerIds].sort(() => Math.random() - 0.5);
-  
-  // Generate matches for available courts
-  for (let court = 0; court < courtsAvailable && usedThisRound.size < n - 3; court++) {
-    const availablePlayers = shuffledPlayers.filter(id => !usedThisRound.has(id));
-    
-    if (availablePlayers.length < 4) break;
-    
-    let bestMatch: {team1: string[], team2: string[], score: number} | null = null;
-    
-    // Try different 4-player combinations to find the best match
-    for (let i = 0; i < availablePlayers.length; i++) {
-      for (let j = i + 1; j < availablePlayers.length; j++) {
-        for (let k = j + 1; k < availablePlayers.length; k++) {
-          for (let l = k + 1; l < availablePlayers.length; l++) {
-            const players = [availablePlayers[i], availablePlayers[j], availablePlayers[k], availablePlayers[l]];
-            
-            // Try all possible team combinations
-            const teamCombos = [
-              { team1: [players[0], players[1]], team2: [players[2], players[3]] },
-              { team1: [players[0], players[2]], team2: [players[1], players[3]] },
-              { team1: [players[0], players[3]], team2: [players[1], players[2]] }
-            ];
-            
-            for (const combo of teamCombos) {
-              const score = calculateQuickPlayMatchScore(combo, partnershipCount, oppositionCount, playerGameCount);
-              
-              if (!bestMatch || score > bestMatch.score) {
-                bestMatch = { ...combo, score };
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    if (bestMatch) {
-      matches.push({team1: bestMatch.team1, team2: bestMatch.team2});
-      bestMatch.team1.forEach(id => usedThisRound.add(id));
-      bestMatch.team2.forEach(id => usedThisRound.add(id));
-      
-      // Update tracking
-      const partnership1 = bestMatch.team1.sort().join('-');
-      const partnership2 = bestMatch.team2.sort().join('-');
-      partnershipCount.set(partnership1, (partnershipCount.get(partnership1) || 0) + 1);
-      partnershipCount.set(partnership2, (partnershipCount.get(partnership2) || 0) + 1);
-      
-      for (const p1 of bestMatch.team1) {
-        for (const p2 of bestMatch.team2) {
-          const oppKey = [p1, p2].sort().join('-');
-          oppositionCount.set(oppKey, (oppositionCount.get(oppKey) || 0) + 1);
-        }
-      }
-      
-      [...bestMatch.team1, ...bestMatch.team2].forEach(playerId => {
-        playerGameCount.set(playerId, (playerGameCount.get(playerId) || 0) + 1);
-      });
-    }
-  }
-  
-  // Create tournament match documents
-  for (const match of matches) {
-    const tournamentMatch: Omit<TournamentMatch, 'id'> = {
-      tournamentId,
-      round: roundNumber,
-      matchNumber: matchNumber++,
-      team1PlayerIds: match.team1,
-      team2PlayerIds: match.team2,
-      status: 'pending',
-    };
-
-    const matchRef = doc(collection(db, 'tournamentMatches'));
-    batch.set(matchRef, tournamentMatch);
-  }
-  
-  const playersResting = n - usedThisRound.size;
-  logger.info(`Generated ${matches.length} doubles matches for round ${roundNumber}, ${playersResting} players resting`);
-}
-
-// Score a Quick Play match based on fairness criteria
-function calculateQuickPlayMatchScore(
-  match: { team1: string[]; team2: string[] },
-  partnershipCount: Map<string, number>,
-  oppositionCount: Map<string, number>,
-  playerGameCount: Map<string, number>
-): number {
-  let score = 0;
-  
-  // Prioritize new partnerships (higher score for unused partnerships)
-  const partnership1 = match.team1.sort().join('-');
-  const partnership2 = match.team2.sort().join('-');
-  score += 100 - (partnershipCount.get(partnership1) || 0) * 15;
-  score += 100 - (partnershipCount.get(partnership2) || 0) * 15;
-  
-  // Prioritize new oppositions
-  for (const p1 of match.team1) {
-    for (const p2 of match.team2) {
-      const oppKey = [p1, p2].sort().join('-');
-      score += 50 - (oppositionCount.get(oppKey) || 0) * 10;
-    }
-  }
-  
-  // Prioritize players who have played fewer games
-  [...match.team1, ...match.team2].forEach(playerId => {
-    score += 30 - (playerGameCount.get(playerId) || 0) * 3;
-  });
-  
-  return score;
-}
-
-// Delete Round functionality for Quick Play tournaments
-export async function deleteQuickPlayRound(tournamentId: string, roundNumber: number) {
-  try {
-    // Check authentication and permissions
-    const currentUser = await getCurrentUser();
-    requireAuthentication(currentUser);
-    requirePermission(currentUser, 'canModifyTournaments');
-    
-    // Get tournament details
-    const tournamentRef = doc(db, 'tournaments', tournamentId);
-    const tournamentSnap = await getDoc(tournamentRef);
-    
-    if (!tournamentSnap.exists()) {
-      throw new Error('Tournament not found');
-    }
-    
-    const tournament = { id: tournamentId, ...tournamentSnap.data() } as Tournament;
-    
-    if (!tournament.isQuickPlay) {
-      throw new Error('Delete Round is only available for Quick Play tournaments');
-    }
-    
-    // Get all matches in this round
-    const matchesQuery = query(
-      collection(db, 'tournamentMatches'),
-      where('tournamentId', '==', tournamentId),
-      where('round', '==', roundNumber)
-    );
-    const matchesSnapshot = await getDocs(matchesQuery);
-    
-    // Check if any matches in this round have been completed
-    const hasCompletedMatches = matchesSnapshot.docs.some(doc => {
-      const match = doc.data();
-      return match.status === 'completed';
-    });
-    
-    if (hasCompletedMatches) {
-      throw new Error('Cannot delete round with completed matches');
-    }
-    
-    // Check if any matches have been started (in-progress)
-    const hasInProgressMatches = matchesSnapshot.docs.some(doc => {
-      const match = doc.data();
-      return match.status === 'in-progress';
-    });
-    
-    if (hasInProgressMatches) {
-      throw new Error('Cannot delete round with matches in progress');
-    }
-    
-    // Check if this is the only round (prevent deleting all rounds)
-    const allMatchesQuery = query(
-      collection(db, 'tournamentMatches'),
-      where('tournamentId', '==', tournamentId)
-    );
-    const allMatchesSnapshot = await getDocs(allMatchesQuery);
-    
-    const uniqueRounds = new Set(allMatchesSnapshot.docs.map(doc => doc.data().round));
-    if (uniqueRounds.size <= 1) {
-      throw new Error('Cannot delete the only remaining round');
-    }
-    
-    // Delete all matches in this round
-    const batch = writeBatch(db);
-    matchesSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    
-    // Update tournament currentRound if we're deleting the highest round
-    const remainingRounds = Array.from(uniqueRounds).filter(r => r !== roundNumber);
-    const newCurrentRound = Math.max(...remainingRounds);
-    
-    if (tournament.currentRound === roundNumber || tournament.currentRound > newCurrentRound) {
-      batch.update(tournamentRef, {
-        currentRound: newCurrentRound,
-      });
-    }
-    
-    await batch.commit();
-    
-    // Check if tournament is now complete after round deletion
-    await checkTournamentCompletion(tournamentId);
-    
-    revalidatePath(`/tournaments/${tournamentId}`);
-    revalidatePath('/tournaments');
-    
-    return { success: true, deletedRound: roundNumber };
-    
-  } catch (error) {
-    logger.error('Error deleting Quick Play round', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to delete round');
-  }
-}
-
-// Add Round functionality for Quick Play tournaments
+/** Adds the next round, using whoever is in the session now. */
 export async function addQuickPlayRound(tournamentId: string) {
-  try {
-    // Check authentication and permissions
-    const currentUser = await getCurrentUser();
-    requireAuthentication(currentUser);
-    requirePermission(currentUser, 'canModifyTournaments');
-    
-    // Get tournament details
-    const tournamentRef = doc(db, 'tournaments', tournamentId);
-    const tournamentSnap = await getDoc(tournamentRef);
-    
-    if (!tournamentSnap.exists()) {
-      throw new Error('Tournament not found');
-    }
-    
-    const tournament = { id: tournamentId, ...tournamentSnap.data() } as Tournament;
-    
-    if (!tournament.isQuickPlay) {
-      throw new Error('Add Round is only available for Quick Play tournaments');
-    }
-    
-    // Find the highest existing round number and add 1
-    const existingMatchesQuery = query(
-      collection(db, 'tournamentMatches'),
-      where('tournamentId', '==', tournamentId)
-    );
-    const existingMatchesSnapshot = await getDocs(existingMatchesQuery);
-    
-    let highestRound = tournament.currentRound || 0;
-    existingMatchesSnapshot.docs.forEach(doc => {
-      const match = doc.data();
-      if (match.round > highestRound) {
-        highestRound = match.round;
-      }
-    });
-    
-    const nextRound = highestRound + 1;
-    
-    // Generate next round of matches
-    await generateQuickPlayRound(
-      tournamentId,
-      tournament.format,
-      tournament.playerIds,
-      nextRound,
-      tournament.availableCourts || 2
-    );
-    
-    // Update tournament current round (reuse existing tournamentRef)
-    await updateDoc(tournamentRef, {
-      currentRound: nextRound,
-    });
-    
-    revalidatePath(`/tournaments/${tournamentId}`);
-    revalidatePath('/tournaments');
-    
-    return { success: true, roundNumber: nextRound };
-    
-  } catch (error) {
-    logger.error('Error adding Quick Play round', error);
-    throw new Error('Failed to add round');
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  const tournament = await loadSession(tournamentId);
+  const existing = await loadMatches(tournamentId);
+  const nextRound = Math.max(tournament.currentRound ?? 0, ...existing.map((m) => m.round), 0) + 1;
+  await writeNextRound(tournamentId, tournament, nextRound);
+  return { success: true, roundNumber: nextRound };
+}
+
+/** Removes a round that has no results yet. */
+export async function deleteQuickPlayRound(tournamentId: string, roundNumber: number) {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  const existing = await loadMatches(tournamentId);
+  const round = existing.filter((m) => m.round === roundNumber);
+  if (round.length === 0) throw new Error('Round not found');
+  if (round.some((m) => m.status === 'completed')) {
+    throw new Error('This round has results. Delete those games first.');
   }
+  const batch = writeBatch(db);
+  round.forEach((m) => batch.delete(m.ref));
+  const remaining = existing.filter((m) => m.round !== roundNumber).map((m) => m.round);
+  batch.update(doc(db, 'tournaments', tournamentId), { currentRound: Math.max(0, ...remaining) });
+  await batch.commit();
+  return { success: true, deletedRound: roundNumber };
+}
+
+/** Changes who is in the session (late arrivals, people leaving). Affects future rounds only. */
+export async function setSessionPlayers(tournamentId: string, playerIds: string[]) {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  await updateDoc(doc(db, 'tournaments', tournamentId), {
+    playerIds,
+    lastActivityAt: new Date().toISOString(),
+  });
+}
+
+export async function setSessionCourts(tournamentId: string, courts: number) {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  await updateDoc(doc(db, 'tournaments', tournamentId), { availableCourts: Math.max(1, Math.min(8, courts)) });
+}
+
+/** Ends a session. Unplayed matches are removed so they don't clutter history. */
+export async function endSession(tournamentId: string) {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  const existing = await loadMatches(tournamentId);
+  const batch = writeBatch(db);
+  existing.filter((m) => m.status !== 'completed').forEach((m) => batch.delete(m.ref));
+  batch.update(doc(db, 'tournaments', tournamentId), {
+    status: 'completed',
+    completedDate: new Date().toISOString(),
+  });
+  await batch.commit();
+}
+
+/** Admin tidy-up: ends every quick-play session with no activity for a day. */
+export async function closeStaleSessions(): Promise<number> {
+  const currentUser = await getCurrentUser();
+  requireAuthentication(currentUser);
+  const snap = await getDocs(
+    query(collection(db, 'tournaments'), where('clubId', '==', CLUB_ID), where('status', '==', 'active'))
+  );
+  let closed = 0;
+  for (const d of snap.docs) {
+    const t = { id: d.id, ...d.data() } as Tournament & { lastActivityAt?: string };
+    if (!t.isQuickPlay) continue;
+    const last = Date.parse(t.lastActivityAt ?? t.createdDate);
+    if (Date.now() - last > STALE_SESSION_MS) {
+      await endSession(t.id);
+      closed++;
+    }
+  }
+  return closed;
+}
+
+export function isSessionStale(t: Tournament & { lastActivityAt?: string }): boolean {
+  if (!t.isQuickPlay || t.status !== 'active') return false;
+  return Date.now() - Date.parse(t.lastActivityAt ?? t.createdDate) > STALE_SESSION_MS;
 }

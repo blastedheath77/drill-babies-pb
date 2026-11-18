@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,7 @@ import { DeleteTournamentDialog } from '@/components/delete-tournament-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { addQuickPlayRound, deleteQuickPlayRound } from '../quick-play-actions';
 import { useRouter } from 'next/navigation';
+import { useRefreshTournament } from '@/hooks/use-tournament-detail';
 import { useAuth } from '@/contexts/auth-context';
 import { getDisplayRating } from '@/lib/player-privacy';
 import type { Tournament, TournamentMatch, TournamentStanding, Player } from '@/lib/types';
@@ -95,7 +98,7 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
             {team1.map((player) => (
               <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
-                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback>{initials(player.name)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
@@ -131,7 +134,7 @@ function MatchCard({ match, players, tournamentId, isQuickPlay, canCreateTournam
             {team2.map((player) => (
               <Avatar key={player.id} className="h-10 w-10 sm:h-8 sm:w-8 border-2 border-background">
                 <AvatarImage src={player.avatar} alt={player.name} />
-                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback>{initials(player.name)}</AvatarFallback>
               </Avatar>
             ))}
           </div>
@@ -179,6 +182,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
   const [deletingRounds, setDeletingRounds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const router = useRouter();
+  const refreshTournament = useRefreshTournament();
   const { canCreateTournaments, isAdmin } = useAuth();
 
   const handleTournamentDeleted = () => {
@@ -210,7 +214,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
         });
         
         // Refresh the page to show new matches
-        router.refresh();
+        await refreshTournament(tournament.id);
       }
     } catch (error) {
       toast({
@@ -237,7 +241,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
         });
         
         // Refresh the page to show updated matches
-        router.refresh();
+        await refreshTournament(tournament.id);
       }
     } catch (error) {
       toast({
@@ -492,7 +496,7 @@ export function TournamentClient({ tournament, matches, standings, playerMap }: 
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
                               <AvatarImage src={standing.player.avatar} alt={standing.player.name} />
-                              <AvatarFallback className="text-xs">{standing.player.name.substring(0, 2)}</AvatarFallback>
+                              <AvatarFallback className="text-xs">{initials(standing.player.name)}</AvatarFallback>
                             </Avatar>
                             <span className="font-medium text-sm truncate max-w-[80px] sm:max-w-none">{standing.player.name}</span>
                           </div>

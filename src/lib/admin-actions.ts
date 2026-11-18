@@ -15,8 +15,11 @@ import { db } from './firebase';
 import type { Player, Game } from './types';
 import { DEFAULT_RATING, DEFAULT_AVATAR_URL } from './constants';
 import { logError } from './errors';
+import { getIdToken } from './id-token';
+import { addPlayer } from '@/app/players/add/actions';
+import { removeGame } from '@/app/log-game/actions';
 
-export async function deletePlayer(playerId: string, forceDelete: boolean = false): Promise<{ success: boolean; error?: string }> {
+export async function deletePlayer(playerId: string): Promise<{ success: boolean; error?: string }> {
   try {
     // Check if player exists in any games
     const gamesQuery = query(
@@ -25,34 +28,11 @@ export async function deletePlayer(playerId: string, forceDelete: boolean = fals
     );
     const gamesSnapshot = await getDocs(gamesQuery);
     
-    if (!gamesSnapshot.empty && !forceDelete) {
+    if (!gamesSnapshot.empty) {
       return {
         success: false,
-        error: `Cannot delete player: they have ${gamesSnapshot.docs.length} recorded game(s). Delete their games first.`
+        error: `Cannot delete player: they have ${gamesSnapshot.docs.length} recorded game(s). Exclude them from rankings instead, or delete their games first.`
       };
-    }
-
-    // If force delete is enabled, delete all games first
-    if (!gamesSnapshot.empty && forceDelete) {
-      const batch = writeBatch(db);
-      
-      // Delete all games for this player
-      gamesSnapshot.docs.forEach((gameDoc) => {
-        batch.delete(doc(db, 'games', gameDoc.id));
-      });
-      
-      // Also check tournament matches that might reference this player
-      const tournamentMatchesQuery = query(
-        collection(db, 'tournamentMatches'),
-        where('playerIds', 'array-contains', playerId)
-      );
-      const tournamentMatchesSnapshot = await getDocs(tournamentMatchesQuery);
-      
-      tournamentMatchesSnapshot.docs.forEach((matchDoc) => {
-        batch.delete(doc(db, 'tournamentMatches', matchDoc.id));
-      });
-      
-      await batch.commit();
     }
 
     // Check if player exists in any tournament
@@ -89,109 +69,22 @@ export async function createPlayer(playerData: {
   gender?: 'he' | 'she' | 'they';
 }): Promise<{ success: boolean; playerId?: string; error?: string }> {
   try {
-    const newPlayer = {
-      name: playerData.name.trim(),
-      avatar: playerData.avatar || DEFAULT_AVATAR_URL,
-      rating: DEFAULT_RATING,
-      wins: 0,
-      losses: 0,
-      draws: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-      ...(playerData.gender && { gender: playerData.gender }),
-    };
-
-    const docRef = await addDoc(collection(db, 'players'), newPlayer);
-    
-    return { 
-      success: true, 
-      playerId: docRef.id 
-    };
+    const result = await addPlayer(await getIdToken(), { name: playerData.name, gender: playerData.gender });
+    return { success: true, playerId: result.playerId };
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'createPlayer');
-    return { 
-      success: false, 
-      error: 'Failed to create player. Please try again.' 
-    };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to create player.' };
   }
 }
 
+/** Deletes a game on the server and replays ratings for every later game. */
 export async function deleteGame(gameId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get the game data first to update player stats
-    const gameDoc = await getDoc(doc(db, 'games', gameId));
-    
-    if (!gameDoc.exists()) {
-      return { success: false, error: 'Game not found.' };
-    }
-
-    const gameData = { id: gameDoc.id, ...gameDoc.data() } as Game;
-    
-    // Create batch to update player stats and delete game
-    const batch = writeBatch(db);
-    
-    // Delete the game
-    batch.delete(doc(db, 'games', gameId));
-    
-    // Update player statistics (reverse the game effects)
-    for (const playerId of gameData.playerIds) {
-      const playerRef = doc(db, 'players', playerId);
-      const playerDoc = await getDoc(playerRef);
-      
-      if (playerDoc.exists()) {
-        const playerData = playerDoc.data() as Player;
-        
-        // Determine which team this player was on
-        const playerTeam = gameData.team1.playerIds.includes(playerId) ? gameData.team1 : gameData.team2;
-        const opponentTeam = gameData.team1.playerIds.includes(playerId) ? gameData.team2 : gameData.team1;
-        
-        const wasWinner = playerTeam.score > opponentTeam.score;
-        
-        // Get the original rating before this game (if rating changes were tracked)
-        let revertedRating = playerData.rating;
-        if (gameData.ratingChanges && gameData.ratingChanges[playerId]) {
-          // Use the "before" rating from when the game was logged
-          revertedRating = gameData.ratingChanges[playerId].before;
-        }
-        
-        // Reverse the stats including rating
-        const updatedStats = {
-          wins: Math.max(0, playerData.wins - (wasWinner ? 1 : 0)),
-          losses: Math.max(0, playerData.losses - (wasWinner ? 0 : 1)),
-          pointsFor: Math.max(0, playerData.pointsFor - playerTeam.score),
-          pointsAgainst: Math.max(0, playerData.pointsAgainst - opponentTeam.score),
-          rating: revertedRating,
-        };
-        
-        batch.update(playerRef, updatedStats);
-      }
-    }
-    
-    // Check if this game is part of a tournament and remove the reference
-    if (gameData.tournamentId) {
-      const tournamentMatchesQuery = query(
-        collection(db, 'tournamentMatches'),
-        where('gameId', '==', gameId)
-      );
-      const matchesSnapshot = await getDocs(tournamentMatchesQuery);
-      
-      matchesSnapshot.forEach((matchDoc) => {
-        batch.update(doc(db, 'tournamentMatches', matchDoc.id), {
-          gameId: null,
-          status: 'pending'
-        });
-      });
-    }
-    
-    await batch.commit();
-    
+    await removeGame(await getIdToken(), gameId);
     return { success: true };
   } catch (error) {
     logError(error instanceof Error ? error : new Error(String(error)), 'deleteGame');
-    return { 
-      success: false, 
-      error: 'Failed to delete game. Please try again.' 
-    };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to delete game.' };
   }
 }
 

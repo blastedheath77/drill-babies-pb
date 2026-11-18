@@ -1,566 +1,389 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { Check, Loader2, RefreshCw, Repeat, UserPlus, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ToastAction } from '@/components/ui/toast';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, AlertTriangle } from 'lucide-react';
-import type { Player } from '@/lib/types';
-import { logGame } from '@/app/log-game/actions';
-import { PageHeader } from '@/components/page-header';
 import { cn } from '@/lib/utils';
-import { ScoreSelector } from '@/components/ui/score-selector';
-import { CircleSelector } from '@/components/circle-selector';
-import { useCircles } from '@/hooks/use-circles';
-import { useClub } from '@/contexts/club-context';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ScoreConfirmationDialog } from '@/components/score-confirmation-dialog';
+import { getIdToken } from '@/lib/id-token';
+import { logGame, removeGame } from '@/app/log-game/actions';
+import { useTodayRoster } from '@/hooks/use-today-roster';
+import { PlayerPickerSheet } from '@/components/player-picker/player-picker-sheet';
+import { shortNames } from '@/lib/player-names';
+import type { Player } from '@/lib/types';
 
-interface LogGameClientPageProps {
-  players: Player[];
-}
+type Format = 'doubles' | 'singles';
+type Slot = 0 | 1 | 2 | 3; // doubles: 0,1 = team 1; 2,3 = team 2. singles: 0 = team 1; 2 = team 2
 
-const logGameSchema = z.object({
-  gameType: z.enum(['singles', 'doubles']),
-  team1Player1: z.string().min(1, 'Player is required'),
-  team1Player2: z.string().optional(),
-  team1Score: z.coerce.number().min(0),
-  team2Player1: z.string().min(1, 'Player is required'),
-  team2Player2: z.string().optional(),
-  team2Score: z.coerce.number().min(0),
-});
+const DOUBLES_SLOTS: Slot[] = [0, 1, 2, 3];
+const SINGLES_SLOTS: Slot[] = [0, 2];
+const SCORES = Array.from({ length: 22 }, (_, i) => i);
 
-export function LogGameClientPage({ players }: LogGameClientPageProps) {
+export function LogGameClientPage({ players }: { players: Player[] }) {
   const { toast } = useToast();
-  const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
-  const { data: circles } = useCircles(selectedClub?.id);
-  const [gameType, setGameType] = useState<'singles' | 'doubles'>('doubles');
-  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
-  const [team1Player1, setTeam1Player1] = useState<Player | null>(null);
-  const [team1Player2, setTeam1Player2] = useState<Player | null>(null);
-  const [team1Score, setTeam1Score] = useState(0);
-  const [team2Player1, setTeam2Player1] = useState<Player | null>(null);
-  const [team2Player2, setTeam2Player2] = useState<Player | null>(null);
-  const [team2Score, setTeam2Score] = useState(0);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const queryClient = useQueryClient();
+  const { roster, setRoster } = useTodayRoster();
+  const shortName = useMemo(() => shortNames(players), [players]);
+  const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
-  // Filter players based on selected circle
-  const filteredPlayers = useMemo(() => {
-    if (!selectedCircleId || !circles) return players;
+  const [format, setFormat] = useState<Format>('doubles');
+  const [slots, setSlots] = useState<(string | null)[]>([null, null, null, null]);
+  const [scores, setScores] = useState<[number | null, number | null]>([null, null]);
+  const [activeTeam, setActiveTeam] = useState<0 | 1>(0);
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [lastGameId, setLastGameId] = useState<string | null>(null);
+  const [rosterPickerOpen, setRosterPickerOpen] = useState(false);
+  const [morePickerOpen, setMorePickerOpen] = useState(false);
 
-    const selectedCircle = circles.find(c => c.id === selectedCircleId);
-    if (!selectedCircle) return players;
+  const usedSlots = format === 'doubles' ? DOUBLES_SLOTS : SINGLES_SLOTS;
+  const assigned = usedSlots.map((s) => slots[s]).filter((x): x is string => !!x);
+  const team1 = (format === 'doubles' ? [slots[0], slots[1]] : [slots[0]]).filter((x): x is string => !!x);
+  const team2 = (format === 'doubles' ? [slots[2], slots[3]] : [slots[2]]).filter((x): x is string => !!x);
+  const perTeam = format === 'doubles' ? 2 : 1;
+  const teamsComplete = team1.length === perTeam && team2.length === perTeam;
+  const canSave = teamsComplete && scores[0] !== null && scores[1] !== null && !saving;
 
-    return players.filter(player => selectedCircle.playerIds.includes(player.id));
-  }, [players, selectedCircleId, circles]);
+  // Chips: today's roster if one is set, otherwise everyone
+  const chipPlayers = useMemo(() => {
+    const base = roster.length > 0 ? players.filter((p) => roster.includes(p.id)) : players;
+    const extra = assigned
+      .filter((id) => !base.some((p) => p.id === id))
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p);
+    return [...base, ...extra].sort((a, b) => (shortName.get(a.id) ?? '').localeCompare(shortName.get(b.id) ?? ''));
+  }, [roster, players, assigned, playersById, shortName]);
 
-  // Clear selected players if they're not in the filtered list
-  useEffect(() => {
-    if (team1Player1 && !filteredPlayers.some(p => p.id === team1Player1.id)) {
-      setTeam1Player1(null);
+  const assign = (playerId: string) => {
+    setJustSaved(false);
+    const existing = slots.findIndex((id) => id === playerId);
+    if (existing !== -1) {
+      setSlots((prev) => prev.map((id, i) => (i === existing ? null : id)));
+      return;
     }
-    if (team1Player2 && !filteredPlayers.some(p => p.id === team1Player2.id)) {
-      setTeam1Player2(null);
+    const free = usedSlots.find((s) => !slots[s]);
+    if (free === undefined) {
+      toast({ title: 'Teams are full', description: 'Tap a player in a team to remove them first.' });
+      return;
     }
-    if (team2Player1 && !filteredPlayers.some(p => p.id === team2Player1.id)) {
-      setTeam2Player1(null);
-    }
-    if (team2Player2 && !filteredPlayers.some(p => p.id === team2Player2.id)) {
-      setTeam2Player2(null);
-    }
-  }, [filteredPlayers, team1Player1, team1Player2, team2Player1, team2Player2]);
+    setSlots((prev) => prev.map((id, i) => (i === free ? playerId : id)));
+  };
 
-  // Compact Player Selector Component
-  function CompactPlayerSelector({ 
-    player, 
-    onChange, 
-    otherSelectedPlayers,
-    label 
-  }: {
-    player: Player | null;
-    onChange: (player: Player) => void;
-    otherSelectedPlayers: (Player | null)[];
-    label: string;
-  }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [canScrollUp, setCanScrollUp] = useState(false);
-    const [canScrollDown, setCanScrollDown] = useState(false);
-    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const buttonRef = useRef<HTMLButtonElement>(null);
+  const clearSlot = (slot: Slot) => {
+    setJustSaved(false);
+    setSlots((prev) => prev.map((id, i) => (i === slot ? null : id)));
+  };
 
-    // Available players (excluding already selected ones) sorted alphabetically by first name
-    const availablePlayers = filteredPlayers
-      .filter(p =>
-        !player || p.id === player.id || !otherSelectedPlayers.some(selected => selected && selected.id === p.id)
-      )
-      .sort((a, b) => {
-        const aFirstName = a.name.split(' ')[0];
-        const bFirstName = b.name.split(' ')[0];
-        return aFirstName.localeCompare(bFirstName);
+  const setScore = (value: number) => {
+    setScores((prev) => (activeTeam === 0 ? [value, prev[1]] : [prev[0], value]));
+    if (activeTeam === 0) setActiveTeam(1);
+  };
+
+  const changeFormat = (next: Format) => {
+    setFormat(next);
+    setJustSaved(false);
+    if (next === 'singles') setSlots((prev) => [prev[0], null, prev[2], null]);
+  };
+
+  const refreshData = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['players'] }),
+      queryClient.invalidateQueries({ queryKey: ['games'] }),
+    ]);
+
+  const undo = async (gameId: string) => {
+    try {
+      await removeGame(await getIdToken(), gameId);
+      await refreshData();
+      setJustSaved(false);
+      setLastGameId(null);
+      toast({ title: 'Game removed' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Could not undo', description: (error as Error).message });
+    }
+  };
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    const game = { team1PlayerIds: team1, team2PlayerIds: team2, team1Score: scores[0]!, team2Score: scores[1]! };
+    const label = (ids: string[]) => ids.map((id) => shortName.get(id)).join(' & ');
+    try {
+      const { gameId } = await logGame(await getIdToken(), game);
+      setScores([null, null]);
+      setActiveTeam(0);
+      setJustSaved(true);
+      setLastGameId(gameId);
+      toast({
+        title: 'Game saved',
+        description: `${label(team1)} ${game.team1Score}–${game.team2Score} ${label(team2)}`,
+        action: (
+          <ToastAction altText="Undo saving this game" onClick={() => undo(gameId)}>
+            Undo
+          </ToastAction>
+        ),
       });
+      refreshData();
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Could not save game', description: (error as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    // Handle dropdown open/close with scroll prevention
-    const handleToggle = () => {
-      if (!isOpen) {
-        // Position the dropdown centered on the button, clamped within the safe zone
-        if (buttonRef.current) {
-          const rect = buttonRef.current.getBoundingClientRect();
-          const BOTTOM_NAV_HEIGHT = 80; // h-20 bottom nav
-          const MARGIN = 8;
-          const safeTop = MARGIN;
-          const safeBottom = window.innerHeight - BOTTOM_NAV_HEIGHT - MARGIN;
-          const maxH = Math.min(safeBottom - safeTop, 480);
+  const rematch = () => {
+    setJustSaved(false);
+    setScores([null, null]);
+    setActiveTeam(0);
+  };
 
-          // Center on button, then clamp so it stays in safe zone
-          const buttonCenterY = rect.top + rect.height / 2;
-          let top = buttonCenterY - maxH / 2;
-          if (top < safeTop) top = safeTop;
-          if (top + maxH > safeBottom) top = safeBottom - maxH;
+  // A & B v C & D  ->  A & C v B & D
+  const swapPartners = () => {
+    setSlots((prev) => [prev[0], prev[2], prev[1], prev[3]]);
+    rematch();
+  };
 
-          setDropdownStyle({
-            position: 'fixed',
-            top: `${top}px`,
-            left: `${rect.left}px`,
-            width: `${Math.max(rect.width, 220)}px`,
-            maxHeight: `${maxH}px`,
-          });
-        }
-        // Opening dropdown - prevent scrolling
-        document.body.style.overflow = 'hidden';
-        document.body.style.overscrollBehavior = 'none';
-        document.documentElement.style.overflow = 'hidden';
-        document.documentElement.style.overscrollBehavior = 'none';
-        setIsOpen(true);
-      } else {
-        // Closing dropdown - restore scrolling
-        document.body.style.overflow = '';
-        document.body.style.overscrollBehavior = '';
-        document.documentElement.style.overflow = '';
-        document.documentElement.style.overscrollBehavior = '';
-        setIsOpen(false);
-      }
-    };
+  const newGame = () => {
+    setSlots([null, null, null, null]);
+    rematch();
+  };
 
-    const handlePlayerSelect = (p: Player) => {
-      onChange(p);
-      // Restore scrolling when closing
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-      setIsOpen(false);
-    };
-
-    const handleBackdropClick = () => {
-      // Restore scrolling when closing
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-      setIsOpen(false);
-    };
-
-    // Check scroll position and update indicators
-    const checkScrollPosition = useCallback(() => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      setCanScrollUp(scrollTop > 0);
-      setCanScrollDown(scrollTop < scrollHeight - clientHeight - 1);
-    }, []);
-
-    // Update scroll indicators when dropdown opens
-    useEffect(() => {
-      if (isOpen) {
-        setTimeout(checkScrollPosition, 10); // Small delay to ensure rendering is complete
-      }
-    }, [isOpen, checkScrollPosition]);
-
-    // Cleanup on unmount
-    useEffect(() => {
-      return () => {
-        if (isOpen) {
-          document.body.style.overflow = '';
-          document.body.style.overscrollBehavior = '';
-          document.documentElement.style.overflow = '';
-          document.documentElement.style.overscrollBehavior = '';
-        }
-      };
-    }, [isOpen]);
-
+  const renderTeam = (team: 0 | 1, slotIds: Slot[]) => {
+    const score = scores[team];
+    const isActive = teamsComplete && activeTeam === team;
     return (
-      <div className="relative flex-1 min-w-0">
-        {/* Player dropdown — fixed position, centered on button, above bottom nav */}
-        {isOpen && (
-          <div
-            ref={scrollContainerRef}
-            className="z-50 bg-background border border-border rounded-lg shadow-lg overflow-y-auto scrollbar-always-visible"
-            style={dropdownStyle}
-            onScroll={checkScrollPosition}
-          >
-            {/* Top scroll indicator */}
-            {canScrollUp && (
-              <div className="sticky top-0 z-10 bg-gradient-to-b from-background to-transparent h-3 flex items-start justify-center">
-                <div className="w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-muted-foreground/60 mt-1"></div>
-              </div>
-            )}
-
-            <div className={cn("py-2", canScrollUp && "pt-1", canScrollDown && "pb-1")}>
-              {availablePlayers.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handlePlayerSelect(p)}
-                  className={cn(
-                    "block w-full px-3 py-2 text-left hover:bg-accent transition-colors whitespace-nowrap",
-                    player && p.id === player.id && "bg-primary text-primary-foreground"
-                  )}
-                >
-                  <div className="font-medium">{p.name}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Bottom scroll indicator */}
-            {canScrollDown && (
-              <div className="sticky bottom-0 z-10 bg-gradient-to-t from-background to-transparent h-3 flex items-end justify-center">
-                <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-muted-foreground/60 mb-1"></div>
-              </div>
-            )}
-          </div>
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-xl border p-2 transition-colors',
+          isActive ? 'border-primary ring-2 ring-primary/30' : 'border-border'
         )}
-
-        {/* Compact player button - shows first name only */}
+      >
+        <span className="text-xs font-semibold text-muted-foreground w-12 shrink-0 pl-1">Team {team + 1}</span>
+        <div className="flex-1 flex gap-2 min-w-0">
+          {slotIds.map((slot) => {
+            const id = slots[slot];
+            return id ? (
+              <button
+                key={slot}
+                type="button"
+                onClick={() => clearSlot(slot)}
+                className={cn(
+                  'flex-1 min-w-0 h-11 rounded-lg text-sm font-medium flex items-center justify-center gap-1 px-2 text-white',
+                  team === 0 ? 'bg-blue-600' : 'bg-orange-500'
+                )}
+                aria-label={`Remove ${playersById.get(id)?.name ?? 'player'} from team ${team + 1}`}
+              >
+                <span className="truncate">{shortName.get(id)}</span>
+                <X className="h-3 w-3 shrink-0 opacity-70" />
+              </button>
+            ) : (
+              <div
+                key={slot}
+                className="flex-1 h-11 rounded-lg border border-dashed text-xs text-muted-foreground flex items-center justify-center"
+              >
+                Tap a player
+              </div>
+            );
+          })}
+        </div>
         <button
-          ref={buttonRef}
-          onClick={handleToggle}
+          type="button"
+          onClick={() => setActiveTeam(team)}
+          disabled={!teamsComplete}
           className={cn(
-            "w-full h-10 px-2 border border-border rounded bg-background hover:bg-accent transition-all duration-200",
-            "flex items-center justify-between text-sm font-medium min-w-0",
-            isOpen && "bg-accent",
-            !player && "text-muted-foreground"
+            'w-14 h-11 rounded-lg border text-xl font-mono font-semibold shrink-0',
+            score === null && 'text-muted-foreground',
+            isActive && 'border-primary'
           )}
+          aria-label={`Team ${team + 1} score`}
         >
-          <span className="truncate">
-            {player ? player.name.split(' ')[0] : `Select ${label}`}
-          </span>
-          <svg 
-            width="12" 
-            height="12" 
-            viewBox="0 0 12 12" 
-            className={cn("ml-1 transition-transform shrink-0", isOpen && "rotate-180")}
-          >
-            <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          {score ?? '–'}
         </button>
-
-        {/* Backdrop to close */}
-        {isOpen && (
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={handleBackdropClick}
-          />
-        )}
       </div>
     );
-  }
-
-
-  function onSubmit() {
-    // Validate required fields
-    if (!team1Player1 || !team2Player1) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing players',
-        description: 'Please select at least one player for each team.',
-      });
-      return;
-    }
-
-    if (gameType === 'doubles' && (!team1Player2 || !team2Player2)) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing players',
-        description: 'Please select both players for each team in doubles.',
-      });
-      return;
-    }
-
-    if (!selectedClub?.id) {
-      toast({
-        variant: 'destructive',
-        title: 'No Club Selected',
-        description: 'Please select a club before logging a game.',
-      });
-      return;
-    }
-
-    // Show confirmation dialog
-    setShowConfirmDialog(true);
-  }
-
-  async function handleConfirmSubmit() {
-    if (!team1Player1 || !team2Player1 || !selectedClub?.id) return;
-
-    const values = {
-      gameType,
-      team1Player1: team1Player1.id,
-      team1Player2: gameType === 'doubles' ? team1Player2?.id || '' : '',
-      team1Score,
-      team2Player1: team2Player1.id,
-      team2Player2: gameType === 'doubles' ? team2Player2?.id || '' : '',
-      team2Score,
-      clubId: selectedClub.id,
-    };
-
-    try {
-      await logGame(values);
-      setShowConfirmDialog(false);
-      toast({
-        title: 'Game logged!',
-        description: 'The game has been successfully added to the records.',
-      });
-      // Reset form
-      setTeam1Player1(null);
-      setTeam1Player2(null);
-      setTeam1Score(0);
-      setTeam2Player1(null);
-      setTeam2Player2(null);
-      setTeam2Score(0);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error logging game',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-      });
-    }
-  }
-
-  // Show message if user has no clubs
-  if (!clubsLoading && !hasAnyClubs) {
-    return (
-      <>
-        <PageHeader title="Log Game" description="Record a new game result." />
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            You need to be assigned to a club before you can log games. Please contact an administrator.
-          </AlertDescription>
-        </Alert>
-      </>
-    );
-  }
-
-  const clubName = selectedClub ? selectedClub.name : 'your club';
+  };
 
   return (
-    <>
-      <PageHeader
-        title="Log Game"
-        description={`Record a new game result for ${clubName}.`}
-      />
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="space-y-6 pt-6">
-            {/* Game Type Selector with Submit Button */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-3">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Game Type
-                </label>
-                <RadioGroup
-                  value={gameType}
-                  onValueChange={(value: 'singles' | 'doubles') => {
-                    setGameType(value);
-                    if (value === 'singles') {
-                      setTeam1Player2(null);
-                      setTeam2Player2(null);
-                    }
-                  }}
-                  className="flex flex-col space-y-1"
-                >
-                  <div className="flex items-center space-x-3 space-y-0">
-                    <RadioGroupItem value="singles" id="singles" />
-                    <label htmlFor="singles" className="font-normal cursor-pointer">Singles</label>
-                  </div>
-                  <div className="flex items-center space-x-3 space-y-0">
-                    <RadioGroupItem value="doubles" id="doubles" />
-                    <label htmlFor="doubles" className="font-normal cursor-pointer">Doubles</label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              <div className="shrink-0">
-                <Button onClick={onSubmit}>Submit Game</Button>
-              </div>
-            </div>
-
-            {/* Circle Filter */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Filter Players by Circle
-              </label>
-              <div className="flex items-center gap-4">
-                <CircleSelector
-                  selectedCircleId={selectedCircleId}
-                  onCircleChange={setSelectedCircleId}
-                  placeholder="All players..."
-                  showPlayerCount={true}
-                  className="max-w-xs"
-                />
-                {selectedCircleId && (
-                  <span className="text-sm text-muted-foreground">
-                    Showing {filteredPlayers.length} of {players.length} players
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Team 1 */}
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-semibold text-muted-foreground">Team 1</span>
-              </div>
-              <div className="flex items-center gap-1 min-w-0">
-                <div className="flex-1 min-w-0">
-                  <CompactPlayerSelector
-                    player={team1Player1}
-                    onChange={setTeam1Player1}
-                    otherSelectedPlayers={gameType === 'doubles' ? [team1Player2, team2Player1, team2Player2] : [team2Player1]}
-                    label="Player 1"
-                  />
-                </div>
-                
-                {gameType === 'doubles' && (
-                  <>
-                    <div className="text-muted-foreground shrink-0 px-1">
-                      <Plus className="h-3 w-3" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <CompactPlayerSelector
-                        player={team1Player2}
-                        onChange={setTeam1Player2}
-                        otherSelectedPlayers={[team1Player1, team2Player1, team2Player2]}
-                        label="Player 2"
-                      />
-                    </div>
-                  </>
-                )}
-                
-                <div className="ml-1 shrink-0">
-                  <ScoreSelector value={team1Score} onChange={setTeam1Score} />
-                </div>
-              </div>
-            </div>
-
-            {/* VS indicator */}
-            <div className="text-center">
-              <span className="text-lg font-bold text-muted-foreground">VS</span>
-            </div>
-
-            {/* Team 2 */}
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-semibold text-muted-foreground">Team 2</span>
-              </div>
-              <div className="flex items-center gap-1 min-w-0">
-                <div className="flex-1 min-w-0">
-                  <CompactPlayerSelector
-                    player={team2Player1}
-                    onChange={setTeam2Player1}
-                    otherSelectedPlayers={gameType === 'doubles' ? [team1Player1, team1Player2, team2Player2] : [team1Player1]}
-                    label="Player 1"
-                  />
-                </div>
-                
-                {gameType === 'doubles' && (
-                  <>
-                    <div className="text-muted-foreground shrink-0 px-1">
-                      <Plus className="h-3 w-3" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <CompactPlayerSelector
-                        player={team2Player2}
-                        onChange={setTeam2Player2}
-                        otherSelectedPlayers={[team1Player1, team1Player2, team2Player1]}
-                        label="Player 2"
-                      />
-                    </div>
-                  </>
-                )}
-                
-                <div className="ml-1 shrink-0">
-                  <ScoreSelector value={team2Score} onChange={setTeam2Score} />
-                </div>
-              </div>
-            </div>
-
-            {/* Game Result Summary */}
-            {(team1Player1 && team2Player1) && (
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-sm text-muted-foreground mb-2">Game Result</div>
-                <div className="font-mono text-sm space-y-1">
-                  <div className="font-semibold">
-                    {gameType === 'doubles' && team1Player2 && team2Player2 ? (
-                      <>
-                        {team1Player1.name.split(' ')[0].charAt(0)}. {team1Player1.name.split(' ').slice(1).join(' ')} & {team1Player2.name.split(' ')[0].charAt(0)}. {team1Player2.name.split(' ').slice(1).join(' ')}: {team1Score}
-                      </>
-                    ) : (
-                      <>
-                        {team1Player1.name.split(' ')[0].charAt(0)}. {team1Player1.name.split(' ').slice(1).join(' ')}: {team1Score}
-                      </>
-                    )}
-                  </div>
-                  <div className="font-semibold">
-                    {gameType === 'doubles' && team1Player2 && team2Player2 ? (
-                      <>
-                        {team2Player1.name.split(' ')[0].charAt(0)}. {team2Player1.name.split(' ').slice(1).join(' ')} & {team2Player2.name.split(' ')[0].charAt(0)}. {team2Player2.name.split(' ').slice(1).join(' ')}: {team2Score}
-                      </>
-                    ) : (
-                      <>
-                        {team2Player1.name.split(' ')[0].charAt(0)}. {team2Player1.name.split(' ').slice(1).join(' ')}: {team2Score}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="text-sm mt-2 font-medium">
-                  {team1Score > team2Score ? 'Team 1 Wins!' : team2Score > team1Score ? 'Team 2 Wins!' : 'Tie Game'}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="max-w-xl mx-auto pb-28">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h1 className="text-2xl font-bold">Log game</h1>
+        <div className="flex rounded-lg border p-0.5" role="radiogroup" aria-label="Game type">
+          {(['doubles', 'singles'] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="radio"
+              aria-checked={format === f}
+              onClick={() => changeFormat(f)}
+              className={cn(
+                'px-3 h-8 rounded-md text-sm font-medium capitalize',
+                format === f ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Score Confirmation Dialog */}
-      {team1Player1 && team2Player1 && (
-        <ScoreConfirmationDialog
-          open={showConfirmDialog}
-          onOpenChange={setShowConfirmDialog}
-          onConfirm={handleConfirmSubmit}
-          gameType={gameType}
-          team1Players={gameType === 'doubles' && team1Player2 ? [team1Player1, team1Player2] : [team1Player1]}
-          team2Players={gameType === 'doubles' && team2Player2 ? [team2Player1, team2Player2] : [team2Player1]}
-          team1Score={team1Score}
-          team2Score={team2Score}
-        />
+      <div className="space-y-2 mb-3">
+        {renderTeam(0, format === 'doubles' ? [0, 1] : [0])}
+        {renderTeam(1, format === 'doubles' ? [2, 3] : [2])}
+      </div>
+
+      {/* Always rendered so the layout doesn't jump when the 4th player is picked */}
+      <div className={cn('mb-4 transition-opacity', !teamsComplete && 'opacity-40')} aria-disabled={!teamsComplete}>
+        <p className="text-sm text-muted-foreground mb-2">
+          {teamsComplete ? (
+            <>
+              Score for <span className="font-medium text-foreground">Team {activeTeam + 1}</span>
+            </>
+          ) : (
+            'Pick the players, then the score'
+          )}
+        </p>
+        <div className="grid grid-cols-8 gap-1.5">
+          {SCORES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              disabled={!teamsComplete}
+              onClick={() => setScore(n)}
+              className={cn(
+                'h-10 rounded-lg border font-mono text-base',
+                teamsComplete && scores[activeTeam] === n
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'hover:bg-accent'
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {justSaved && teamsComplete && (
+        <div className="rounded-xl border bg-muted/40 p-3 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm flex items-center gap-1">
+              <Check className="h-4 w-4 text-green-600" /> Saved. Next game?
+            </p>
+            {lastGameId && (
+              <button type="button" className="text-sm text-muted-foreground underline" onClick={() => undo(lastGameId)}>
+                Undo
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={rematch} className="flex-1">
+              <Repeat className="h-4 w-4 mr-1" /> Rematch
+            </Button>
+            {format === 'doubles' && (
+              <Button variant="outline" size="sm" onClick={swapPartners} className="flex-1">
+                <RefreshCw className="h-4 w-4 mr-1" /> Swap
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={newGame} className="flex-1">
+              New players
+            </Button>
+          </div>
+        </div>
       )}
-    </>
+
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-semibold">{roster.length > 0 ? `Here today (${roster.length})` : 'Players'}</h2>
+        <div className="flex gap-3 text-sm">
+          <button
+            type="button"
+            className="text-primary font-medium flex items-center gap-1"
+            onClick={() => setRosterPickerOpen(true)}
+          >
+            <Users className="h-4 w-4" /> {roster.length > 0 ? 'Edit who’s here' : 'Who’s here?'}
+          </button>
+          {roster.length > 0 && (
+            <button
+              type="button"
+              className="text-muted-foreground flex items-center gap-1"
+              onClick={() => setMorePickerOpen(true)}
+            >
+              <UserPlus className="h-4 w-4" /> Other
+            </button>
+          )}
+        </div>
+      </div>
+
+      {players.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          No players yet.{' '}
+          <Link href="/players/add" className="text-primary">
+            Add a player
+          </Link>
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {chipPlayers.map((p) => {
+            const slotIndex = slots.findIndex((id) => id === p.id);
+            const team = slotIndex === -1 ? null : slotIndex < 2 ? 1 : 2;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => assign(p.id)}
+                aria-pressed={team !== null}
+                className={cn(
+                  'h-11 px-4 rounded-full border text-sm font-medium transition-colors',
+                  team === 1 && 'bg-blue-600 text-white border-blue-600',
+                  team === 2 && 'bg-orange-500 text-white border-orange-500',
+                  team === null && 'bg-background hover:bg-accent'
+                )}
+              >
+                {shortName.get(p.id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Save bar, above the mobile bottom nav */}
+      <div className="fixed inset-x-0 bottom-20 md:bottom-0 px-3 pt-2 pb-2 z-30 bg-background/95 backdrop-blur border-t md:border-0 md:bg-transparent">
+        <div className="max-w-xl mx-auto">
+          <Button onClick={save} disabled={!canSave} className="w-full h-12 text-base shadow-lg">
+            {saving ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : !teamsComplete ? (
+              'Pick the players'
+            ) : scores[0] === null || scores[1] === null ? (
+              'Enter the score'
+            ) : (
+              'Save game'
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <PlayerPickerSheet
+        open={rosterPickerOpen}
+        onOpenChange={setRosterPickerOpen}
+        mode="multiple"
+        players={players}
+        selectedIds={roster}
+        onChange={setRoster}
+        title="Who's here today?"
+        hideHereToday
+        description="Only these players are shown while logging. Remembered on this phone until tomorrow."
+      />
+      <PlayerPickerSheet
+        open={morePickerOpen}
+        onOpenChange={setMorePickerOpen}
+        mode="single"
+        players={players}
+        disabledIds={assigned}
+        onPick={(p) => assign(p.id)}
+        title="Add another player"
+      />
+    </div>
   );
 }

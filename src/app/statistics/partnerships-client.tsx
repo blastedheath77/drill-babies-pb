@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -312,7 +314,7 @@ export function PartnershipsClientV2({
                             <div className="flex items-center gap-2 hover:underline cursor-pointer">
                               <Avatar className="h-7 w-7">
                                 <AvatarImage src={playerData.player.avatar} alt={playerData.player.name} />
-                                <AvatarFallback className="text-xs">{playerData.player.name.substring(0, 2)}</AvatarFallback>
+                                <AvatarFallback className="text-xs">{initials(playerData.player.name)}</AvatarFallback>
                               </Avatar>
                               <span className="font-medium">{playerData.player.name}</span>
                             </div>
@@ -370,7 +372,7 @@ export function PartnershipsClientV2({
                     <Link href={`/players/${playerData.player.id}`}>
                       <Avatar className="h-9 w-9">
                         <AvatarImage src={playerData.player.avatar} alt={playerData.player.name} />
-                        <AvatarFallback className="text-xs">{playerData.player.name.substring(0, 2)}</AvatarFallback>
+                        <AvatarFallback className="text-xs">{initials(playerData.player.name)}</AvatarFallback>
                       </Avatar>
                     </Link>
                     <div className="flex-1 min-w-0">

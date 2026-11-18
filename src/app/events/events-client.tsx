@@ -26,7 +26,7 @@ import type { Event, EventType } from '@/lib/types';
 
 export function EventsClient() {
   const { selectedClub, hasAnyClubs, isLoading: clubsLoading } = useClub();
-  const { isClubAdmin, user } = useAuth();
+  const { isAdmin: isAdminFn, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<EventType | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
@@ -49,7 +49,7 @@ export function EventsClient() {
   // Fetch user RSVPs for calendar view
   const { data: userRsvps } = useUserRsvpsInClub(user?.id, selectedClub?.id);
 
-  const isAdmin = selectedClub?.id ? isClubAdmin(selectedClub.id) : false;
+  const isAdmin = isAdminFn();
 
   // Convert user RSVPs to Map for O(1) lookups
   const userRsvpsMap = useMemo(() => {

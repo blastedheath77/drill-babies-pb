@@ -91,7 +91,7 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const { selectedClub } = useClub();
-  const { isClubAdmin } = useAuth();
+  const { isAdmin: isAdminFn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
   const [pendingValues, setPendingValues] = useState<EditEventFormValues | null>(null);
@@ -101,7 +101,7 @@ export function EditEventForm({ eventId }: EditEventFormProps) {
   const { data: event, isLoading: eventLoading, error: eventError } = useEvent(eventId);
   const updateMutation = useUpdateEvent();
 
-  const isAdmin = selectedClub?.id ? isClubAdmin(selectedClub.id) : false;
+  const isAdmin = isAdminFn();
 
   const form = useForm<EditEventFormValues>({
     resolver: zodResolver(editEventFormSchema),

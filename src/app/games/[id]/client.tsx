@@ -1,5 +1,7 @@
 'use client';
 
+import { initials } from '@/lib/utils';
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,6 +28,7 @@ import { useAllGames } from '@/hooks/use-games';
 import { useAuth } from '@/contexts/auth-context';
 import { getDisplayRating, shouldShowRatingChanges } from '@/lib/player-privacy';
 import type { Game } from '@/lib/types';
+import { AdminGameControls } from '@/components/admin-game-controls';
 
 interface GameDetailsClientProps {
   gameId: string;
@@ -120,12 +123,13 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
-        <div>
+        <div className="flex-1">
           <PageHeader
             title="Match Summary"
             description={`${game.type} match on ${formatDate(game.date)}`}
           />
         </div>
+        {isAdmin() && <AdminGameControls game={game} />}
       </div>
 
       {/* Match Overview Stats */}
@@ -185,7 +189,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={player.avatar} alt={player.name} />
-                    <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                    <AvatarFallback>{initials(player.name)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <Link
@@ -247,7 +251,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={player.avatar} alt={player.name} />
-                    <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                    <AvatarFallback>{initials(player.name)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <Link
@@ -319,7 +323,7 @@ export function GameDetailsClient({ gameId }: GameDetailsClientProps) {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={player.avatar} alt={player.name} />
-                        <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                        <AvatarFallback>{initials(player.name)}</AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">{player.name}</p>

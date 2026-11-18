@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@/components/error-boundary';
 import { SettingsClient } from './settings-client';
 
 interface SettingsPageProps {
@@ -7,5 +8,9 @@ interface SettingsPageProps {
 }
 
 export default function SettingsPage({ params }: SettingsPageProps) {
-  return <SettingsClient boxLeagueId={params.id} />;
+  return (
+    <ErrorBoundary>
+      <SettingsClient boxLeagueId={params.id} />
+    </ErrorBoundary>
+  );
 }

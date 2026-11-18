@@ -1,331 +1,255 @@
 rules_version = '2';
 
 /**
- * PBstats Firestore Security Rules
+ * PBstats Firestore Security Rules (single club)
  *
- * Multi-Club Support Implementation
+ * - Members (signed-in users whose profile lists the club in clubMemberships,
+ *   plus admins) can read everything in the club.
+ * - Games, and players' rating / win-loss / points fields, are written ONLY by
+ *   the server (Admin SDK, which bypasses these rules). That keeps ratings
+ *   trustworthy: the browser can never set them directly.
+ * - Players (role 'player') can run sessions, box leagues and fixtures.
+ * - Admins (role 'admin', legacy 'club_admin', or clubRoles[CLUB] ==
+ *   'club_admin') can also manage events, delete things, and edit players.
+ * - Viewers are read-only.
  *
- * Security Model:
- * - Users can only access data from clubs they belong to
- * - Global admins have full access to all data
- * - Club admins can manage their club's data
- * - All data must have a clubId (except users and clubs collections)
- * - Users can only read/update their own user document
- *
- * Role Hierarchy:
- * 1. Global Admin (role: 'admin') - Full system access
- * 2. Club Admin (clubRoles[clubId]: 'club_admin') - Full access to their club
- * 3. Member (clubMemberships includes clubId) - Read access to their club
- * 4. Viewer (role: 'viewer') - Read-only access to their clubs
+ * Keep CLUB in sync with NEXT_PUBLIC_CLUB_ID / src/config/club.ts.
  */
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ============================================================
-    // HELPER FUNCTIONS
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
 
-    /**
-     * Check if user is authenticated
-     */
-    function isAuthenticated() {
+    function club() {
+      return 'N2M9BCBuEdE1JKbC93IK';
+    }
+
+    function signedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Check if user is a global admin
-     */
-    function isGlobalAdmin() {
-      return isAuthenticated() &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    /**
-     * Check if user has access to a specific club
-     * User must be a member of the club (clubId in their clubMemberships array)
-     */
-    function hasClubAccess(clubId) {
-      return isAuthenticated() &&
-             clubId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.clubMemberships;
+    function profile() {
+      return get(profilePath()).data;
     }
 
-    /**
-     * Check if user is a club admin for a specific club
-     */
-    function isClubAdmin(clubId) {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return isAuthenticated() &&
-             clubId in userData.clubMemberships &&
-             userData.clubRoles[clubId] == 'club_admin';
+    function hasProfile() {
+      return signedIn() && exists(profilePath());
     }
 
-    /**
-     * Check if user is either global admin or club admin for a specific club
-     */
-    function isAdminForClub(clubId) {
-      return isGlobalAdmin() || isClubAdmin(clubId);
+    function isAdmin() {
+      return hasProfile() && (
+        profile().role in ['admin', 'club_admin'] ||
+        profile().get('clubRoles', {}).get(club(), '') == 'club_admin'
+      );
     }
 
-    /**
-     * Check if user created the resource
-     */
-    function isCreator() {
-      return isAuthenticated() &&
-             resource.data.createdBy == request.auth.uid;
+    function isMember() {
+      return hasProfile() && (isAdmin() || club() in profile().get('clubMemberships', []));
     }
 
-    /**
-     * Validate that clubId is not being changed on update
-     */
-    function clubIdUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['clubId']);
+    // Members who may create and change club data (everyone except viewers)
+    function canWrite() {
+      return isMember() && profile().role != 'viewer';
     }
 
-    // ============================================================
-    // USERS COLLECTION
-    // ============================================================
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function onlyChanges(keys) {
+      return changedKeys().hasOnly(keys);
+    }
+
+    function inClub() {
+      return request.resource.data.clubId == club();
+    }
+
+    function clubUnchanged() {
+      return !changedKeys().hasAny(['clubId']);
+    }
+
+    // ------------------------------------------------------------------
+    // Users
+    // ------------------------------------------------------------------
 
     match /users/{userId} {
-      // Users can read their own profile
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
 
-      // Users can update their own profile (except role and club memberships)
-      allow update: if isAuthenticated() &&
+      // Self sign-up: always a plain player who joins the club, nothing more
+      allow create: if signedIn() &&
                        request.auth.uid == userId &&
-                       !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['role', 'clubMemberships', 'clubRoles']);
+                       request.resource.data.uid == userId &&
+                       request.resource.data.role == 'player' &&
+                       request.resource.data.get('clubMemberships', []) == [club()] &&
+                       !('clubRoles' in request.resource.data);
 
-      // Global admins can read all users
-      allow read: if isGlobalAdmin();
+      // Members can edit their own profile, but not their role or membership
+      allow update: if signedIn() &&
+                       request.auth.uid == userId &&
+                       !changedKeys().hasAny(['role', 'clubMemberships', 'clubRoles', 'uid']);
 
-      // Global admins and club admins can update user club memberships
-      allow update: if isGlobalAdmin();
-
-      // Only global admins can create users (typically done via Firebase Auth)
-      allow create: if isGlobalAdmin();
-
-      // Users cannot be deleted (deactivate instead)
+      allow update: if isAdmin();
       allow delete: if false;
     }
 
-    // ============================================================
-    // CLUBS COLLECTION
-    // ============================================================
-
+    // Legacy multi-club data, kept read-only
     match /clubs/{clubId} {
-      // Club members can read their club
-      allow read: if hasClubAccess(clubId);
-
-      // Only global admins can create clubs
-      allow create: if isGlobalAdmin() &&
-                       request.resource.data.isActive == true;
-
-      // Global admins and club admins can update their club
-      allow update: if isAdminForClub(clubId);
-
-      // Only global admins can delete clubs (soft delete by setting isActive to false)
-      allow delete: if isGlobalAdmin();
+      allow read: if isMember();
+      allow write: if false;
     }
 
-    // ============================================================
-    // PLAYERS COLLECTION
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Players: stats and ratings are server-only
+    // ------------------------------------------------------------------
 
     match /players/{playerId} {
-      // Users can read players from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
+      allow read: if isMember();
 
-      // Users can create players in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
+      // Created by the server (addPlayer action) so stats start clean
+      allow create: if false;
 
-      // Users can update players in their clubs (clubId cannot be changed)
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged();
+      // Any member can change a player's photo
+      allow update: if canWrite() && onlyChanges(['avatar']);
 
-      // Only admins can delete players
-      allow delete: if isAdminForClub(resource.data.clubId);
+      // Admins can edit profile fields, never the computed stats
+      allow update: if isAdmin() &&
+                       clubUnchanged() &&
+                       !changedKeys().hasAny(['rating', 'wins', 'losses', 'draws', 'pointsFor', 'pointsAgainst']);
+
+      allow delete: if isAdmin();
     }
 
-    // ============================================================
-    // GAMES COLLECTION
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Games: server-only writes (ratings are replayed on edit/delete)
+    // ------------------------------------------------------------------
 
     match /games/{gameId} {
-      // Users can read games from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Users can create games in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // Game creator or club admins can update games (for corrections)
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged() &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
-
-      // Only admins can delete games
-      allow delete: if isAdminForClub(resource.data.clubId);
+      allow read: if isMember();
+      allow write: if false;
     }
 
-    // ============================================================
-    // TOURNAMENTS COLLECTION
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Tournaments and quick-play sessions
+    // ------------------------------------------------------------------
 
     match /tournaments/{tournamentId} {
-      // Users can read tournaments from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Users can create tournaments in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // Tournament creator or club admins can update tournaments
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged() &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
-
-      // Only admins can delete tournaments
-      allow delete: if isAdminForClub(resource.data.clubId);
+      allow read: if isMember();
+      allow create: if canWrite() && inClub();
+      allow update: if canWrite() && clubUnchanged();
+      // Deleting removes rated games too, so it goes through the server
+      allow delete: if false;
     }
 
-    // ============================================================
-    // CIRCLES COLLECTION
-    // ============================================================
+    match /tournamentMatches/{matchId} {
+      allow read: if isMember();
+      allow create: if canWrite();
+      // Completing a match (status + gameId) happens on the server with the game
+      allow update: if canWrite() &&
+                       resource.data.status != 'completed' &&
+                       !changedKeys().hasAny(['gameId']) &&
+                       request.resource.data.status != 'completed';
+      // Only matches without a result can be removed from the browser
+      allow delete: if canWrite() && resource.data.status != 'completed';
+    }
+
+    // ------------------------------------------------------------------
+    // Groups (stored as circles)
+    // ------------------------------------------------------------------
 
     match /circles/{circleId} {
-      // Users can read circles from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Users can create circles in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // Circle creator or club admins can update circles
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged() &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
-
-      // Circle creator or club admins can delete circles
-      allow delete: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
+      allow read: if isMember();
+      allow create: if canWrite() && inClub();
+      allow update: if canWrite() && clubUnchanged();
+      allow delete: if isAdmin() || (canWrite() && resource.data.createdBy == request.auth.uid);
     }
 
-    // ============================================================
-    // BOX LEAGUES COLLECTION
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Box leagues (separate standings; do not affect ratings)
+    // ------------------------------------------------------------------
 
-    match /boxLeagues/{boxLeagueId} {
-      // Users can read box leagues from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Users can create box leagues in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // Box league creator or club admins can update box leagues
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged() &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
-
-      // Only admins can delete box leagues
-      allow delete: if isAdminForClub(resource.data.clubId);
+    match /boxLeagues/{id} {
+      allow read: if isMember();
+      allow create: if canWrite() && inClub();
+      allow update: if canWrite() && clubUnchanged();
+      allow delete: if isAdmin();
     }
 
-    // ============================================================
-    // EVENTS COLLECTION
-    // ============================================================
+    match /boxes/{id} {
+      allow read: if isMember();
+      allow write: if canWrite();
+    }
+
+    match /boxLeagueRounds/{id} {
+      allow read: if isMember();
+      allow write: if canWrite();
+    }
+
+    match /boxLeagueMatches/{id} {
+      allow read: if isMember();
+      allow write: if canWrite();
+    }
+
+    match /boxLeaguePlayerStats/{id} {
+      allow read: if isMember();
+      allow write: if canWrite();
+    }
+
+    // ------------------------------------------------------------------
+    // League fixtures and friendlies (do not affect ratings)
+    // ------------------------------------------------------------------
+
+    match /leagueGames/{id} {
+      allow read: if isMember();
+      allow create: if canWrite() && inClub();
+      allow update: if canWrite() && clubUnchanged();
+      allow delete: if isAdmin();
+    }
+
+    match /friendlies/{id} {
+      allow read: if isMember();
+      allow create: if canWrite() && inClub();
+      allow update: if canWrite() && clubUnchanged();
+      allow delete: if isAdmin() || (canWrite() && resource.data.createdBy == request.auth.uid);
+    }
+
+    // ------------------------------------------------------------------
+    // Events and RSVPs
+    // ------------------------------------------------------------------
 
     match /events/{eventId} {
-      // Users can read events from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Only club admins can create events
-      allow create: if isAuthenticated() &&
-                       isAdminForClub(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // Only club admins can update events
-      allow update: if isAuthenticated() &&
-                       isAdminForClub(resource.data.clubId) &&
-                       clubIdUnchanged();
-
-      // Only club admins can delete events
-      allow delete: if isAdminForClub(resource.data.clubId);
+      allow read: if isMember();
+      allow create: if isAdmin() && inClub();
+      allow update: if isAdmin() && clubUnchanged();
+      // RSVPing updates the counts on the event
+      allow update: if isMember() && onlyChanges(['rsvpCounts']);
+      allow delete: if isAdmin();
     }
-
-    // ============================================================
-    // EVENT RSVPS COLLECTION
-    // ============================================================
 
     match /eventRsvps/{rsvpId} {
-      // Users can read RSVPs from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Users can create their own RSVPs for events in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.auth.uid == request.resource.data.userId &&
-                       request.resource.data.clubId is string;
-
-      // Users can update their own RSVPs
-      allow update: if isAuthenticated() &&
-                       request.auth.uid == resource.data.userId;
-
-      // Users can delete their own RSVPs, or club admins can delete any RSVP
-      allow delete: if isAuthenticated() &&
-                       (request.auth.uid == resource.data.userId ||
-                        isAdminForClub(resource.data.clubId));
+      allow read: if isMember();
+      allow create: if isMember() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       rsvpId == request.resource.data.eventId + '_' + request.auth.uid;
+      allow update: if isMember() &&
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin() || (isMember() && resource.data.userId == request.auth.uid);
     }
 
-    // ============================================================
-    // LEAGUE GAMES COLLECTION
-    // ============================================================
+    // ------------------------------------------------------------------
+    // Server-only
+    // ------------------------------------------------------------------
 
-    match /leagueGames/{leagueGameId} {
-      // Club members can read league games from their clubs
-      allow read: if isAuthenticated() &&
-                     hasClubAccess(resource.data.clubId);
-
-      // Club members can create league games in their clubs
-      allow create: if isAuthenticated() &&
-                       hasClubAccess(request.resource.data.clubId) &&
-                       request.resource.data.clubId is string;
-
-      // League game creator or club admins can update (score entry, DUPR submission)
-      allow update: if isAuthenticated() &&
-                       hasClubAccess(resource.data.clubId) &&
-                       clubIdUnchanged() &&
-                       (isCreator() || isAdminForClub(resource.data.clubId));
-
-      // Only admins can delete league games
-      allow delete: if isAdminForClub(resource.data.clubId);
+    match /passwordResets/{token} {
+      allow read, write: if false;
     }
 
-    // ============================================================
-    // DEFAULT DENY ALL
-    // ============================================================
-
-    // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;
     }

@@ -113,7 +113,7 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{clubName} Circles</h1>
+            <h1 className="text-2xl font-bold">Groups</h1>
             <p className="text-muted-foreground">
               No circles created yet{selectedClub ? ` in ${clubName}` : ''}. Create your first circle to start organizing players.
             </p>
@@ -121,7 +121,7 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
           <CircleFormDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Create Circle
+              Create Group
             </Button>
           </CircleFormDialog>
         </div>
@@ -130,15 +130,15 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CircleIcon className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Circles Found</h3>
+            <h3 className="text-lg font-semibold mb-2">No Groups Yet</h3>
             <p className="text-muted-foreground text-center mb-6 max-w-md">
               Create circles to group players for easier filtering of statistics and leaderboards.
-              Each circle can contain any number of players.
+              Each group can contain any number of players.
             </p>
             <CircleFormDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Create Your First Circle
+                Create Your First Group
               </Button>
             </CircleFormDialog>
           </CardContent>
@@ -152,12 +152,12 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{clubName} Circles</h1>
+          <h1 className="text-2xl font-bold">Groups</h1>
         </div>
         <CircleFormDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            Create Circle
+            Create Group
           </Button>
         </CircleFormDialog>
       </div>
@@ -168,7 +168,7 @@ export function CirclesClient({ initialCircles }: CirclesClientProps) {
           <CircleCard
             key={circle.id}
             circle={circle}
-            playerCount={'playerCount' in circle ? circle.playerCount : circle.playerIds.length}
+            playerCount={(circle as Circle & { playerCount?: number }).playerCount ?? circle.playerIds.length}
           />
         ))}
       </div>
